@@ -5,6 +5,11 @@ Consciousness -
 Sensory Input - 
 Intuition - black box, selects current context. May lead to "aha" moments or simply 
 
+### Assumptions
+
+Assumes consciousness to be an emergent property of the brain.
+Assumes that conscious agents do not exert control over their current context, rather the current context is dictated by the current brain-body state according to current and previous sensory input and selected context.
+
 ## Challenges
 
 Determine training/validation and problem to apply to
