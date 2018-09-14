@@ -28,7 +28,7 @@ The analytical layer examines the output-nodes of the attentive layer to draw co
 Analyst - Accepts highest weighted input. What does it do with the input? Can it override the weights? We can't choose to focus on one context or another, rather, the environment dictates
 
 ## Notes
-
+The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
 Note: With A arranged in this way, each ANN's output is dependent on current sensory input as well as the agent's current context.
 Note: An additional set of input nodes for each ANN may eventually be explored, to represent short/long term working memory.
 and the realization that moving from one context to the next is often (if not always) completely subconscious.
