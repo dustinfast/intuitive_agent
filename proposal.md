@@ -16,9 +16,7 @@ One defining aspect of human intelligence is our ability to subconsciously form 
 
 That we experience these changes of awareness unwillingly provides powerful clues to the underlying mechanisms of intuition and consciousness. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" switches contexts according to its "intuition". If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
 
-## Implementation
-
-The agent shall be developed in Python using readily available machine learning and evolutionary programming libraries.
+The agent will be developed in Python using readily available machine learning and evolutionary programming libraries.
 
 ## The Agent
 
