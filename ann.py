@@ -8,14 +8,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable as V
-import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 
 
 class ANN(nn.Module):
     """ An abstraction of an artificial neural network with 3 fully connected
         layers: input layer x, hidden layer h, and output layer y.
-        # TODO: N hidden layers
+        # TODO: n hidden layers
     """
     def __init__(self, dimens, f_activation=nn.Sigmoid, f_loss=nn.MSELoss):
         """ dimens (3-tuple):           Denotes node counts for layers x, y, z
@@ -42,8 +42,9 @@ class ANN(nn.Module):
         str_out = str(ann.f_x) + '\n'
         str_out += str(ann.f_h) + '\n'
         str_out += str(ann.f_y)
+        return str_out
 
-    def forward(self, tensor):
+    def forward(self, t):
         """ Feeds the given tensor through the ANN, updating self.output.
         """
         # TODO: Validate size
@@ -53,17 +54,25 @@ class ANN(nn.Module):
         self.output = F.softmax(y)      # "Classify" output layer
         return y
 
-    def do_train(self, data, epochs=1000, lr=.01, alpha=.4, status_at=100):
+    def train(self, data, epochs=1000, lr=.01, alpha=.4, stats_at=100):
         """ Trains the ANN according to the given parameters.
-            data:   Training data, of form [ label [ inputs ] ] 
+            data:               Training data, as a Dataloader or csv file name
+            epochs (int):       Learning iterations
+            lr (float):         Learning rate
+            alpha (float):      Learning momentum
+            stats_at (int):     Print status every stats_at epochs (0=never)
         """
+        # Load dataset from file, if needed
+        if type(data) is str:
+            features = Dataset(data)
+
         # Optimization function
-        optimizer = optim.SGD(ann.parameters(), lr=lr, momentum=alpha)
+        optimizer = torch.optim.SGD(ann.parameters(), lr=lr, momentum=alpha)
 
         # Do training epochs
         for epoch in range(epochs):
-            for row in data:
-                inputs, label = iter(row)
+            for feature in features:
+                inputs, label = iter(feature)
                 inputs = V(torch.FloatTensor([inputs]), requires_grad=True)
                 label = V(torch.FloatTensor([label]), requires_grad=False)
                 optimizer.zero_grad()
@@ -71,7 +80,7 @@ class ANN(nn.Module):
                 curr_loss = self.loss(pred_label, label)
                 curr_loss.backward()
                 optimizer.step()
-            if (status_at and epoch % status_at == 0):
+            if (stats_at and epoch % stats_at == 0):
                 print("Epoch {} - loss: {}".format(epoch, curr_loss))
 
     def save_model(self, filename):
@@ -81,72 +90,37 @@ class ANN(nn.Module):
         raise NotImplementedError
 
 
-class CSVFeatureSet(Dataset):
-    """A set of label to feature-vector associations, populated from CSV file.
+class Featureset(Dataset):
+    """ A set of label to feature-vector associations, populated from CSV file.
     """
-    def __init__(self, csv_file):
-        """ csv_file (string): 
+    def __init__(self, csv_file, header=None):
+        """ csv_file (string):  CSV file of form: "label, feat_1, ... , feat_n"
         """
-        self.features = pd.read_csv(csv_file)
+        self.featureset = pd.read_csv(csv_file, header=header)
+
+        # debug
+        print('Featureset loaded - First row  = ')
+        print(self[0]['label'], self[0]['features'])
 
     def __len__(self):
-        return len(self.landmarks_frame)
+        return len(self.featureset)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir,
-                                self.landmarks_frame.iloc[idx, 0])
-        image = io.imread(img_name)
-        landmarks = self.landmarks_frame.iloc[idx, 1:].as_matrix()
-        landmarks = landmarks.astype('float').reshape(-1, 2)
-        sample = {'image': image, 'landmarks': landmarks}
+        label = self.featureset.iloc[idx, 0]
+        features = self.featureset.iloc[idx, 1:].values
+        features = features.astype('float').reshape(1, -1)
+        feature = {'label': label, 'features': features}
+        return feature
 
-        if self.transform:
-            sample = self.transform(sample)
-
-        return sample
 
 ann = ANN((16, 14, 26))
 # ann = ANN((16, 14, 26), f_activation=nn.ReLU)
 
-print('Layers:\n')
+print('Layers:')
 print(str(ann))
 
-print('\nLoading data...')
-# Load data from file
-datafile = 'datasets/letter_train.data'
-pd.read_csv(csv)
-
-data = [ None, [] ]
-try:
-    with open(datafile, 'r') as f:
-        for ln in f:
-            if ln != '\n':
-                print(ln)
-except:
-    print('Error reading data file: ' + datafile)
-    exit(0)
-
-print('\nDone. Data size: ' + 
-
-data = [(1, 3), (2, 6), (3, 9), (4, 12), (5, 15), (6, 18)]
-
-for epoch in range(1000):
-    for i, data2 in enumerate(data):
-        inputs, label = iter(data2)
-        inputs = Variable(torch.FloatTensor([inputs]), requires_grad=True)
-        label = Variable(torch.FloatTensor([label]), requires_grad=False)
-        optimizer.zero_grad()  # zero the parameter gradients
-        y_pred = ann(inputs)
-        # print('Given: ' + str(label))
-        # print('Pred: ' + str(y_pred))
-        loss = criterion(y_pred, label)
-        loss.backward()
-        optimizer.step()
-    if (epoch % 20 == 0.0):
-        print("Epoch {} - loss: {}".format(epoch, loss))
-
-
-exit(0)
-
-    
+print('\nLoading Featureset...')
+datafile = 'datasets/test.data'
+# datafile = 'datasets/letter_train.data'
+data = Featureset(datafile)  
 
