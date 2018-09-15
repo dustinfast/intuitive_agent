@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """ An Artificial Neural Network (ANN) implemented using PyTorch.
 
+    The ANN functions as a classifier, with the output classification denoted
+    by the active (y=1) output node.
+    Feature extraction from CSV is facilitated via FeaturesFromCSV()
+
     Author: Dustin Fast, Fall, 2018
 """
 
@@ -25,14 +29,14 @@ class ANN(nn.Module):
         super(ANN, self).__init__()
         self.input_len = dimens[0]
         self.output_len = dimens[2]
-        self.intput = torch.randn(dimens[0])
+        self.input = torch.randn(dimens[0])
         self.output = torch.randn(dimens[2])
         
         # Activaton and loss functions
         self.f_act = f_activation()
         self.f_loss = f_loss()
 
-        # Layer summation functions
+        # Layer summations
         self.f_x = nn.Linear(dimens[0], dimens[1], bias=True)
         self.f_h = nn.Linear(dimens[1], dimens[2], bias=True)
         self.f_y = nn.Linear(dimens[2], dimens[2], bias=True)
@@ -51,10 +55,11 @@ class ANN(nn.Module):
         x = self.f_act(self.f_x(t))     # Update input layer
         h = self.f_act(self.f_h(x))     # Update hidden layer
         y = self.f_act(self.f_y(h))     # Update output layer
-        self.output = F.softmax(y, 0)
+        self.output = F.relu(y)  # TODO: Test w no relu
+        # self.output = F.softmax(y, 0)
         return self.output
 
-    def train(self, data, epochs=1000, lr=.1, alpha=.3, stats_at=10):
+    def train(self, data, epochs=1000, lr=.1, alpha=.4, stats_at=5):
         """ Trains the ANN according to the given parameters.
             data (DataLoader):  Training dataset, as a PyTorch DataLoader
             epochs (int):       Learning iterations
@@ -72,9 +77,9 @@ class ANN(nn.Module):
                 # print(inputs)
                 # print(target)
                 optimizer.zero_grad()
-                pred = self(inputs)
+                outputs = self(inputs)
                 # print(pred)
-                curr_loss = self.f_loss(pred, target)
+                curr_loss = self.f_loss(outputs, target)
                 curr_loss.backward()
                 optimizer.step()
 
@@ -84,8 +89,21 @@ class ANN(nn.Module):
 
         print('DEBUG: Training Complete')
 
-    def validate(self):
-        raise NotImplementedError
+    def validate(self, data):
+        """ Validates the ANN against the given data set.
+        """
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for feature in data:
+                inputs, targets = iter(feature)
+                outputs = self(inputs)
+                _, predicted = torch.max(outputs, 0)
+                total += targets.size(0)
+                if outputs.data == targets:
+                    correct += 1
+
+        print('Validaton Complete. Accuracy: %d %%' % (100 * correct / total))
 
     def save_model(self, filename):
         print(list(self.parameters()))
@@ -112,7 +130,7 @@ class FeaturesFromCSV(Dataset):
         # Init inputs, normalizing as specified
         inputs = data.loc[:, 1:]
         if self.norm:
-            inputs = self.normalize(inputs)
+            inputs = self.normalize(inputs)  # TODO: inputs.apply(self.normalize)
         self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
 
         # Init targets
@@ -120,7 +138,7 @@ class FeaturesFromCSV(Dataset):
         targets = targets.apply(lambda x: self._map_tgt(x.iloc[0]), axis=1)
         self.targets = targets
 
-        print('DEBUG: FeaturesFromCSV loaded...\n' + str(self))  # debug
+        # print('DEBUG: FeaturesFromCSV loaded...\n' + str(self))  # debug
 
     def __str__(self):
         str_out = 'Classes: ' + str(self.classes) + '\n'
@@ -135,7 +153,7 @@ class FeaturesFromCSV(Dataset):
         tgt_width = len(self.classes)
         target = torch.tensor([0 for x in range(tgt_width)], dtype=torch.float)
         target[self.classes.index(label)] = 1
-        # print(target)
+        # print(target)  # debug
         return target
 
     def __len__(self):
@@ -152,63 +170,24 @@ class FeaturesFromCSV(Dataset):
 
 
 if __name__ == '__main__':
-    # datafile = 'datasets/test.data'
-    datafile = 'datasets/letter_train.data'
-    data = FeaturesFromCSV(datafile, (0, 15)) 
+    trainfile = 'datasets/letter_train.data'
+    # trainfile = 'datasets/test.data'
+    train_data = FeaturesFromCSV(trainfile, (0, 15)) 
+    valfile = 'datasets/test.data'
+    val_data = FeaturesFromCSV(valfile, (0, 15))
 
-    ann = ANN((16, 14, len(data.classes)))
+    # in_nodes = len(train_data.inputs)
+    print(len(train_data.inputs))
+    out_nodes = len(train_data.classes)
+
+    ann = ANN((16, 14, out_nodes))
 
     print('DEBUG: Layers:')
     print(str(ann))
 
-    ann.train(data)
+    ann.train(train_data)
+
+    # Test ff
+    print(ann(V(torch.Tensor([[[1]]]))))
+    # ann.validate(val_data)
     exit(0)
-
-
-    # ###############################################
-    # Validation
-
-    dataiter = iter(testloader)
-    images, labels = dataiter.next()
-
-    print('Given: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
-    outputs = net(images)
-
-    _, predicted = torch.max(outputs, 1)
-
-    print('Predicted: ', ' '.join('%5s' %
-                                  classes[predicted[j]] for j in range(4)))
-
-    if DO_WHOLE_SET:
-        # ###################################################
-        # Test against whole data set
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for data in testloader:
-                images, labels = data
-                outputs = net(images)
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        print('Accuracy of the network on the 10000 test images: %d %%' % (
-            100 * correct / total))
-
-        # Determine accuracy by class
-        class_correct = list(0. for i in range(10))
-        class_total = list(0. for i in range(10))
-        with torch.no_grad():
-            for data in testloader:
-                images, labels = data
-                outputs = net(images)
-                _, predicted = torch.max(outputs, 1)
-                c = (predicted == labels).squeeze()
-                for i in range(4):
-                    label = labels[i]
-                    class_correct[label] += c[i].item()
-                    class_total[label] += 1
-
-        for i in range(10):
-            print('Accuracy of %5s : %2d %%' % (
-                classes[i], 100 * class_correct[i] / class_total[i]))
