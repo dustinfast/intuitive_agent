@@ -27,7 +27,6 @@ class ANN(nn.Module):
         self.output_len = dimens[2]
         self.intput = torch.randn(dimens[0])
         self.output = torch.randn(dimens[2])
-        # self.output = F.softmax(torch.randn(dimens[1]))  # softmax(y)
         
         # Activaton and loss functions
         self.f_act = f_activation()
@@ -49,14 +48,13 @@ class ANN(nn.Module):
     def forward(self, t):
         """ Feeds the given tensor through the ANN, updating self.output.
         """
-        # TODO: Validate size
         x = self.f_act(self.f_x(t))     # Update input layer
         h = self.f_act(self.f_h(x))     # Update hidden layer
         y = self.f_act(self.f_y(h))     # Update output layer
         self.output = F.softmax(y, 0)
         return self.output
 
-    def train(self, data, epochs=1, lr=.01, alpha=.4, stats_at=1000):
+    def train(self, data, epochs=1000, lr=.1, alpha=.3, stats_at=10):
         """ Trains the ANN according to the given parameters.
             data (DataLoader):  Training dataset, as a PyTorch DataLoader
             epochs (int):       Learning iterations
@@ -71,21 +69,23 @@ class ANN(nn.Module):
         for epoch in range(epochs):
             for feature in data:
                 inputs, target = iter(feature)
+                # print(inputs)
+                # print(target)
                 optimizer.zero_grad()
-                print(inputs[0])
                 pred = self(inputs)
-                print('Target: ' + str(target))
-                print('Pred T: ' + str(pred))
-                print('Pred M: ' + str(pred.max(0)))
-                curr_loss = self.f_loss(pred.max(0)[0], target)
+                # print(pred)
+                curr_loss = self.f_loss(pred, target)
                 curr_loss.backward()
                 optimizer.step()
 
-            # Output status according to stats_at
+            # Output status, per stats_at
             if (stats_at and epoch % stats_at == 0):
                     print("Epoch {} - loss: {}".format(epoch, curr_loss))
 
         print('DEBUG: Training Complete')
+
+    def validate(self):
+        raise NotImplementedError
 
     def save_model(self, filename):
         print(list(self.parameters()))
@@ -98,30 +98,27 @@ class FeaturesFromCSV(Dataset):
     """ A set of inputs and targets (i.e. labels and features), populated from
         the given CSV file.
     """
-    def __init__(self, csvfile, char_targets=False, norm=None):
+    def __init__(self, csvfile, norm=None):
         """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
-
+            norm (2-tuple):     Normalization range, as (min, max)
         """
         data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
         
-        self.classes = list(data[0].unique())   # Unique feature classes
-        self.targets = None                     # 2D Targets tensor
-        self.inputs = None                      # 3D Inputs tensor
-        self.norm = norm                        # Normalization range
+        self.classes = list(data[0].unique())       # Unique feature classes
+        self.inputs = None                          # 3D Inputs tensor
+        self.targets = None                         # 3D Targets tensor
+        self.norm = norm                            # Normalization range
         
-        # Init targets, converting to strings if necessary
-        targets = data.loc[:, :0] 
-        if char_targets:
-            targets = targets.apply(lambda x: self.map_str(x.iloc[0]), axis=1)
-
-        # Init inputs, normalizing if necessary
+        # Init inputs, normalizing as specified
         inputs = data.loc[:, 1:]
         if self.norm:
             inputs = self.normalize(inputs)
-
-        # Set up tensors, with the input gradients tracked by PyTorch
-        self.targets = V(torch.FloatTensor(targets), requires_grad=False)
         self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
+
+        # Init targets
+        targets = data.loc[:, :0] 
+        targets = targets.apply(lambda x: self._map_tgt(x.iloc[0]), axis=1)
+        self.targets = targets
 
         print('DEBUG: FeaturesFromCSV loaded...\n' + str(self))  # debug
 
@@ -130,6 +127,16 @@ class FeaturesFromCSV(Dataset):
         str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
         str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
         return str_out
+
+    def _map_tgt(self, label):
+        """ Given a class label, returns a torch.zeroes with torch[label] = 1
+            Necessary to map each class to an output node
+        """
+        tgt_width = len(self.classes)
+        target = torch.tensor([0 for x in range(tgt_width)], dtype=torch.float)
+        target[self.classes.index(label)] = 1
+        # print(target)
+        return target
 
     def __len__(self):
         return len(self.targets)
@@ -143,20 +150,16 @@ class FeaturesFromCSV(Dataset):
     def normalize(self, x):
         return (x - self.norm[0]) / (self.norm[1] - self.norm[0])
 
-    def map_str(self, string):
-        return self.classes.index(string)
-
 
 if __name__ == '__main__':
-    ann = ANN((16, 14, 3))
-    # ann = ANN((16, 14, 26), f_activation=nn.ReLU)
+    # datafile = 'datasets/test.data'
+    datafile = 'datasets/letter_train.data'
+    data = FeaturesFromCSV(datafile, (0, 15)) 
+
+    ann = ANN((16, 14, len(data.classes)))
 
     print('DEBUG: Layers:')
     print(str(ann))
-
-    datafile = 'datasets/test3.data'
-    # datafile = 'datasets/letter_train.data'
-    data = FeaturesFromCSV(datafile, True, (0, 15)) 
 
     ann.train(data)
     exit(0)
