@@ -14,11 +14,25 @@ Assumes that conscious agents do not exert control over their current context, r
 
 Determine training/validation and problem to apply to
 
-## Toggle-able learning variables
+## Data 
 
-1. Consider k_1 - k_m iff k_0
+Extract w pandas: 
 
-## Memory 
+Data Set and set description can be found at:
+https://archive.ics.uci.edu/ml/datasets/Letter+Recognition
+
+## Learning variables
+
+LEARNING_ITERATIONS
+LEARNING_RATE
+BIAS
+BIAS_WEIGHT
+NETWORK_LAYERS
+NETWORK_LAYER_COUNT
+TRAINING_DATAFILE
+VALIDATION_DATAFILE
+
+## Memory
 
  Each queue, q_i, receives input from ANN a_i. The queue implementation represents the limited working memory of a human !!!!!!as each element in the queue is used as input to each ANN. A set of n FIFO queues of depth d. 
 
@@ -33,19 +47,17 @@ Note: With A arranged in this way, each ANN's output is dependent on current sen
 Note: An additional set of input nodes for each ANN may eventually be explored, to represent short/long term working memory.
 and the realization that moving from one context to the next is often (if not always) completely subconscious.
 The attenuator pops an element from each input-layer pipe, assigns it a weight, and the weighted elements to the output layer. The weight assigned is dictated by an evolutionary function implemented via a genetic algorithm. HEURISTIC??
-Expand intutive layer to include a shove queue representing workig memeory
+Expand intutive layer to include a shove queue representing working memeory
 Why only 3 systems?
 Further, it appears we can only go one level "up" - a person has the ability to think about themselves, but they cannot think about themselves thinking, therefore, there appears again to be two two primary "systems" at work - the data "filter", or "pattern recognizer" and the analytical agent.
 
 It attempts to model as either contributing to homeostasis, or not
 
 Apply to:
-	a_0 = digits, a_1 = letters. Success = Connecting of concepts
-	maze navigation?
-	NLP?
-	"Hand" counting to N in sequence?
-	Each ANN is digit classifier: get agent to spell a word - on success, no store state -genetic alg does work each time.
-	Pick out patterns across each input from noise?
+	Each ANN is an i_th letter classifier: get attentive layer to find new words
+	a_0 equals 0th digit, a_1 = 1th digit. Attentive layer discovers digits such as pi.
+	maze navigation
+	Pick out patterns from noise
 	Give two forms of an equation and determine which is "better"
 	Each ann is a mode of operation
 	Agent decides some binary conceptual comparison-based decision
