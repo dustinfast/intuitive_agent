@@ -30,17 +30,90 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 
 
+class DataFromCSV(Dataset):
+    """ A set of inputs and targets (i.e. labels and features) for ANN(),
+        populated from the given CSV file.
+    """
+
+    def __init__(self, csvfile, norm=None):
+        """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
+            norm (2-tuple):     Normalization range, as (min, max). None OK.
+        """
+        data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
+
+        self.classes = list(data[0].unique())       # Unique instance classes
+        self.class_count = len(self.classes)        # Num unique classes
+        self.feature_count = None                   # Num input features
+        self.inputs = None                          # 3D Inputs tensor
+        self.targets = None                         # 3D Targets tensor
+        self.norm = norm                            # Normalization range
+
+        # Init inputs, normalizing as specified
+        inputs = data.loc[:, 1:]
+        if self.norm:
+            inputs.apply(self.normalize)
+        self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
+        self.feature_count = self.inputs.size()[1]
+
+        # Init targets
+        targets = data.loc[:, :0]
+        targets = targets.apply(
+            lambda t: self._class_to_node(t.iloc[0]), axis=1)
+        self.targets = targets
+
+    def __str__(self):
+        str_out = 'Classes: ' + str(self.classes) + '\n'
+        str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
+        str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
+        return str_out
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+    def _class_to_node(self, label):
+        """ Given a class label, returns zeroed tensor with tensor[label] = 1.
+            Facilitates mapping each class to its corresponding output node
+        """
+        tgt_width = len(self.classes)
+        target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
+        target[self.classes.index(label)] = 1
+        return target
+
+    def class_from_node(self, t):
+        """ Given an output level tensor, returns the mapped classification.
+        """
+        _, idx = torch.max(t, 0)
+        return self.classes[idx]
+
+    def dataloader(self, batch_sz=4, workers=2):
+        """ Returns a torch.utils.Data.DataLoader representation of the set.
+        """
+        # TODO: return DataLoader(self, batch_size=batch_sz, num_workers=workers)
+        raise NotImplementedError
+
+    def normalize(self, t):
+        """ Returns a normalized representation of the given tensor. 
+        """
+        return (t - self.norm[0]) / (self.norm[1] - self.norm[0])
+
+
 class ANN(nn.Module):
     """ An artificial neural network with fully connected layers x, y, and z,
         with each layer represented as a tensor.
         """
-    def __init__(self, dimens, f_activation=nn.Sigmoid, f_loss=nn.MSELoss):
-        """ dimens (3-tuple):           Node counts by layer (x, y, z)
+    def __init__(self, ID, dimens, f_activation=nn.Sigmoid, f_loss=nn.MSELoss):
+        """ If ID, the model will 
+            ID (int)        :           This ANNs unique ID
+            dimens (3-tuple):           Node counts by layer (x, y, z)
             f_activation (nn.Layer):    Node activation function
             f_loss (nn.LossFunction):   Loss function
         """
         super(ANN, self).__init__()
-
+        self.ID = ID
+        
         # Layer defs
         self.x_sz = dimens[0]
         self.y_sz = dimens[2]
@@ -72,7 +145,7 @@ class ANN(nn.Module):
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=50, lr=.1, alpha=.7, stats_at=10):
+    def train(self, data, epochs=50, lr=.1, alpha=.4, stats_at=10):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -80,6 +153,7 @@ class ANN(nn.Module):
             alpha (float):      Learning momentum
             stats_at (int):     Print status every stats_at epochs (0=never)
         """
+        # TODO: Noise param
         # Status info
         train_str = '{} epochs @ lr={}, alpha={}...'.format(epochs, lr, alpha)
         if stats_at:
@@ -147,74 +221,6 @@ class ANN(nn.Module):
         raise NotImplementedError
 
 
-class DataFromCSV(Dataset):
-    """ A set of inputs and targets (i.e. labels and features) for ANN(),
-        populated from the given CSV file.
-    """
-    def __init__(self, csvfile, norm=None):
-        """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
-            norm (2-tuple):     Normalization range, as (min, max). None OK.
-        """
-        data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
-        
-        self.classes = list(data[0].unique())       # Unique instance classes
-        self.class_count = len(self.classes)        # Num unique classes
-        self.feature_count = None                   # Num input features
-        self.inputs = None                          # 3D Inputs tensor
-        self.targets = None                         # 3D Targets tensor
-        self.norm = norm                            # Normalization range
-        
-        # Init inputs, normalizing as specified
-        inputs = data.loc[:, 1:]
-        if self.norm:
-            inputs.apply(self.normalize)
-        self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
-        self.feature_count = self.inputs.size()[1]
-
-        # Init targets
-        targets = data.loc[:, :0] 
-        targets = targets.apply(lambda t: self._class_to_node(t.iloc[0]), axis=1)
-        self.targets = targets
-
-    def __str__(self):
-        str_out = 'Classes: ' + str(self.classes) + '\n'
-        str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
-        str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
-        return str_out
-
-    def __len__(self):
-        return len(self.targets)
-
-    def __getitem__(self, idx):
-        return self.inputs[idx], self.targets[idx]
-
-    def _class_to_node(self, label):
-        """ Given a class label, returns zeroed tensor with tensor[label] = 1.
-            Facilitates mapping each class to its corresponding output node
-        """
-        tgt_width = len(self.classes)
-        target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
-        target[self.classes.index(label)] = 1
-        return target
-
-    def class_from_node(self, t):
-        """ Given an output level tensor, returns the mapped classification.
-        """
-        _, idx = torch.max(t, 0)
-        return self.classes[idx]
-
-    def dataloader(self, batch_sz=4, workers=2):
-        """ Returns a torch.utils.Data.DataLoader representation of the set.
-        """
-        # TODO: return DataLoader(self, batch_size=batch_sz, num_workers=workers)
-        raise NotImplementedError
-
-    def normalize(self, t):
-        """ Returns a normalized representation of the given tensor. 
-        """
-        return (t - self.norm[0]) / (self.norm[1] - self.norm[0])
-
-
 if __name__ == '__main__':
     trainfile = 'datasets/letter_train.data'
     valfile = 'datasets/letter_val.data'
@@ -230,7 +236,7 @@ if __name__ == '__main__':
     h_sz = 14
     y_sz = train_data.class_count
 
-    ann = ANN((x_sz, h_sz, y_sz))
+    ann = ANN(0, (x_sz, h_sz, y_sz))
     print('Using ANN w/ dimens :\n' + str(ann))
 
     ann.train(train_data)
