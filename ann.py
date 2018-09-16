@@ -113,7 +113,6 @@ class ANN(nn.Module):
         total = 0
         class_acc = {c[0]: (0, 0) for c in data.classes}  # {label: (correct, outof)}
 
-
         with torch.no_grad():
             for row in data:
                 inputs, target = iter(data)
@@ -152,11 +151,13 @@ class DataFromCSV(Dataset):
     """
     def __init__(self, csvfile, norm=None):
         """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
-            norm (2-tuple):     Input normalization range, as (min, max)
+            norm (2-tuple):     Normalization range, as (min, max). None OK.
         """
         data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
         
-        self.classes = list(data[0].unique())       # Unique feature classes
+        self.classes = list(data[0].unique())       # Unique instance classes
+        self.class_count = len(self.classes)        # Num unique classes
+        self.feature_count = None                   # Num input features
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
         self.norm = norm                            # Normalization range
@@ -164,8 +165,9 @@ class DataFromCSV(Dataset):
         # Init inputs, normalizing as specified
         inputs = data.loc[:, 1:]
         if self.norm:
-            inputs = self.normalize(inputs)  # TODO: inputs.apply(self.normalize)
+            inputs.apply(self.normalize)
         self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
+        self.feature_count = self.inputs.size()[1]
 
         # Init targets
         targets = data.loc[:, :0] 
@@ -205,7 +207,10 @@ class DataFromCSV(Dataset):
         return self.inputs[idx], self.targets[idx]
 
     def dataloader(self, batch_sz=4, workers=2):
-        return DataLoader(self, batch_size=batch_sz, num_workers=workers)
+        """ Returns a torch.utils.Data.DataLoader representation of the set.
+        """
+        # TODO: return DataLoader(self, batch_size=batch_sz, num_workers=workers)
+        raise NotImplementedError
 
     def normalize(self, t):
         """ Returns a normalized representation of the given tensor. 
@@ -214,27 +219,24 @@ class DataFromCSV(Dataset):
 
 
 if __name__ == '__main__':
-    # TODO: Usage example w/ data = [(1, 3), (2, 6), (3, 9), (4, 12), (5, 15), (6, 18)]
-
     trainfile = 'datasets/letter_train.data'
     # trainfile = 'datasets/test.data'
     train_data = DataFromCSV(trainfile, (0, 15)) 
     valfile = 'datasets/test3.data'
     val_data = DataFromCSV(valfile, (0, 15))
 
-    print('Using training set  : ' + trainfile)
-    print('Using validation set: ' + valfile)
+    print('Training set        : ' + trainfile)
+    print('Validation set      : ' + valfile)
 
-    # TODO: in_nodes = len(train_data.inputs)
-    print(len(train_data.inputs))
-    out_nodes = len(train_data.classes)
+    x_sz = train_data.feature_count
+    h_sz = 14
+    y_sz = train_data.class_count
 
-    ann = ANN((16, 14, out_nodes))
-    print('Using ANN w/layers:   ' + str(ann))
+    ann = ANN((x_sz, h_sz, y_sz))
+    print('Using ANN w/ dimens :\n' + str(ann))
 
     ann.train(train_data)
 
-    print('Test row results:')
-    print(ann(V(torch.Tensor([[2, 14, 12, 8, 5, 9, 10, 4, 3, 5, 10, 7, 10, 12, 2, 6]]))))  # W
+    # print('Test row results:')
+    # print(ann(V(torch.Tensor([[2, 14, 12, 8, 5, 9, 10, 4, 3, 5, 10, 7, 10, 12, 2, 6]]))))  # W
     ann.validate(val_data, True)
-    exit(0)
