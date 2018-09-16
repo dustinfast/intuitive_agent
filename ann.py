@@ -15,6 +15,7 @@
         t - Some arbitrary tensor
 
     TODO: 
+        If some class types missing from training or validation set, errors.
         Expand ANN to allow an arbitrary number of hidden layers
 
 
@@ -72,7 +73,7 @@ class ANN(nn.Module):
 
         return self.y
 
-    def train(self, data, epochs=100, lr=.1, alpha=.7, stats_at=10):
+    def train(self, data, epochs=50, lr=.1, alpha=.7, stats_at=10):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -90,11 +91,7 @@ class ANN(nn.Module):
         for epoch in range(epochs):
             for row in data:
                 inputs, target = iter(row)
-                # print('Train - I: ' + str(inputs))  # debug
-                # print('Train - T: ' + str(target))  # debug
-                optimizer.zero_grad()
                 outputs = self(inputs)
-                # print('Train - P: ' + str(outputs))  # debug
                 curr_loss = self.f_loss(outputs, target)
                 curr_loss.backward()
                 optimizer.step()
@@ -109,29 +106,34 @@ class ANN(nn.Module):
     def validate(self, data, verbose=False):
         """ Validates the ANN against the given data set.
         """
-        correct = 0
         total = 0
-        class_acc = {c[0]: (0, 0) for c in data.classes}  # {label: (correct, outof)}
-
+        correct = 0
+        class_acc = {c: [0, 0] for c in data.classes}  # c: [correct, total]
+        
         with torch.no_grad():
             for row in data:
-                inputs, target = iter(data)
-                print('Val - I: ' + str(inputs))  # debug
-                print('Val - T: ' + str(target))  # debug
+                inputs, target = iter(row)
                 outputs = self(inputs)
-                print('Val - P: ' + str(outputs))  # debug
-
+                target_class = data.class_from_node(target)
+                pred_class = data.class_from_node(outputs)
                 
-                # _, predicted = torch.max(outputs, 0)
-                # total += targets.size(0)
-                # if outputs.data == targets:
-                #     correct += 1
+                total += 1
+                class_acc[pred_class][1] += 1
+                if target_class == pred_class:
+                    correct += 1
+                    class_acc[pred_class][0] += 1
+
+                # print('Val - I: ' + str(inputs))  # debug
+                # print('Val - T: ' + str(target))  # debug
+                # print('Val - T: ' + str(target_class))  # debug
+                # print('Val - C: ' + str(pred_class))    # debug
+
+        print('Validaton Complete - Accuracy (%d %%):' % (100 * correct / total))
 
         if verbose:
-            p = (100 * correct / total)
-            print('Validaton Complete - Accuracy (%d %%):' % p)
-            print(class_acc)
-
+            for c in ((k, v) for k, v in class_acc.items() if v[0]):
+                print('Accuracy of %s : %2d %%' % (c[0], 100 * c[1][0] / c[1][1]))
+                
     def save_model(self, filename):
         """ Saves a model of the ANN to the given file.
         """
@@ -171,7 +173,7 @@ class DataFromCSV(Dataset):
 
         # Init targets
         targets = data.loc[:, :0] 
-        targets = targets.apply(lambda t: self._map_to_node(t.iloc[0]), axis=1)
+        targets = targets.apply(lambda t: self._class_to_node(t.iloc[0]), axis=1)
         self.targets = targets
 
         # print('DEBUG: DataFromCSV loaded...\n' + str(self))  # debug
@@ -182,7 +184,7 @@ class DataFromCSV(Dataset):
         str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
         return str_out
 
-    def _map_to_node(self, label):
+    def _class_to_node(self, label):
         """ Given a class label, returns zeroed tensor with tensor[label] = 1.
             Facilitates mapping each class to its corresponding output node
         """
@@ -192,12 +194,11 @@ class DataFromCSV(Dataset):
         # print(target)  # debug
         return target
 
-    def _map_from_node(self, idx):
+    def class_from_node(self, t):
         """ Given an output level tensor, returns the mapped classification.
         """
-        # TODO: _, predicted=torch.max(outputs, 0)
+        _, idx = torch.max(t, 0)
         of_class = self.classes[idx]
-        print(of_class)  # debug
         return of_class
 
     def __len__(self):
@@ -221,8 +222,8 @@ class DataFromCSV(Dataset):
 if __name__ == '__main__':
     trainfile = 'datasets/letter_train.data'
     # trainfile = 'datasets/test.data'
-    train_data = DataFromCSV(trainfile, (0, 15)) 
-    valfile = 'datasets/test3.data'
+    train_data = DataFromCSV(trainfile, (0, 15))
+    valfile = 'datasets/letter_val.data'
     val_data = DataFromCSV(valfile, (0, 15))
 
     print('Training set        : ' + trainfile)
@@ -239,4 +240,4 @@ if __name__ == '__main__':
 
     # print('Test row results:')
     # print(ann(V(torch.Tensor([[2, 14, 12, 8, 5, 9, 10, 4, 3, 5, 10, 7, 10, 12, 2, 6]]))))  # W
-    ann.validate(val_data, True)
+    ann.validate(val_data, verbose=True)
