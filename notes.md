@@ -16,9 +16,10 @@ Determine training/validation and problem to apply to
 
 ## Data 
 
-Extract w pandas: 
+Extracted w/Pandas
+Why this set? Familiar with it. Deep learnable. No conv or pool layers
 
-Data Set and set description can be found at:
+Data Set desc:
 https://archive.ics.uci.edu/ml/datasets/Letter+Recognition
 
 ## Learning variables
