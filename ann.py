@@ -145,7 +145,7 @@ class ANN(nn.Module):
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=50, lr=.1, alpha=.4, stats_at=10):
+    def train(self, data, epochs=500, lr=.1, alpha=.4, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -197,34 +197,52 @@ class ANN(nn.Module):
                     correct += 1
                     class_acc[pred_class][0] += 1
 
-                # print('Val - I: ' + str(inputs))  # debug
-                # print('Val - T: ' + str(target))  # debug
-                # print('Val - T: ' + str(target_class))  # debug
-                # print('Val - C: ' + str(pred_class))    # debug
-
         print('Validaton Complete - Accuracy (%d %%):' % (100 * correct / total))
 
         if verbose:
             for c in ((k, v) for k, v in class_acc.items() if v[0]):
                 print('Accuracy of %s : %2d %%' % (c[0], 100 * c[1][0] / c[1][1]))
                 
-    def save_model(self, filename):
-        """ Saves a model of the ANN to the given file.
+    @staticmethod
+    def get_filenames(self, filename, pt_ext=True):
+        """ Returns a 2-tuple of a model & optimizer filename with .pt extension
         """
-        # TODO
-        raise NotImplementedError
+        opt_file = filename + '.opt'
+        if pt_ext:
+            filename += '.pt'
+            opt_file += '.pt'
 
-    def load_model(self, filename):
-        """ Loads the ANN model from the given file.
+        return filename, opt_file
+
+    def save_model(self, filename, pt_ext=True):
+        """ Saves as a model of the ANN and its optimizer to the given file.
+            If pt_ext, the filename is appended with '.pt'.
         """
-        # TODO
         raise NotImplementedError
+        fnames = get_filenames(filename, pt_ext=pt_ext)
+        torch.save(self.state_dict(), fnames[0])
+        torch.save(self.optimizer.state_dict(), fnames[1])
+
+    def load_model(self, filename, pt_ext=True):
+        """ Loads a model of the ANN and its optimizer from the given file.
+            If pt_ext, the filename is appended with '.pt'.
+        """
+        raise NotImplementedError
+        fnames = get_filenames(filename, pt_ext=pt_ext)
+        self.load_state_dict(torch.load(fnames[0]))
+        self.optimizer.load_state_dict(torch.load(fnames[1]))
 
 
 if __name__ == '__main__':
+    # The ID of this demonstrations ID
+    ann_ID = 43770
+
+    # Check for a model file of this ANN's name
+    # if os.path.isfile(ANN.get_filenames(ann_ID)):
+
     trainfile = 'datasets/letter_train.data'
-    valfile = 'datasets/letter_val.data'
     # trainfile = 'datasets/test.data'
+    valfile = 'datasets/letter_val.data'
 
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
@@ -232,11 +250,12 @@ if __name__ == '__main__':
     print('Training set        : ' + trainfile)
     print('Validation set      : ' + valfile)
 
+    # The ANN's layer sizes, based on the CSV file dimensions
     x_sz = train_data.feature_count
     h_sz = 14
     y_sz = train_data.class_count
 
-    ann = ANN(0, (x_sz, h_sz, y_sz))
+    ann = ANN(ann_ID, (x_sz, h_sz, y_sz))
     print('Using ANN w/ dimens :\n' + str(ann))
 
     ann.train(train_data)
