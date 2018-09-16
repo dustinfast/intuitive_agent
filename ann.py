@@ -70,7 +70,6 @@ class ANN(nn.Module):
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
-
         return self.y
 
     def train(self, data, epochs=50, lr=.1, alpha=.7, stats_at=10):
@@ -91,6 +90,7 @@ class ANN(nn.Module):
         for epoch in range(epochs):
             for row in data:
                 inputs, target = iter(row)
+                optimizer.zero_grad()
                 outputs = self(inputs)
                 curr_loss = self.f_loss(outputs, target)
                 curr_loss.backward()
@@ -176,13 +176,17 @@ class DataFromCSV(Dataset):
         targets = targets.apply(lambda t: self._class_to_node(t.iloc[0]), axis=1)
         self.targets = targets
 
-        # print('DEBUG: DataFromCSV loaded...\n' + str(self))  # debug
-
     def __str__(self):
         str_out = 'Classes: ' + str(self.classes) + '\n'
         str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
         str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
         return str_out
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
 
     def _class_to_node(self, label):
         """ Given a class label, returns zeroed tensor with tensor[label] = 1.
@@ -191,21 +195,13 @@ class DataFromCSV(Dataset):
         tgt_width = len(self.classes)
         target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
         target[self.classes.index(label)] = 1
-        # print(target)  # debug
         return target
 
     def class_from_node(self, t):
         """ Given an output level tensor, returns the mapped classification.
         """
         _, idx = torch.max(t, 0)
-        of_class = self.classes[idx]
-        return of_class
-
-    def __len__(self):
-        return len(self.targets)
-
-    def __getitem__(self, idx):
-        return self.inputs[idx], self.targets[idx]
+        return self.classes[idx]
 
     def dataloader(self, batch_sz=4, workers=2):
         """ Returns a torch.utils.Data.DataLoader representation of the set.
@@ -221,9 +217,10 @@ class DataFromCSV(Dataset):
 
 if __name__ == '__main__':
     trainfile = 'datasets/letter_train.data'
-    # trainfile = 'datasets/test.data'
-    train_data = DataFromCSV(trainfile, (0, 15))
     valfile = 'datasets/letter_val.data'
+    # trainfile = 'datasets/test.data'
+
+    train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
     print('Training set        : ' + trainfile)
@@ -237,7 +234,4 @@ if __name__ == '__main__':
     print('Using ANN w/ dimens :\n' + str(ann))
 
     ann.train(train_data)
-
-    # print('Test row results:')
-    # print(ann(V(torch.Tensor([[2, 14, 12, 8, 5, 9, 10, 4, 3, 5, 10, 7, 10, 12, 2, 6]]))))  # W
     ann.validate(val_data, verbose=True)
