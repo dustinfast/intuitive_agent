@@ -30,22 +30,22 @@
 """
 
 import os
+import logging
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable as V
 from torch.utils.data import Dataset
-import pandas as pd
+from torch.autograd import Variable as V
 
 
 PERSIST_PATH = 'var/ann/'   # ANN model and log file path
 MODEL_EXT = '.pt'           # ANN model file extension
 LOG_EXT = '.log'            # ANN log file extension
 
-
 class DataFromCSV(Dataset):
-    """ A set of inputs and targets (i.e. labels and features) for use with 
-        ANN(), populated from the given CSV file.
+    """ A set of inputs and targets (i.e. labels and features) populated 
+        from the given CSV file.
     """
     def __init__(self, csvfile, norm_range=None):
         """ csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
@@ -57,6 +57,7 @@ class DataFromCSV(Dataset):
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
         self.norm = norm_range                      # Normalization range
+        self.fname = csvfile                        # CVS file name
         
         data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
 
@@ -132,7 +133,7 @@ class ANN(nn.Module):
         super(ANN, self).__init__()
         self.ID = ID
         self.model_file = None
-        self.log_file = None
+        self.logger = None
         self.persist = False
         self.console_out = False
         
@@ -152,20 +153,25 @@ class ANN(nn.Module):
         self.f_loss = f_loss()
 
         # kwarg handlers...
-        if kwargs.get('persist'):
-            self.persist = True
-            self.log_file = PERSIST_PATH + str(ID) + LOG_EXT
-            self.model_file = PERSIST_PATH + str(ID) + MODEL_EXT
-
-            # Create output path if not exists, else load ann model if exists
-            if not os.path.exists(PERSIST_PATH):
-                os.mkdir(PERSIST_PATH)
-            elif os.path.isfile(self.model_file):
-                self.load()
-
         if kwargs.get('console_out'):
             self.console_out = True
+            
+        if kwargs.get('persist'):
+            self.persist = True
+            if not os.path.exists(PERSIST_PATH):
+                os.mkdir(PERSIST_PATH)
 
+            # Init logger and output init statment
+            logging.basicConfig(filename=PERSIST_PATH + str(ID) + LOG_EXT,
+                                level=logging.DEBUG,
+                                format='%(asctime)s - %(levelname)s: %(message)s')
+            self._log('Initialized with dimens:\n' + str(self))
+
+            # Init, and possibly load, model file
+            self.model_file = PERSIST_PATH + str(ID) + MODEL_EXT
+            if os.path.isfile(self.model_file):
+                self.load()
+            
     def __str__(self):
         str_out = 'ID = ' + str(self.ID) + '\n'
         str_out += 'x = ' + str(self.f_x) + '\n'
@@ -173,10 +179,15 @@ class ANN(nn.Module):
         str_out += 'z = ' + str(self.f_y)
         return str_out
 
-    def _log(self, log_string):
-        """ Logs the given string to the ANN's log file.
+    def _log(self, log_str, level=logging.info):
+        """ Logs the given string to the ANN's log file, iff in persist mode.
+            If in console_out mode, also outputs the string to the console.
         """
-        raise NotImplementedError
+        if self.persist:
+            level('\n' + log_str)
+
+        if self.console_out:
+            print(log_str)
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
@@ -266,8 +277,9 @@ class ANN(nn.Module):
         try:
             self.load_state_dict(torch.load(self.model_file))
             # self.optimizer.load_state_dict(torch.load(self.opt_file))
+            self._log('Loaded params from model:\n' + str(self.parameters()))
         except Exception as e:
-            print('WARN: No model file currently exists for ' + str(self.ID))
+            self._log('Error loading model: ' + str(e), level=logging.error)
 
 
 if __name__ == '__main__':
@@ -285,13 +297,7 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN(43770, (x_sz, h_sz, y_sz), persist=True)
-    
-    # TODO: log
-    print('Using Training set        : ' + trainfile)
-    print('Using Validation set      : ' + valfile)
-    print('Using ANN:\n' + str(ann))
-    
+    ann = ANN(43770, (x_sz, h_sz, y_sz), persist=True, console_out=True)
     ann.train(train_data)
     ann.validate(val_data, verbose=True)
 
