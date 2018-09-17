@@ -197,7 +197,6 @@ class ANN(nn.Module):
         """
         try:
             torch.save(self.state_dict(), self.model_file)
-            # torch.save(self.optimizer.state_dict(), self.opt_file)
             self._log('Saved ANN model to: ' + self.model_file)
         except Exception as e:
             self._log('Error saving model: ' + str(e), level=logging.error)
@@ -207,10 +206,10 @@ class ANN(nn.Module):
         """
         try:
             self.load_state_dict(torch.load(self.model_file))
-            # self.optimizer.load_state_dict(torch.load(self.opt_file))
             self._log('Loaded ANN model from: ' + self.model_file)
         except Exception as e:
             self._log('Error loading model: ' + str(e), level=logging.error)
+            exit(0)
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
@@ -219,10 +218,11 @@ class ANN(nn.Module):
         # Note rectification of output layer w/relu
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
-        self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
+        self.y = self.f_act(self.f_y(h))            # Update output layer
+        self.y = F.relu(self.y)                     # Rectify output layer
         return self.y
 
-    def train(self, data, epochs=300, lr=.1, alpha=.3, stats_at=100, noise=None):
+    def train(self, data, epochs=100, lr=.1, alpha=.3, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -261,9 +261,9 @@ class ANN(nn.Module):
         self._log('Validation started: ' + info_str)
 
         total = 0
-        correct = 0
+        corr = 0
         class_total = {c: 0 for c in data.classes}
-        class_correct = {c: 0 for c in data.classes}
+        class_corr = {c: 0 for c in data.classes}
 
         with torch.no_grad():
             for row in data:
@@ -275,18 +275,18 @@ class ANN(nn.Module):
                 total += 1
                 class_total[target_class] += 1
                 if target_class == pred_class:
-                    correct += 1
-                    class_correct[pred_class] += 1
+                    corr += 1
+                    class_corr[pred_class] += 1
 
-        log_str = 'Validaton Completed: Accuracy=%d%%\n' % (100 * correct / total)
+        log_str = 'Validation Completed: Accuracy=%d%%\n' % (100 * corr / total)
 
         if verbose:
-            log_str += 'Correct: %d\n' % correct
+            log_str += 'Correct: %d\n' % corr
             log_str += 'Total: %d\n' % total
             for c in data.classes:
-                log_str += '%s : %d / %d ' % (c, class_correct[c], class_total[c])
+                log_str += '%s : %d / %d ' % (c, class_corr[c], class_total[c])
                 if class_total[c] > 0:
-                    log_str += '(%d%%)' % (100 * class_correct[c] / class_total[c])
+                    log_str += '(%d%%)' % (100 * class_corr[c] / class_total[c])
                 else:
                     log_str += '(0%)'
                 log_str += '\n'
@@ -307,10 +307,11 @@ if __name__ == '__main__':
     x_sz = train_data.feature_count
     h_sz = abs(train_data.class_count - train_data.feature_count)  # 14 full
     y_sz = train_data.class_count
+    ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('test_ann', (x_sz, h_sz, y_sz), persist=True, console_out=True)
-    ann.train(train_data)
+    ann = ANN('test', ann_dimens, persist=True, console_out=True)
+    ann.train(train_data, epochs=500, lr=.1, alpha=.3, stats_at=50, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "D"
