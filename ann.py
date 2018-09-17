@@ -168,7 +168,7 @@ class ANN(nn.Module):
             logging.basicConfig(filename=PERSIST_PATH + ID + LOG_EXT,
                                 level=logging.DEBUG,
                                 format='%(asctime)s - %(levelname)s: %(message)s')
-            self._log('ANN initialized:\n' + str(self))
+            self._log('*** ANN initialized ***:\n' + str(self))
 
             # Init, and possibly load, model file
             self.model_file = PERSIST_PATH + ID + MODEL_EXT
@@ -191,6 +191,26 @@ class ANN(nn.Module):
 
         if self.console_out:
             print(log_str)
+
+    def save(self):
+        """ Saves a model of the ANN.
+        """
+        try:
+            torch.save(self.state_dict(), self.model_file)
+            # torch.save(self.optimizer.state_dict(), self.opt_file)
+            self._log('Saved ANN model to: ' + self.model_file)
+        except Exception as e:
+            self._log('Error saving model: ' + str(e), level=logging.error)
+
+    def load(self):
+        """ Loads a model of the ANN.
+        """
+        try:
+            self.load_state_dict(torch.load(self.model_file))
+            # self.optimizer.load_state_dict(torch.load(self.opt_file))
+            self._log('Loaded ANN model from: ' + self.model_file)
+        except Exception as e:
+            self._log('Error loading model: ' + str(e), level=logging.error)
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
@@ -272,26 +292,6 @@ class ANN(nn.Module):
                 log_str += '\n'
         
         self._log(log_str)
-                
-    def save(self):
-        """ Saves a model of the ANN.
-        """
-        try:
-            torch.save(self.state_dict(), self.model_file)
-            # torch.save(self.optimizer.state_dict(), self.opt_file)
-            self._log('Saved model:\n' + str(self.parameters()))
-        except Exception as e:
-            self._log('Error saving model: ' + str(e), level=logging.error)
-
-    def load(self):
-        """ Loads a model of the ANN.
-        """
-        try:
-            self.load_state_dict(torch.load(self.model_file))
-            # self.optimizer.load_state_dict(torch.load(self.opt_file))
-            self._log('Loaded params from model:\n' + str(self.parameters()))
-        except Exception as e:
-            self._log('Error loading model: ' + str(e), level=logging.error)
 
 
 if __name__ == '__main__':
