@@ -18,7 +18,8 @@
         y - Output layer
         t - Some arbitrary tensor
 
-    TODO: 
+    # TODO: 
+        Noise Params
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement use of PyTorch.utils.data.DataLoader
@@ -27,6 +28,7 @@
     Author: Dustin Fast, 2018
 """
 
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -119,10 +121,11 @@ class ANN(nn.Module):
         with each layer represented as a tensor.
         """
     def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, persist=False):
-        """ ID (int)                :   This ANNs unique ID
-            dims (3-tuple)          :   Node counts by layer (x, y, z)
-            f_act (nn.Layer)        :   Node activation function
-            f_loss (nn.LossFunction):   Loss function
+        """ ID (int)                    :   This ANNs unique ID number
+            dims (3-tuple)              :   Node counts by layer (x, y, z)
+            f_act (nn.Layer)            :   Node activation function
+            f_loss (nn.LossFunction)    :   Loss function
+            persist (bool)              :   Persit mode flag
         """
         super(ANN, self).__init__()
         self.ID = ID
@@ -142,26 +145,37 @@ class ANN(nn.Module):
         self.f_act = f_act()
         self.f_loss = f_loss()
 
-        # If perist mode, load model if it exists
-        # if persist:
+        # Init persist mode as needed
+        if persist:
+            if not os.path.exists(PERSIST_PATH):
+                os.mkdir(PERSIST_PATH)  # Ensure output folder exists
+            self.log_file = PERSIST_PATH + str(ID) + LOG_EXT
+            self.model_file = PERSIST_PATH + str(ID) + MODEL_EXT
+            self.load()
 
     def __str__(self):
-        str_out = str(ann.f_x) + '\n'
-        str_out += str(ann.f_h) + '\n'
-        str_out += str(ann.f_y)
+        str_out = 'ID = ' + str(self.ID) + '\n'
+        str_out += 'x = ' + str(self.f_x) + '\n'
+        str_out += 'h = ' + str(self.f_h) + '\n'
+        str_out += 'z = ' + str(self.f_y)
         return str_out
+
+    def _log(self, log_string):
+        """ Logs the given string to the ANN's log file.
+        """
+        raise NotImplementedError
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
         """
         # Apply node activation functions to each node of each layer
-        # Note: rectification function applied to self.y results
+        # (Note rectification function applied to self.y)
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=100, lr=.01, alpha=.2, stats_at=10, noise=None):
+    def train(self, data, epochs=10000, lr=.01, alpha=.2, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -169,7 +183,6 @@ class ANN(nn.Module):
             alpha (float):      Learning momentum
             stats_at (int):     Print status every stats_at epochs (0=never)
         """
-        # TODO: Noise param
         # Status info
         train_str = '{} epochs @ lr={}, alpha={}...'.format(epochs, lr, alpha)
         if stats_at:
@@ -198,8 +211,9 @@ class ANN(nn.Module):
         """
         total = 0
         correct = 0
-        class_acc = {c: [0, 0] for c in data.classes}  # c: [correct, total]
-        
+        class_total = {c: 0 for c in data.classes}
+        class_correct = {c: 0 for c in data.classes}
+
         with torch.no_grad():
             for row in data:
                 inputs, target = iter(row)
@@ -208,62 +222,50 @@ class ANN(nn.Module):
                 pred_class = data.class_from_node(outputs)
                 
                 total += 1
-                class_acc[pred_class][1] += 1
+                class_total[target_class] += 1
                 if target_class == pred_class:
                     correct += 1
-                    class_acc[pred_class][0] += 1
+                    class_correct[pred_class] += 1
 
-        print('Validaton Complete - Correct : %d' % correct)
-        print('Validaton Complete - Total   : %d' % total)
         print('Validaton Complete - Accuracy: (%d %%)' % (100 * correct / total))
 
         if verbose:
-            print('Accuracy of:')
-            for c in ((k, v) for k, v in class_acc.items() if v[0]):
-                print('%s: %2d / %2d' % (c[0], c[1][0],  c[1][1]))
-                # print('Accuracy of %s : %2d %%' % (c[0], 100 * c[1][0] / c[1][1]))
+            print('Correct : %d' % correct)
+            print('Total   : %d' % total)
+            print('By class:')
+            for c in data.classes:
+                print('%s : %d / %d' % (c, class_correct[c], class_total[c]), end=' ')
+                if class_total[c] > 0:
+                    print('(%2d %%)' % (100 * class_correct[c] / class_total[c]))
+                else:
+                    print('(0%)')
                 
-    @staticmethod
-    def get_filenames(self, filename, pt_ext=True):
-        """ Returns a 2-tuple of a model & optimizer filename with .pt extension
+    def save(self):
+        """ Saves a model of the ANN.
         """
-        opt_file = filename + '.opt'
-        if pt_ext:
-            filename += '.pt' 
-            opt_file += '.pt'
-        # TODO: var/log/static
+        pass
+        torch.save(self.state_dict(), self.model_file)
+        # torch.save(self.optimizer.state_dict(), fnames[1])
 
-        return filename, opt_file
-
-    def save_model(self, filename, pt_ext=True):
-        """ Saves as a model of the ANN and its optimizer to the given file.
-            If pt_ext, the filename is appended with '.pt'.
+    def load(self):
+        """ Loads a model of the ANN.
         """
-        raise NotImplementedError
-        fnames = get_filenames(filename, pt_ext=pt_ext)
-        torch.save(self.state_dict(), fnames[0])
-        torch.save(self.optimizer.state_dict(), fnames[1])
-
-    def load_model(self, filename, pt_ext=True):
-        """ Loads a model of the ANN and its optimizer from the given file.
-            If pt_ext, the filename is appended with '.pt'.
-        """
-        raise NotImplementedError
-        fnames = get_filenames(filename, pt_ext=pt_ext)
-        self.load_state_dict(torch.load(fnames[0]))
-        self.optimizer.load_state_dict(torch.load(fnames[1]))
+        try:
+            self.load_state_dict(torch.load(self.model_file))
+            # self.optimizer.load_state_dict(torch.load(self.opt_file))
+        except Exception as e:
+            print('WARN: No model file currently exists for ' + str(self.ID))
 
 
 if __name__ == '__main__':
     # The ID of this demonstration's ANN
     ann_ID = 43770
 
-    # Check for a model file of this ANN's name
-    # if os.path.isfile(ANN.get_filenames(ann_ID)):
-
-    # trainfile = 'datasets/letter_train.data'
-    trainfile = 'static/datasets/test.data'
+    # Training and validation sets
+    trainfile = 'datasets/letter_train.data'
+    trainfile = 'static/datasets/test3.data'  # debug
     valfile = 'static/datasets/letter_val.data'
+    valfile = 'static/datasets/test3.data'  # debug
 
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
@@ -271,13 +273,16 @@ if __name__ == '__main__':
     print('Training set        : ' + trainfile)
     print('Validation set      : ' + valfile)
 
-    # The ANN's layer sizes, based on the CSV file dimensions
+    # The ANN's layer sizes, based on the dataset
     x_sz = train_data.feature_count
+    # h_sz = train_data.class_count - train_data.feature_count
     h_sz = 14
     y_sz = train_data.class_count
 
-    ann = ANN(ann_ID, (x_sz, h_sz, y_sz))
-    print('Using ANN w/ dimens :\n' + str(ann))
-
+    # Init, train, and subsequently validate the ANN
+    ann = ANN(ann_ID, (x_sz, h_sz, y_sz), persist=True)
+    print('Using ANN:\n' + str(ann))
     ann.train(train_data)
     ann.validate(val_data, verbose=True)
+
+    # TODO: Example of a single classification request
