@@ -3,3 +3,4 @@ test*
 .vscode/
 data/
 var/
+sh/
