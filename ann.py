@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-""" An Artificial Neural Network (ANN) implemented using PyTorch.
+""" An Artificial Neural Network (ANN) implemented using PyTorch and Pandas.
 
     The ANN functions as a classifier, with the output classification denoted
     by the active (argmax(y)) output node.
@@ -7,8 +7,8 @@
     Dataset extraction from CSV and mapping of features and classes to each
     output node is facilitated by DataFromCSV().
     
-    If persistent mode enabled, ANN state is saved and status is loggged to 
-    "ID.pt" and "ID.pt.log" on completion of each training/validation.
+    If persistent mode enabled, ANN state persists between exectutions via file
+    PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
 
     Usage: See __main__ for example usage.
 
@@ -23,6 +23,7 @@
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement use of PyTorch.utils.data.DataLoader
+        ANN.classify() and example classification request
 
 
     Author: Dustin Fast, 2018
@@ -43,20 +44,19 @@ LOG_EXT = '.log'            # ANN log file extension
 
 
 class DataFromCSV(Dataset):
-    """ A set of inputs and targets (i.e. labels and features) for ANN(),
-        populated from the given CSV file.
+    """ A set of inputs and targets (i.e. labels and features) for use with 
+        ANN(), populated from the given CSV file.
     """
-
-    def __init__(self, csvfile, norm=None):
-        """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
-            norm (2-tuple):     Normalization range, as (min, max). None OK.
+    def __init__(self, csvfile, norm_range=None):
+        """ csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
+            norm_range (2-tuple): Normalization range, as (min, max). None OK.
         """
         self.classes = None                         # Unique instance labels
         self.class_count = None                     # Num unique labels
         self.feature_count = None                   # Num input features
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
-        self.norm = norm                            # Normalization range
+        self.norm = norm_range                      # Normalization range
         
         data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
 
@@ -107,8 +107,8 @@ class DataFromCSV(Dataset):
     def dataloader(self, batch_sz=4, workers=2):
         """ Returns a torch.utils.Data.DataLoader representation of the set.
         """
-        # TODO: return DataLoader(self, batch_size=batch_sz, num_workers=workers)
         raise NotImplementedError
+        # return DataLoader(self, batch_size=batch_sz, num_workers=workers)
 
     def normalize(self, t):
         """ Returns a normalized representation of the given tensor. 
@@ -120,15 +120,21 @@ class ANN(nn.Module):
     """ An artificial neural network with 3 fully connected layers x, y, and z,
         with each layer represented as a tensor.
         """
-    def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, persist=False):
+    def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, **kwargs):
         """ ID (int)                    :   This ANNs unique ID number
             dims (3-tuple)              :   Node counts by layer (x, y, z)
             f_act (nn.Layer)            :   Node activation function
-            f_loss (nn.LossFunction)    :   Loss function
-            persist (bool)              :   Persit mode flag
+            f_loss (nn.LossFunction)    :   Node Loss function
+            **kwargs:
+                persist (bool)          :   Persit mode flag
+                console_out (bool)      :   Output log stmts to console flag
         """
         super(ANN, self).__init__()
         self.ID = ID
+        self.model_file = None
+        self.log_file = None
+        self.persist = False
+        self.console_out = False
         
         # Layer defs
         self.x_sz = dims[0]
@@ -145,13 +151,20 @@ class ANN(nn.Module):
         self.f_act = f_act()
         self.f_loss = f_loss()
 
-        # Init persist mode as needed
-        if persist:
-            if not os.path.exists(PERSIST_PATH):
-                os.mkdir(PERSIST_PATH)  # Ensure output folder exists
+        # kwarg handlers...
+        if kwargs.get('persist'):
+            self.persist = True
             self.log_file = PERSIST_PATH + str(ID) + LOG_EXT
             self.model_file = PERSIST_PATH + str(ID) + MODEL_EXT
-            self.load()
+
+            # Create output path if not exists, else load ann model if exists
+            if not os.path.exists(PERSIST_PATH):
+                os.mkdir(PERSIST_PATH)
+            elif os.path.isfile(self.model_file):
+                self.load()
+
+        if kwargs.get('console_out'):
+            self.console_out = True
 
     def __str__(self):
         str_out = 'ID = ' + str(self.ID) + '\n'
@@ -175,7 +188,7 @@ class ANN(nn.Module):
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=10000, lr=.01, alpha=.2, stats_at=10, noise=None):
+    def train(self, data, epochs=900, lr=.1, alpha=.3, stats_at=100, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -258,31 +271,30 @@ class ANN(nn.Module):
 
 
 if __name__ == '__main__':
-    # The ID of this demonstration's ANN
-    ann_ID = 43770
-
-    # Training and validation sets
+    # Define and load training and validation sets
     trainfile = 'datasets/letter_train.data'
     trainfile = 'static/datasets/test3.data'  # debug
     valfile = 'static/datasets/letter_val.data'
     valfile = 'static/datasets/test3.data'  # debug
-
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
-    print('Training set        : ' + trainfile)
-    print('Validation set      : ' + valfile)
-
-    # The ANN's layer sizes, based on the dataset
+    # The ANN's layer sizes, based on the dataset's dimnensions
     x_sz = train_data.feature_count
-    # h_sz = train_data.class_count - train_data.feature_count
-    h_sz = 14
+    h_sz = abs(train_data.class_count - train_data.feature_count)  # 14 full
     y_sz = train_data.class_count
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN(ann_ID, (x_sz, h_sz, y_sz), persist=True)
+    ann = ANN(43770, (x_sz, h_sz, y_sz), persist=True)
+    
+    # TODO: log
+    print('Using Training set        : ' + trainfile)
+    print('Using Validation set      : ' + valfile)
     print('Using ANN:\n' + str(ann))
+    
     ann.train(train_data)
     ann.validate(val_data, verbose=True)
 
-    # TODO: Example of a single classification request
+    # Example of a classification request, given a feature vector for "D"
+    # vector = torch.tensor([4, 11, 6, 8, 6, 10, 6, 2, 6, 10, 3, 7, 3, 7, 3, 9])
+    # prediction = ann.classify(vector)
