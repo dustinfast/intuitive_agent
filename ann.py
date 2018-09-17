@@ -23,7 +23,8 @@
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement use of PyTorch.utils.data.DataLoader
-        ANN.classify() and example classification request
+        ANN.classify() in online and offline mode
+        Example classification request to main
 
 
     Author: Dustin Fast, 2018
@@ -122,13 +123,14 @@ class ANN(nn.Module):
         with each layer represented as a tensor.
         """
     def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, **kwargs):
-        """ ID (int)                    :   This ANNs unique ID number
+        """ ID (str)                    :   This ANNs unique ID number
             dims (3-tuple)              :   Node counts by layer (x, y, z)
             f_act (nn.Layer)            :   Node activation function
             f_loss (nn.LossFunction)    :   Node Loss function
             **kwargs:
                 persist (bool)          :   Persit mode flag
                 console_out (bool)      :   Output log stmts to console flag
+                TODO: classify_online (bool)  :   do_classify() causes learning flag
         """
         super(ANN, self).__init__()
         self.ID = ID
@@ -136,6 +138,7 @@ class ANN(nn.Module):
         self.logger = None
         self.persist = False
         self.console_out = False
+        self.classify_online = False
         
         # Layer defs
         self.x_sz = dims[0]
@@ -162,18 +165,18 @@ class ANN(nn.Module):
                 os.mkdir(PERSIST_PATH)
 
             # Init logger and output init statment
-            logging.basicConfig(filename=PERSIST_PATH + str(ID) + LOG_EXT,
+            logging.basicConfig(filename=PERSIST_PATH + ID + LOG_EXT,
                                 level=logging.DEBUG,
                                 format='%(asctime)s - %(levelname)s: %(message)s')
-            self._log('Initialized with dimens:\n' + str(self))
+            self._log('ANN initialized:\n' + str(self))
 
             # Init, and possibly load, model file
-            self.model_file = PERSIST_PATH + str(ID) + MODEL_EXT
+            self.model_file = PERSIST_PATH + ID + MODEL_EXT
             if os.path.isfile(self.model_file):
                 self.load()
             
     def __str__(self):
-        str_out = 'ID = ' + str(self.ID) + '\n'
+        str_out = 'ID = ' + self.ID + '\n'
         str_out += 'x = ' + str(self.f_x) + '\n'
         str_out += 'h = ' + str(self.f_h) + '\n'
         str_out += 'z = ' + str(self.f_y)
@@ -181,10 +184,10 @@ class ANN(nn.Module):
 
     def _log(self, log_str, level=logging.info):
         """ Logs the given string to the ANN's log file, iff in persist mode.
-            If in console_out mode, also outputs the string to the console.
+            Also outputs the string to the console, iff in console_out mode.
         """
         if self.persist:
-            level('\n' + log_str)
+            level(log_str)
 
         if self.console_out:
             print(log_str)
@@ -193,7 +196,7 @@ class ANN(nn.Module):
         """ Feeds the given tensor through the ANN, thus updating output layer.
         """
         # Apply node activation functions to each node of each layer
-        # (Note rectification function applied to self.y)
+        # Note rectification of output layer w/relu
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
@@ -207,10 +210,9 @@ class ANN(nn.Module):
             alpha (float):      Learning momentum
             stats_at (int):     Print status every stats_at epochs (0=never)
         """
-        # Status info
-        train_str = '{} epochs @ lr={}, alpha={}...'.format(epochs, lr, alpha)
-        if stats_at:
-            print('Training w/ ' + train_str)
+        info_str = '{} epochs @ lr={}, alpha={}, file={}.'
+        info_str = info_str.format(epochs, lr, alpha, data.fname)
+        self._log('Training started: ' + info_str)
 
         # Do training
         optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=alpha)        
@@ -224,15 +226,17 @@ class ANN(nn.Module):
                 optimizer.step()
 
             # Output status as specified by stats_at
-            if stats_at:
-                if epoch % stats_at == 0:
-                    print('Epoch {} - loss: {}'.format(epoch, curr_loss))
-                elif epoch == epochs:
-                    print('Training Complete w/' + train_str)
+            if stats_at and epoch % stats_at == 0:
+                self._log('Epoch {} - loss: {}'.format(epoch, curr_loss))
+            
+        self._log('Training Completed: ' + info_str + '\n')
 
     def validate(self, data, verbose=False):
         """ Validates the ANN against the given data set.
         """
+        info_str = 'file={}.'.format(data.fname)
+        self._log('Validation started: ' + info_str)
+
         total = 0
         correct = 0
         class_total = {c: 0 for c in data.classes}
@@ -251,18 +255,20 @@ class ANN(nn.Module):
                     correct += 1
                     class_correct[pred_class] += 1
 
-        print('Validaton Complete - Accuracy: (%d %%)' % (100 * correct / total))
+        log_str = 'Validaton Completed: Accuracy=%d%%\n' % (100 * correct / total)
 
         if verbose:
-            print('Correct : %d' % correct)
-            print('Total   : %d' % total)
-            print('By class:')
+            log_str += 'Correct: %d\n' % correct
+            log_str += 'Total: %d\n' % total
             for c in data.classes:
-                print('%s : %d / %d' % (c, class_correct[c], class_total[c]), end=' ')
+                log_str += '%s : %d / %d ' % (c, class_correct[c], class_total[c])
                 if class_total[c] > 0:
-                    print('(%2d %%)' % (100 * class_correct[c] / class_total[c]))
+                    log_str += '(%d%%)' % (100 * class_correct[c] / class_total[c])
                 else:
-                    print('(0%)')
+                    log_str += '(0%)'
+                log_str += '\n'
+        
+        self._log(log_str)
                 
     def save(self):
         """ Saves a model of the ANN.
@@ -297,7 +303,7 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN(43770, (x_sz, h_sz, y_sz), persist=True, console_out=True)
+    ann = ANN('test_ann', (x_sz, h_sz, y_sz), persist=True, console_out=True)
     ann.train(train_data)
     ann.validate(val_data, verbose=True)
 
