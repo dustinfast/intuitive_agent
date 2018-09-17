@@ -1,6 +1,6 @@
 # Intuitive Agency
 
-Author: Dustin Fast, CSCE A470, Fall 2018.
+Author: Dustin Fast
 
 ## Inspiration
 
