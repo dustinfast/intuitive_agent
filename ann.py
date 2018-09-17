@@ -2,9 +2,13 @@
 """ An Artificial Neural Network (ANN) implemented using PyTorch.
 
     The ANN functions as a classifier, with the output classification denoted
-    by the active (y=1) output node.
-    Data set extraction from CSV and mapping of classes to each output node is
-    facilitated by DataFromCSV().
+    by the active (argmax(y)) output node.
+    
+    Dataset extraction from CSV and mapping of features and classes to each
+    output node is facilitated by DataFromCSV().
+    
+    If persistent mode enabled, ANN state is saved and status is loggged to 
+    "ID.pt" and "ID.pt.log" on completion of each training/validation.
 
     Usage: See __main__ for example usage.
 
@@ -15,19 +19,25 @@
         t - Some arbitrary tensor
 
     TODO: 
-        If some class types missing from training or validation set, errors.
+        Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
+        Implement use of PyTorch.utils.data.DataLoader
 
 
-    Author: Dustin Fast, Fall, 2018
+    Author: Dustin Fast, 2018
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable as V
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import pandas as pd
+
+
+PERSIST_PATH = 'var/ann/'   # ANN model and log file path
+MODEL_EXT = '.pt'           # ANN model file extension
+LOG_EXT = '.log'            # ANN log file extension
 
 
 class DataFromCSV(Dataset):
@@ -39,14 +49,18 @@ class DataFromCSV(Dataset):
         """ csvfile (str):      CSV file of form: label, feat_1, ... , feat_n
             norm (2-tuple):     Normalization range, as (min, max). None OK.
         """
-        data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
-
-        self.classes = list(data[0].unique())       # Unique instance classes
-        self.class_count = len(self.classes)        # Num unique classes
+        self.classes = None                         # Unique instance labels
+        self.class_count = None                     # Num unique labels
         self.feature_count = None                   # Num input features
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
         self.norm = norm                            # Normalization range
+        
+        data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
+
+        # Populate class info
+        self.classes = list(data[0].unique())
+        self.class_count = len(self.classes)
 
         # Init inputs, normalizing as specified
         inputs = data.loc[:, 1:]
@@ -101,33 +115,35 @@ class DataFromCSV(Dataset):
 
 
 class ANN(nn.Module):
-    """ An artificial neural network with fully connected layers x, y, and z,
+    """ An artificial neural network with 3 fully connected layers x, y, and z,
         with each layer represented as a tensor.
         """
-    def __init__(self, ID, dimens, f_activation=nn.Sigmoid, f_loss=nn.MSELoss):
-        """ If ID, the model will 
-            ID (int)        :           This ANNs unique ID
-            dimens (3-tuple):           Node counts by layer (x, y, z)
-            f_activation (nn.Layer):    Node activation function
+    def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, persist=False):
+        """ ID (int)                :   This ANNs unique ID
+            dims (3-tuple)          :   Node counts by layer (x, y, z)
+            f_act (nn.Layer)        :   Node activation function
             f_loss (nn.LossFunction):   Loss function
         """
         super(ANN, self).__init__()
         self.ID = ID
         
         # Layer defs
-        self.x_sz = dimens[0]
-        self.y_sz = dimens[2]
-        self.x = torch.randn(dimens[0])
-        self.y = torch.randn(dimens[2])
+        self.x_sz = dims[0]
+        self.y_sz = dims[2]
+        self.x = torch.randn(dims[0])
+        self.y = torch.randn(dims[2])
         
         # Layer activation functions
-        self.f_x = nn.Linear(dimens[0], dimens[1], bias=True)
-        self.f_h = nn.Linear(dimens[1], dimens[2], bias=True)
-        self.f_y = nn.Linear(dimens[2], dimens[2], bias=True)
+        self.f_x = nn.Linear(dims[0], dims[1], bias=True)
+        self.f_h = nn.Linear(dims[1], dims[2], bias=True)
+        self.f_y = nn.Linear(dims[2], dims[2], bias=True)
 
         # Node activation/loss functions
-        self.f_act = f_activation()
+        self.f_act = f_act()
         self.f_loss = f_loss()
+
+        # If perist mode, load model if it exists
+        # if persist:
 
     def __str__(self):
         str_out = str(ann.f_x) + '\n'
@@ -145,7 +161,7 @@ class ANN(nn.Module):
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=500, lr=.1, alpha=.4, stats_at=10, noise=None):
+    def train(self, data, epochs=100, lr=.01, alpha=.2, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -197,11 +213,15 @@ class ANN(nn.Module):
                     correct += 1
                     class_acc[pred_class][0] += 1
 
-        print('Validaton Complete - Accuracy (%d %%):' % (100 * correct / total))
+        print('Validaton Complete - Correct : %d' % correct)
+        print('Validaton Complete - Total   : %d' % total)
+        print('Validaton Complete - Accuracy: (%d %%)' % (100 * correct / total))
 
         if verbose:
+            print('Accuracy of:')
             for c in ((k, v) for k, v in class_acc.items() if v[0]):
-                print('Accuracy of %s : %2d %%' % (c[0], 100 * c[1][0] / c[1][1]))
+                print('%s: %2d / %2d' % (c[0], c[1][0],  c[1][1]))
+                # print('Accuracy of %s : %2d %%' % (c[0], 100 * c[1][0] / c[1][1]))
                 
     @staticmethod
     def get_filenames(self, filename, pt_ext=True):
@@ -209,8 +229,9 @@ class ANN(nn.Module):
         """
         opt_file = filename + '.opt'
         if pt_ext:
-            filename += '.pt'
+            filename += '.pt' 
             opt_file += '.pt'
+        # TODO: var/log/static
 
         return filename, opt_file
 
@@ -234,15 +255,15 @@ class ANN(nn.Module):
 
 
 if __name__ == '__main__':
-    # The ID of this demonstrations ID
+    # The ID of this demonstration's ANN
     ann_ID = 43770
 
     # Check for a model file of this ANN's name
     # if os.path.isfile(ANN.get_filenames(ann_ID)):
 
-    trainfile = 'datasets/letter_train.data'
-    # trainfile = 'datasets/test.data'
-    valfile = 'datasets/letter_val.data'
+    # trainfile = 'datasets/letter_train.data'
+    trainfile = 'static/datasets/test.data'
+    valfile = 'static/datasets/letter_val.data'
 
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
