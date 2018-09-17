@@ -23,7 +23,7 @@
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement use of PyTorch.utils.data.DataLoader
-        ANN.classify() in online and offline mode
+        ANN.classify()
         Example classification request to main
 
 
@@ -292,6 +292,12 @@ class ANN(nn.Module):
                 log_str += '\n'
         
         self._log(log_str)
+
+    def classify(self, inputs):
+        """ Given an input tensor, returns the ANN's classification.
+        """
+        # return data.class_from_node(self(inputs))
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
