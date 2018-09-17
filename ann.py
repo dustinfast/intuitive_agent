@@ -202,7 +202,7 @@ class ANN(nn.Module):
         self.y = F.relu(self.f_act(self.f_y(h)))    # Update output layer
         return self.y
 
-    def train(self, data, epochs=900, lr=.1, alpha=.3, stats_at=100, noise=None):
+    def train(self, data, epochs=300, lr=.1, alpha=.3, stats_at=100, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -230,6 +230,9 @@ class ANN(nn.Module):
                 self._log('Epoch {} - loss: {}'.format(epoch, curr_loss))
             
         self._log('Training Completed: ' + info_str + '\n')
+
+        if self.persist:
+            self.save()
 
     def validate(self, data, verbose=False):
         """ Validates the ANN against the given data set.
@@ -273,9 +276,12 @@ class ANN(nn.Module):
     def save(self):
         """ Saves a model of the ANN.
         """
-        pass
-        torch.save(self.state_dict(), self.model_file)
-        # torch.save(self.optimizer.state_dict(), fnames[1])
+        try:
+            torch.save(self.state_dict(), self.model_file)
+            # torch.save(self.optimizer.state_dict(), self.opt_file)
+            self._log('Saved model:\n' + str(self.parameters()))
+        except Exception as e:
+            self._log('Error saving model: ' + str(e), level=logging.error)
 
     def load(self):
         """ Loads a model of the ANN.
