@@ -23,8 +23,6 @@
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement option to use a PyTorch.utils.data.DataLoader as data source
-        ANN.classify()
-        Example classification request to main
 
 
     Author: Dustin Fast, 2018
@@ -61,7 +59,7 @@ class DataFromCSV(Dataset):
         self.norm = norm_range                      # Normalization range
         self.fname = csvfile                        # CVS file name
         
-        data = pd.read_csv(csvfile, header=None)    # Load CSV data w/pandas
+        data = pd.read_csv(csvfile, header=None)    # csvfile -> pd.DataFrame
 
         # Populate class info
         self.classes = list(data[0].unique())
@@ -76,8 +74,7 @@ class DataFromCSV(Dataset):
 
         # Init targets
         targets = data.loc[:, :0]
-        targets = targets.apply(
-            lambda t: self._class_to_node(t.iloc[0]), axis=1)
+        targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
 
     def __str__(self):
@@ -92,7 +89,7 @@ class DataFromCSV(Dataset):
     def __getitem__(self, idx):
         return self.inputs[idx], self.targets[idx]
 
-    def _class_to_node(self, label):
+    def _map_outnode(self, label):
         """ Given a class label, returns zeroed tensor with tensor[label] = 1.
             Facilitates mapping each class to its corresponding output node
         """
@@ -116,10 +113,10 @@ class ANN(nn.Module):
             dims (3-tuple)              :   Node counts by layer (x, y, z)
             f_act (nn.Layer)            :   Node activation function
             f_loss (nn.LossFunction)    :   Node Loss function
+
             **kwargs:
                 persist (bool)          :   Persit mode flag
                 console_out (bool)      :   Output log stmts to console flag
-                TODO: classify_online (bool)  :   do_classify() causes learning flag
         """
         super(ANN, self).__init__()
         self.ID = ID
@@ -127,7 +124,7 @@ class ANN(nn.Module):
         self.logger = None
         self.persist = False
         self.console_out = False
-        self.classes = None                     # Set on train and on load
+        self.classes = None  # Set on self.train()
         
         # Layer defs
         self.x_sz = dims[0]
@@ -191,14 +188,6 @@ class ANN(nn.Module):
         """ Saves a model of the ANN.
         """
         try:
-            # Register self.classes as a Param so it loads/saves
-            out = torch.tensor(
-                [ord(c) for c in self.classes],
-                dtype=torch.float,
-                requires_grad=False)
-            self.register_parameter('output_labels', nn.Parameter(out))
-
-            # Save the model
             torch.save(self.state_dict(), self.model_file)
             self._log('Saved ANN model to: ' + self.model_file)
         except Exception as e:
@@ -208,12 +197,8 @@ class ANN(nn.Module):
         """ Loads a model of the ANN.
         """
         try:
-            # Load the model
             self.load_state_dict(torch.load(self.model_file), strict=False)
             self._log('Loaded ANN model from: ' + self.model_file)
-            
-            # Unpack self.classes
-            print(getattr(self.state_dict, 'output_labels', None))
         except Exception as e:
             self._log('Error loading model: ' + str(e), level=logging.error)
             exit(0)
@@ -221,8 +206,6 @@ class ANN(nn.Module):
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
         """
-        # Apply node activation functions to each node of each layer
-        # Note rectification of output layer w/relu
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
         self.y = self.f_act(self.f_y(h))            # Update output layer
@@ -303,7 +286,7 @@ class ANN(nn.Module):
         self._log(log_str)
 
     def classify(self, inputs):
-        """ Returns the ANNs classification of the given input tensor.
+        """ Returns the ANN's classification of the given input tensor.
         """
         return self._label_from_outputs(self(inputs))
 
@@ -325,11 +308,11 @@ if __name__ == '__main__':
 
     # Init, train, and subsequently validate the ANN
     ann = ANN('test_ann', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=700, lr=.1, alpha=.3, stats_at=100, noise=None)
+    ann.train(train_data, epochs=900, lr=.1, alpha=.3, stats_at=100, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
     b_inputs = torch.tensor(
         [4, 2, 5, 4, 4, 8, 7, 6, 6, 7, 6, 6, 2, 8, 7, 10], dtype=torch.float)
     prediction = ann.classify(b_inputs)
-    print(prediction)  # Should print "B"
+    print('Test Classification: ' + prediction)  # Should print "B"
