@@ -181,10 +181,10 @@ class ANN(nn.Module):
         if self.console_out:
             print(log_str)
 
-    def _label_from_node(self, t):
-        """ Given an output level tensor, returns the mapped classification.
+    def _label_from_outputs(self, outputs):
+        """ Given an outputs tensor, returns the mapped classification.
         """
-        _, idx = torch.max(t, 0)
+        _, idx = torch.max(outputs, 0)
         return self.classes[idx]
 
     def save(self):
@@ -277,8 +277,8 @@ class ANN(nn.Module):
             for row in data:
                 inputs, target = iter(row)
                 outputs = self(inputs)
-                target_class = self._label_from_node(target)
-                pred_class = self._label_from_node(outputs)
+                target_class = self._label_from_outputs(target)
+                pred_class = self._label_from_outputs(outputs)
                 
                 total += 1
                 class_total[target_class] += 1
@@ -288,6 +288,7 @@ class ANN(nn.Module):
 
         log_str = 'Validation Completed: Accuracy=%d%%\n' % (100 * corr / total)
 
+        # If verbose, show detailed accuracy info
         if verbose:
             log_str += 'Correct: %d\n' % corr
             log_str += 'Total: %d\n' % total
@@ -301,6 +302,11 @@ class ANN(nn.Module):
         
         self._log(log_str)
 
+    def classify(self, inputs):
+        """ Returns the ANNs classification of the given input tensor.
+        """
+        return self._label_from_outputs(self(inputs))
+
 
 if __name__ == '__main__':
     # Define and load training and validation sets
@@ -311,17 +317,19 @@ if __name__ == '__main__':
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
-    # The ANN's layer sizes, based on the dataset's dimnensions
+    # The ANN's layer sizes, based on the dataset's dimennsions
     x_sz = train_data.feature_count
-    h_sz = abs(train_data.class_count - train_data.feature_count)  # 14 full
+    h_sz = train_data.feature_count
     y_sz = train_data.class_count
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('test3', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=100, lr=.01, alpha=.3, stats_at=50, noise=None)
+    ann = ANN('test_ann', ann_dimens, persist=True, console_out=True)
+    ann.train(train_data, epochs=700, lr=.1, alpha=.3, stats_at=100, noise=None)
     ann.validate(val_data, verbose=True)
 
-    # Example of a classification request, given a feature vector for "D"
-    # vector = torch.tensor([4, 11, 6, 8, 6, 10, 6, 2, 6, 10, 3, 7, 3, 7, 3, 9])
-    # prediction = ann.classify(vector)
+    # Example of a classification request, given a feature vector for "b"
+    b_inputs = torch.tensor(
+        [4, 2, 5, 4, 4, 8, 7, 6, 6, 7, 6, 6, 2, 8, 7, 10], dtype=torch.float)
+    prediction = ann.classify(b_inputs)
+    print(prediction)  # Should print "B"
