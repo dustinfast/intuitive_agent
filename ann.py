@@ -46,8 +46,8 @@ LOG_EXT = '.log'            # ANN log file extension
 
 
 class DataFromCSV(Dataset):
-    """ A set of inputs and targets (i.e. labels and features) populated 
-        from the given CSV file.
+    """ A set of inputs and targets (i.e. labels and features) for ANN(),
+        populated from the given CSV file.
     """
     def __init__(self, csvfile, norm_range=None):
         """ csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
@@ -100,12 +100,6 @@ class DataFromCSV(Dataset):
         target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
         target[self.classes.index(label)] = 1
         return target
-
-    def class_from_node(self, t):
-        """ Given an output level tensor, returns the mapped classification.
-        """
-        _, idx = torch.max(t, 0)
-        return self.classes[idx]
 
     def normalize(self, t):
         """ Returns a normalized representation of the given tensor. 
@@ -186,6 +180,12 @@ class ANN(nn.Module):
 
         if self.console_out:
             print(log_str)
+
+    def _label_from_node(self, t):
+        """ Given an output level tensor, returns the mapped classification.
+        """
+        _, idx = torch.max(t, 0)
+        return self.classes[idx]
 
     def save(self):
         """ Saves a model of the ANN.
@@ -277,8 +277,8 @@ class ANN(nn.Module):
             for row in data:
                 inputs, target = iter(row)
                 outputs = self(inputs)
-                target_class = data.class_from_node(target)
-                pred_class = data.class_from_node(outputs)
+                target_class = self._label_from_node(target)
+                pred_class = self._label_from_node(outputs)
                 
                 total += 1
                 class_total[target_class] += 1
@@ -319,7 +319,7 @@ if __name__ == '__main__':
 
     # Init, train, and subsequently validate the ANN
     ann = ANN('test3', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=1000, lr=.01, alpha=.3, stats_at=50, noise=None)
+    ann.train(train_data, epochs=100, lr=.01, alpha=.3, stats_at=50, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "D"
