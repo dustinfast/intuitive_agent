@@ -22,7 +22,7 @@
         Noise Params
         Fails if some class types missing between  training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
-        Implement use of PyTorch.utils.data.DataLoader
+        Implement option to use a PyTorch.utils.data.DataLoader as data source
         ANN.classify()
         Example classification request to main
 
@@ -43,6 +43,7 @@ from torch.autograd import Variable as V
 PERSIST_PATH = 'var/ann/'   # ANN model and log file path
 MODEL_EXT = '.pt'           # ANN model file extension
 LOG_EXT = '.log'            # ANN log file extension
+
 
 class DataFromCSV(Dataset):
     """ A set of inputs and targets (i.e. labels and features) populated 
@@ -106,12 +107,6 @@ class DataFromCSV(Dataset):
         _, idx = torch.max(t, 0)
         return self.classes[idx]
 
-    def dataloader(self, batch_sz=4, workers=2):
-        """ Returns a torch.utils.Data.DataLoader representation of the set.
-        """
-        raise NotImplementedError
-        # return DataLoader(self, batch_size=batch_sz, num_workers=workers)
-
     def normalize(self, t):
         """ Returns a normalized representation of the given tensor. 
         """
@@ -138,7 +133,7 @@ class ANN(nn.Module):
         self.logger = None
         self.persist = False
         self.console_out = False
-        self.classify_online = False
+        self.classes = None                     # Set on train and on load
         
         # Layer defs
         self.x_sz = dims[0]
@@ -196,6 +191,14 @@ class ANN(nn.Module):
         """ Saves a model of the ANN.
         """
         try:
+            # Register self.classes as a Param so it loads/saves
+            out = torch.tensor(
+                [ord(c) for c in self.classes],
+                dtype=torch.float,
+                requires_grad=False)
+            self.register_parameter('output_labels', nn.Parameter(out))
+
+            # Save the model
             torch.save(self.state_dict(), self.model_file)
             self._log('Saved ANN model to: ' + self.model_file)
         except Exception as e:
@@ -205,8 +208,12 @@ class ANN(nn.Module):
         """ Loads a model of the ANN.
         """
         try:
-            self.load_state_dict(torch.load(self.model_file))
+            # Load the model
+            self.load_state_dict(torch.load(self.model_file), strict=False)
             self._log('Loaded ANN model from: ' + self.model_file)
+            
+            # Unpack self.classes
+            print(getattr(self.state_dict, 'output_labels', None))
         except Exception as e:
             self._log('Error loading model: ' + str(e), level=logging.error)
             exit(0)
@@ -248,7 +255,8 @@ class ANN(nn.Module):
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
                 self._log('Epoch {} - loss: {}'.format(epoch, curr_loss))
-            
+
+        self.classes = data.classes
         self._log('Training Completed: ' + info_str + '\n')
 
         if self.persist:
@@ -262,8 +270,8 @@ class ANN(nn.Module):
 
         total = 0
         corr = 0
-        class_total = {c: 0 for c in data.classes}
-        class_corr = {c: 0 for c in data.classes}
+        class_total = {c: 0 for c in self.classes}
+        class_corr = {c: 0 for c in self.classes}
 
         with torch.no_grad():
             for row in data:
@@ -283,7 +291,7 @@ class ANN(nn.Module):
         if verbose:
             log_str += 'Correct: %d\n' % corr
             log_str += 'Total: %d\n' % total
-            for c in data.classes:
+            for c in self.classes:
                 log_str += '%s : %d / %d ' % (c, class_corr[c], class_total[c])
                 if class_total[c] > 0:
                     log_str += '(%d%%)' % (100 * class_corr[c] / class_total[c])
@@ -293,16 +301,10 @@ class ANN(nn.Module):
         
         self._log(log_str)
 
-    def classify(self, inputs):
-        """ Given an input tensor, returns the ANN's classification.
-        """
-        # return data.class_from_node(self(inputs))
-        raise NotImplementedError
-
 
 if __name__ == '__main__':
     # Define and load training and validation sets
-    trainfile = 'datasets/letter_train.data'
+    trainfile = 'static/datasets/letter_train.data'
     trainfile = 'static/datasets/test3.data'  # debug
     valfile = 'static/datasets/letter_val.data'
     valfile = 'static/datasets/test3.data'  # debug
@@ -316,8 +318,8 @@ if __name__ == '__main__':
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('test', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=500, lr=.1, alpha=.3, stats_at=50, noise=None)
+    ann = ANN('test3', ann_dimens, persist=True, console_out=True)
+    ann.train(train_data, epochs=1000, lr=.01, alpha=.3, stats_at=50, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "D"
