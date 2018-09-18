@@ -43,7 +43,14 @@ The analytical layer examines the output-nodes of the attentive layer to draw co
 Analyst - Accepts highest weighted input. What does it do with the input? Can it override the weights? We can't choose to focus on one context or another, rather, the environment dictates
 
 ## Notes
+Purpose of "mistakes" is a signal to "check in" on this process or connectoin or whatever it represents.
 The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
+"Lottery scheduling", but in an evolving way - we learn an optimal schedule according to what is in our current awareness vs what isn't - it can be thought of as a temporal priroirty
+ - add a temporal decay to the evolving string?
+ - add a "recent connection beween two sub-ann's give's adjacent ann's higher priority"
+ - the evoling string is a tensor of floats. Tee floats represent connectoins between each sub-ann. i.e. "adjacent anns"
+ How is the genetic algorithm diff than just naother ann? Does it prevent overtraining
+Human context switching is approx 200 ms. 20-50ms is reasonably real-time.
 Note: With A arranged in this way, each ANN's output is dependent on current sensory input as well as the agent's current context.
 Note: An additional set of input nodes for each ANN may eventually be explored, to represent short/long term working memory.
 and the realization that moving from one context to the next is often (if not always) completely subconscious.
