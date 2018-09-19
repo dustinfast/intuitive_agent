@@ -6,7 +6,7 @@
 
 # Modified as follows by Dustin Fast, 2018:
 #   Removed unused imports (collections, operator)
-#   Removed print output of chars: '[36m','[3m', '[1m', '\033', '[0;0m'
+#   Removed print output of chars: '[36m', '[32m', '[3m', '[1m', '\033', '[0;0m'
 #	Removed 'Are you sure you want to quit?' prompt
 
 '''
@@ -625,7 +625,7 @@ class Base_GP(object):
 							query = int(input('\t Adjust the tournament size (suggest 10): '))
 							if query not in menu: raise ValueError()
 							self.tourn_size = query; break
-						except ValueError: print('\n\t[32m Enter a number from 2 including', str(self.tree_pop_max) + ".", 'Try again ...')
+						except ValueError: print('\n\tEnter a number from 2 including', str(self.tree_pop_max) + ".", 'Try again ...')
 						
 				
 				elif pause == 'min': # adjust the global, minimum number of nodes per Tree
@@ -636,7 +636,7 @@ class Base_GP(object):
 							query = int(input('\t Adjust the minimum number of nodes for all Trees (min 3): '))
 							if query not in menu: raise ValueError()
 							self.tree_depth_min = query; break
-						except ValueError: print('\n\t[32m Enter a number from 3 including 1000. Try again ...')
+						except ValueError: print('\n\tEnter a number from 3 including 1000. Try again ...')
 						
 				
 				# NEED TO ADD: adjustable tree_depth_max
@@ -649,10 +649,10 @@ class Base_GP(object):
 				#			query = int(raw_input('\n\t Adjust the global maximum Tree depth to (1 ... 10): '))
 				#			if query not in menu: raise ValueError()
 				#			if query < self.tree_depth_max:
-				#				print '\n\t[32m This value is less than the current value.'
+				#				print '\n\tThis value is less than the current value.'
 				#				conf = raw_input('\n\t Are you ok with this? (y/n) ')
 				#				if conf == 'n': break
-				#		except ValueError: print '\n\t[32m Enter a number from 1 including 10. Try again ...'
+				#		except ValueError: print '\n\tEnter a number from 1 including 10. Try again ...'
 						
 				
 				elif pause == 'bal': # adjust the balance of genetic operators'					
@@ -670,7 +670,7 @@ class Base_GP(object):
 							if query not in str(menu): raise ValueError()
 							elif query == '': break
 							tmp_repro = int(float(query)); break
-						except ValueError: print('\n\t[32m Enter a number from 0 including 1000. Try again ...')
+						except ValueError: print('\n\tEnter a number from 0 including 1000. Try again ...')
 						
 					while True:
 						try:
@@ -678,7 +678,7 @@ class Base_GP(object):
 							if query not in str(menu): raise ValueError()
 							elif query == '': break
 							tmp_point = int(float(query)); break
-						except ValueError: print('\n\t[32m Enter a number from 0 including 1000. Try again ...')
+						except ValueError: print('\n\tEnter a number from 0 including 1000. Try again ...')
 						
 					while True:
 						try:
@@ -686,7 +686,7 @@ class Base_GP(object):
 							if query not in str(menu): raise ValueError()
 							elif query == '': break
 							tmp_branch = int(float(query)); break
-						except ValueError: print('\n\t[32m Enter a number from 0 including 1000. Try again ...')
+						except ValueError: print('\n\tEnter a number from 0 including 1000. Try again ...')
 						
 					while True:
 						try:
@@ -694,7 +694,7 @@ class Base_GP(object):
 							if query not in str(menu): raise ValueError()
 							elif query == '': break
 							tmp_cross = int(float(query)); break
-						except ValueError: print('\n\t[32m Enter a number from 0 including 1000. Try again ...')
+						except ValueError: print('\n\tEnter a number from 0 including 1000. Try again ...')
 						
 					if tmp_repro + tmp_point + tmp_branch + tmp_cross != self.tree_pop_max: print('\n\t The sum of the above does not equal', self.tree_pop_max, 'Try again ...')
 					else:
@@ -734,9 +734,9 @@ class Base_GP(object):
 								elif self.kernel == 'm': self.fx_fitness_test_match(result); break
 								# elif self.kernel == '[other]': self.fx_fitness_test_[other](result); break
 								
-							except ValueError: print('\n\t[32m Enter a number from 1 including', str(len(self.population_b) - 1) + ".", 'Try again ...')
+							except ValueError: print('\n\tEnter a number from 1 including', str(len(self.population_b) - 1) + ".", 'Try again ...')
 							
-					else: print('\n\t[32m Karoo GP does not enable evaluation of the foundation population. Be patient ...')
+					else: print('\n\tKaroo GP does not enable evaluation of the foundation population. Be patient ...')
 					
 				
 				elif pause == 'p': # print a Tree to screen -- NEED TO ADD: SymPy graphical print option
@@ -748,7 +748,7 @@ class Base_GP(object):
 								if query not in str(menu) or query == '0': raise ValueError()
 								elif query == '': break
 								self.fx_display_tree(self.population_a[int(query)]); break
-							except ValueError: print('\n\t[32m Enter a number from 1 including', str(len(self.population_a) - 1) + ".", 'Try again ...')
+							except ValueError: print('\n\tEnter a number from 1 including', str(len(self.population_a) - 1) + ".", 'Try again ...')
 							
 					elif self.generation_id > 1:
 						menu = list(range(1,len(self.population_b)))
@@ -758,7 +758,7 @@ class Base_GP(object):
 								if query not in str(menu) or query == '0': raise ValueError()
 								elif query == '': break
 								self.fx_display_tree(self.population_b[int(query)]); break
-							except ValueError: print('\n\t[32m Enter a number from 1 including', str(len(self.population_b) - 1) + ".", 'Try again ...')
+							except ValueError: print('\n\tEnter a number from 1 including', str(len(self.population_b) - 1) + ".", 'Try again ...')
 							
 					else: print('\n\tThere is nor forest for which to see the Trees.')
 					
@@ -794,7 +794,7 @@ class Base_GP(object):
 							self.generation_max = self.generation_max + int(query)
 							next_gen_start = self.generation_id + 1
 							self.fx_karoo_continue(next_gen_start) # continue evolving, starting with the last population
-						except ValueError: print('\n\t[32m Enter a number from 1 including 100. Try again ...')
+						except ValueError: print('\n\tEnter a number from 1 including 100. Try again ...')
 					
 				
 				elif pause == 'load': # load population_s to replace population_a
@@ -804,7 +804,7 @@ class Base_GP(object):
 							if query not in ['y','n']: raise ValueError()
 							if query == 'y': self.fx_karoo_data_recover(self.filename['s']); break
 							elif query == 'n': break
-						except ValueError: print('\n\t[32m Enter (y)es or (n)o. Try again ...')
+						except ValueError: print('\n\tEnter (y)es or (n)o. Try again ...')
 						
 				
 				elif pause == 'w': # write the evolving population_b to disk
@@ -817,7 +817,7 @@ class Base_GP(object):
 				
 				elif pause == 'q':
 					if eol == 0: # if the GP run is not at the final generation
-						query = input('\n\t [32mThe current population_b will be lost!\n\n\t Are you certain you want to quit? (y/n)')
+						query = input('\n\t The current population_b will be lost!\n\n\t Are you certain you want to quit? (y/n)')
 						if query == 'y':
 							self.fx_archive_params_write('Desktop') # save run-time parameters to disk
 							sys.exit() # quit the script without saving population_b
@@ -827,13 +827,13 @@ class Base_GP(object):
 						# query = input('\n\t Are you certain you want to quit? (y/n)')
 						query = 'y'
 						if query == 'y':
-							print('\n\t [32mYour Trees and runtime parameters are archived in karoo_gp/runs/')
+							print('\n\t Your Trees and runtime parameters are archived in karoo_gp/runs/')
 							self.fx_archive_params_write('Desktop') # save run-time parameters to disk
 							sys.exit()
 						else: self.fx_karoo_pause(1)
 						
-			except ValueError: print('\t[32m Select from the options given. Try again ...')
-			except KeyboardInterrupt: print('\n\t[32m Enter q to quit')
+			except ValueError: print('\tSelect from the options given. Try again ...')
+			except KeyboardInterrupt: print('\n\tEnter q to quit')
 			
 		return
 		
