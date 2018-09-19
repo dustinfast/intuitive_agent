@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-""" An Artificial Neural Network (ANN) implemented using PyTorch and Pandas.
+""" An Artificial Neural Network (ANN) implemented using the PyTorch and 
+    Pandas libraries.
 
     The ANN functions as a classifier, with the output classification denoted
     by the active (argmax(y)) output node.
@@ -13,16 +14,17 @@
     Usage: See __main__ for example usage.
 
     Conventions:
-        x - Input layer (i.e. the set of input-layer nodes)
-        h - Hidden layer
-        y - Output layer
-        t - Some arbitrary tensor
+        x = Input layer (i.e. the set of input-layer nodes)
+        h = Hidden layer
+        y = Output layer
+        t = Some arbitrary tensor
 
     # TODO: 
         Noise Params
-        Fails if some class types missing between  training and validation set.
+        Fails if some class types missing between training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
         Implement option to use a PyTorch.utils.data.DataLoader as data source
+        Ensure self.classes is persistent
 
 
     Author: Dustin Fast, 2018
@@ -37,6 +39,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 
+# import sys; sys.path.append('modules/') # add directory 'modules' to the current path
 
 PERSIST_PATH = 'var/ann/'   # ANN model and log file path
 MODEL_EXT = '.pt'           # ANN model file extension
@@ -179,7 +182,7 @@ class ANN(nn.Module):
             print(log_str)
 
     def _label_from_outputs(self, outputs):
-        """ Given an outputs tensor, returns the mapped classification.
+        """ Given an outputs tensor, returns the mapped classification label.
         """
         _, idx = torch.max(outputs, 0)
         return self.classes[idx]
@@ -239,9 +242,16 @@ class ANN(nn.Module):
             if stats_at and epoch % stats_at == 0:
                 self._log('Epoch {} - loss: {}'.format(epoch, curr_loss))
 
-        self.classes = data.classes
+        # If no class labels yet, use the dataset's.
+        if not self.classes:
+            self.classes = data.classes
+            self._log('Set self.classes:' + str(self.classes))
+        else:
+            self._log('Still using old self.classes:' + str(self.classes))
+
         self._log('Training Completed: ' + info_str + '\n')
 
+        # Save the updated model, including the class labels, to the model file
         if self.persist:
             self.save()
 
@@ -294,21 +304,21 @@ class ANN(nn.Module):
 if __name__ == '__main__':
     # Define and load training and validation sets
     trainfile = 'static/datasets/letter_train.data'
-    trainfile = 'static/datasets/test3.data'  # debug
+    # trainfile = 'static/datasets/test.data'  # debug
     valfile = 'static/datasets/letter_val.data'
-    valfile = 'static/datasets/test3.data'  # debug
+    # valfile = 'static/datasets/test.data'  # debug
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
-    # The ANN's layer sizes, based on the dataset's dimennsions
+    # The ANN's layer sizes. In/out sz is based on the dataset's dimennsions
     x_sz = train_data.feature_count
-    h_sz = train_data.feature_count
+    h_sz = 14
     y_sz = train_data.class_count
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('test_ann', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=900, lr=.1, alpha=.3, stats_at=100, noise=None)
+    ann = ANN('ann_1_2', ann_dimens, persist=True, console_out=True)
+    ann.train(train_data, epochs=1000, lr=.1, alpha=.2, stats_at=50, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
