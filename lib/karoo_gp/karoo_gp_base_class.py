@@ -7,6 +7,7 @@
 # Modified as follows by Dustin Fast, 2018:
 #   Removed unused imports (collections, operator)
 #   Removed print output of chars: '[36m','[3m', '[1m', '\033', '[0;0m'
+#	Removed 'Are you sure you want to quit?' prompt
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -823,7 +824,8 @@ class Base_GP(object):
 						else: break
 						
 					else: # if the GP run is complete
-						query = input('\n\t Are you certain you want to quit? (y/n)')
+						# query = input('\n\t Are you certain you want to quit? (y/n)')
+						query = 'y'
 						if query == 'y':
 							print('\n\t [32mYour Trees and runtime parameters are archived in karoo_gp/runs/')
 							self.fx_archive_params_write('Desktop') # save run-time parameters to disk
