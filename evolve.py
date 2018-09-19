@@ -1,9 +1,22 @@
 #!/usr/bin/env python
 """ A genetic algorithm to evolve a tensor using the Karoo GP library.
 
+    Karoo GP Verision Info: 
+        Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
+        Python 3 version here: https://github.com/kstaats/karoo_gp/pull/9)
+        Small, non-systemic changes to karoo_gp.Base_GP were made by Dustin
+        Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
+
+    Dependencies:
+        TensorFlow
+        numpy
+        sympy
+        scikit-learn
+        matplotlib
+
     Conventions:
-        t = Some arbitrary tensor
-        p = pop = Population
+        t = A tensor
+        pop = Population
         indiv = Individual
 
     # TODO: 
@@ -12,11 +25,13 @@
     Author: Dustin Fast, 2018
 """
 
-import karoo_gp_base_class as karoo_gp
+import sys; sys.path.append('lib')
+import karoo_gp.karoo_gp_base_class as karoo_gp
 
 
-class EvolveTensor(karoo_gp.Base_GP):
-    """ A Karoo GP library wrapper for evolving a tensor.
+class KarooEvolve(karoo_gp.Base_GP):
+    """ A Karoo GP library wrapper.
+        Based on karoo_gp.py at: https://github.com/kstaats/karoo_gp
     """
     def __init__(self, 
                  kernel='c',            # (c)lassification, (r)egression, or (m)atching
@@ -33,7 +48,7 @@ class EvolveTensor(karoo_gp.Base_GP):
                  ):
         """
         """
-        super(EvolveTensor, self).__init__()
+        super(KarooEvolve, self).__init__()
         self.kernel = kernel
         self.tree_pop_max = max_pop_sz
         self.tourn_size = tourny_sz     
@@ -66,7 +81,7 @@ class EvolveTensor(karoo_gp.Base_GP):
         self.fx_karoo_construct(self.tree_type, self.tree_depth_base)
         print('Constructed Gen 1 population of', self.tree_pop_max, ' trees\n')
 
-        self.fx_display_tree(self.tree)  # print the current tree
+        self.fx_display_tree(self.tree)
         self.fx_archive_tree_write(self.population_a, 'a')  # save tree to disk
 
     def _eval_first_pop(self):
@@ -75,10 +90,9 @@ class EvolveTensor(karoo_gp.Base_GP):
         """     
         print('Evaluating the first generation of trees')
         self.fx_fitness_gym(self.population_a)  # generate expression, evaluate fitness, compare fitness
-        # Save this gen of trees to disk
-        self.fx_archive_tree_write(self.population_a, 'a')
+        self.fx_archive_tree_write(self.population_a, 'a')  # Save this gen of trees to disk
 
-        # no need to continue 1 generation or l.t. 10 trees requested
+        # Done if only 1 generation or l.t. 10 trees requested. Else continue.
         if self.tree_pop_max < 10 or self.generation_max == 1:
             self.fx_archive_params_write('Desktop')  # run-time params to disk
             self.fx_karoo_eol()
@@ -91,10 +105,10 @@ class EvolveTensor(karoo_gp.Base_GP):
         """
         for self.generation_id in range(2, self.generation_max + 1):
             print('\n Evolving pop of Trees for Gen ', self.generation_id, '...')
-            # initialise population_b to host the next generation
-            self.population_b = ['Evolving Generation']
 
-            # Generate the viable gene pool by evolving the prior generation
+            self.next_pop = ['Evolving Generation']
+
+            # Generate viable gene pool by evolving the prior generation
             self.fx_fitness_gene_pool()
             self.fx_karoo_reproduce()       # Do reproduction
             self.fx_karoo_point_mutate()    # Do point mutation
@@ -103,7 +117,7 @@ class EvolveTensor(karoo_gp.Base_GP):
             self.fx_eval_generation()       # Eval all trees of curr generation
 
             self.population_a = self.fx_evolve_pop_copy(
-                self.population_b, ['Generation ' + str(self.generation_id)])
+                self.next_pop, ['Generation ' + str(self.generation_id)])
 
     def _eval_fitness(self, p, f):
         """ Evaluates the given tensor for fitness, based on heuristic func f.
@@ -123,7 +137,6 @@ class EvolveTensor(karoo_gp.Base_GP):
         self._gen_first_pop()
 
 
-
 if __name__ == '__main__':
-    ev = EvolveTensor()
+    ev = KarooEvolve()
     ev.forward()
