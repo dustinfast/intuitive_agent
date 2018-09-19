@@ -1381,7 +1381,7 @@ class Base_GP(object):
 					# fitness_best = fitness # set best fitness score
 					# self.fittest_dict.update({tree_id:self.algo_sym}) # add to dictionary
 			
-		print('\n', len(list(self.fittest_dict.keys())), 'trees', np.sort(list(self.fittest_dict.keys())), 'offer the highest fitness scores.')
+		print('\n', len(list(self.fittest_dict.keys())), 'trees', np.sort(list(self.fittest_dict.keys())), ' offer the highest fitness scores.')
 		if self.display == 'g': self.fx_karoo_pause(0)
 		
 		return
