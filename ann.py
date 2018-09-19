@@ -11,13 +11,17 @@
     If persistent mode enabled, ANN state persists between exectutions via file
     PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
 
-    Usage: See __main__ for example usage.
+    Dependencies:
+        PyTorch
+
+    Usage: 
+        See __main__ for example usage.
 
     Conventions:
         x = Input layer (i.e. the set of input-layer nodes)
         h = Hidden layer
         y = Output layer
-        t = Some arbitrary tensor
+        t = A tensor
 
     # TODO: 
         Noise Params
@@ -318,7 +322,7 @@ if __name__ == '__main__':
 
     # Init, train, and subsequently validate the ANN
     ann = ANN('ann_1_2', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=1000, lr=.1, alpha=.2, stats_at=50, noise=None)
+    ann.train(train_data, epochs=1700, lr=.1, alpha=.2, stats_at=50, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
