@@ -882,7 +882,7 @@ class Base_GP(object):
 		print(' but the one most responsive to change." --Charles Darwin')
 		print('')
 		print('Congrats! Your multi-generational Karoo GP run is complete.\n')
-		print('Type ?to review your options or qto quit.\n')
+		print('Type ? to review your options or q to quit.\n')
 		self.fx_karoo_pause(1)
 		
 		return
