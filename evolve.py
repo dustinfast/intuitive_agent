@@ -113,7 +113,7 @@ class KarooEvolve(karoo_gp.Base_GP):
             # Set curr population to the newly evolved population
             self.population_a = self.fx_evolve_pop_copy(self.population_b, [])
         
-        self._show_menu()
+        self._show_menu()  # Done generating requested number of gens
 
     def _show_menu(self):
         """ Does fx_karoo_eol(), AKA the Karoo "pause" menu, iff enabled.
