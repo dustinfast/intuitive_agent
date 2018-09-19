@@ -75,14 +75,17 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.fx_karoo_data_load(self.tree_type, self.tree_depth_base, self.data)
         
         self.generation_id = 1  # Unique generation ID
-        self.population_a = []  # Tree array container, by generation
+        self.population_a = ['Karoo GP by Kai Staats, Generation ' + str(self.generation_id)] # an empty list which will store all Tree arrays, one generation at a time
+        # self.population_a = []  # Tree array container, by generation
 
         # construct the first population of Trees
         self.fx_karoo_construct(self.tree_type, self.tree_depth_base)
         print('Constructed Gen 1 population of', self.tree_pop_max, ' trees\n')
 
         self.fx_display_tree(self.tree)
-        self.fx_archive_tree_write(self.population_a, 'a')  # save tree to disk
+        # self.fx_archive_tree_write(self.population_a, 'a')  # save tree to disk
+
+        self._eval_first_pop()
 
     def _eval_first_pop(self):
         """ Evaluate the first generation of population trees.
@@ -94,9 +97,8 @@ class KarooEvolve(karoo_gp.Base_GP):
 
         # Done if only 1 generation or l.t. 10 trees requested. Else continue.
         if self.tree_pop_max < 10 or self.generation_max == 1:
-            self.fx_archive_params_write('Desktop')  # run-time params to disk
+            # self.fx_archive_params_write('Desktop')  # run-time params to disk
             self.fx_karoo_eol()
-            return
         else:
             self._gen_next_pop()
 
@@ -106,7 +108,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         for self.generation_id in range(2, self.generation_max + 1):
             print('\n Evolving pop of Trees for Gen ', self.generation_id, '...')
 
-            self.next_pop = ['Evolving Generation']
+            self.population_b = ['Karoo GP by Kai Staats, Evolving Generation'] # initialise population_b to host the next generation
 
             # Generate viable gene pool by evolving the prior generation
             self.fx_fitness_gene_pool()
@@ -116,8 +118,9 @@ class KarooEvolve(karoo_gp.Base_GP):
             self.fx_karoo_crossover()       # Do crossover reproduction
             self.fx_eval_generation()       # Eval all trees of curr generation
 
-            self.population_a = self.fx_evolve_pop_copy(
-                self.next_pop, ['Generation ' + str(self.generation_id)])
+            self.population_a = self.fx_evolve_pop_copy(self.population_b, ['Karoo GP by Kai Staats, Generation ' + str(self.generation_id)])
+        
+        self.fx_karoo_eol()
 
     def _eval_fitness(self, p, f):
         """ Evaluates the given tensor for fitness, based on heuristic func f.
