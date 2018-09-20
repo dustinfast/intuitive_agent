@@ -11,6 +11,9 @@
     If persistent mode enabled, ANN state persists between exectutions via file
     PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
 
+    Structure:
+        ANN is the main interface, with DataFromCSV as a helper.
+
     Dependencies:
         PyTorch
 
@@ -24,6 +27,7 @@
         t = A tensor
 
     # TODO: 
+        Encapsulate main contents into ANN.from_csv()
         Noise Params
         Fails if some class types missing between training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
@@ -125,12 +129,15 @@ class ANN(nn.Module):
                 console_out (bool)      :   Output log stmts to console flag
         """
         super(ANN, self).__init__()
+
+        # Generic object params
         self.ID = ID
         self.model_file = None
         self.logger = None
         self.persist = False
         self.console_out = False
-        self.classes = None  # Set on self.train()
+
+        self.classes = None  # Unique class labels, set on self.train()
         
         # Layer defs
         self.x_sz = dims[0]
