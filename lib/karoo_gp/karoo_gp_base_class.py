@@ -2637,7 +2637,7 @@ class Base_GP(object):
 		return
 		
 	
-	def fx_archive_params_write(self, app): # tested 2017 02/13
+	def fx_archive_params_write(self, app, fname): # tested 2017 02/13
 	
 		'''
 		Save run-time configuration parameters to disk.
@@ -2645,7 +2645,7 @@ class Base_GP(object):
 		Arguments required: none
 		'''
 		
-		file = open(self.path + '/log_config.txt', 'w')
+		file = open(fname + '.params', 'w')
 		file.write('Karoo GP ' + app)
 		file.write('\n launched: ' + str(self.datetime))
 		file.write('\n dataset: ' + str(self.dataset))
@@ -2670,7 +2670,7 @@ class Base_GP(object):
 		file.close()
 		
 		
-		file = open(self.path + '/log_test.txt', 'w')
+		file = open(fname + '.test', 'w')
 		file.write('Karoo GP ' + app)
 		file.write('\n launched: ' + str(self.datetime))
 		file.write('\n dataset: ' + str(self.dataset))

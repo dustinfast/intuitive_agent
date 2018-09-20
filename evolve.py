@@ -41,8 +41,11 @@ import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
 
-PERSIST_PATH = 'var/evolve/'    # Evolver model and log file path
-LOG_EXT = '.log'                # Evolver log file extension
+PERSIST_PATH = 'var/evolve'  # Persistent output path (Karoo expects no end /)
+POP_EXT = '.pop'
+MODEL_EXT = '.tree'
+PARAM_EXT = '.params'
+LOG_EXT = '.log'
 
 
 class KarooEvolve(karoo_gp.Base_GP):
@@ -55,7 +58,7 @@ class KarooEvolve(karoo_gp.Base_GP):
                  tree_pop_max=50,       # Maximum population size
                  tree_depth_min=3,      # Min nodes of any tree
                  tree_depth_max=3,      # Max tree depth
-                 generation_max=10,     # Max generations to evolve
+                 generation_max=1,     # Max generations to evolve
                  tourn_size=10,         # Individuals in each "tournament"
                  precision=6,           # Float points for fx_fitness_eval
                  menu=False             # Denotes Karoo GP "pause" menu enabled
@@ -152,11 +155,11 @@ class EvolveTensor(object):
         self.ID = ID
         self.logger = None
         self.persist = False
+        self.model_file = None
         self.console_out = False
-        self.path = None                # Save/load directory
 
         self.evolver = karoo_evolve     # The interface to karoo_gp
-        self.curr_tensor = None         # The current version of the tensor
+        self.tensor = None              # The current version of the tensor
 
         # kwarg handlers...
         if kwargs.get('console_out'):
@@ -164,22 +167,23 @@ class EvolveTensor(object):
 
         if kwargs.get('persist'):
             self.persist = True
-            self.path = PERSIST_PATH + ID + "/"
+            self.path = PERSIST_PATH
             if not os.path.exists(self.path):
                 os.mkdir(self.path)
 
             # Init logger and output init statment
-            logging.basicConfig(filename=self.path + ID + LOG_EXT,
+            logging.basicConfig(filename=self.path + '/' + ID + LOG_EXT,
                                 level=logging.DEBUG,
                                 format='%(asctime)s - %(levelname)s: %(message)s')
             self._log('*** Evolver initialized ***:\n' + str(self))
 
             # Init, and possibly load, model file
-            if os.path.isfile(self.model_file):
+            self.model_file = self.path + '/' + ID + '.tree'
+            if os.path.isfile(self.path):
                 self.load()
 
     def __str__(self):
-        return self
+        return 'Evolver ' + self.ID
 
     def _log(self, log_str, level=logging.info):
         """ Logs the given string to the Evolver's log file, iff in persist mode.
@@ -197,7 +201,7 @@ class EvolveTensor(object):
         try:
             self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')
             self.evolver.fx_archive_params_write('Desktop')
-            self._log('Saved Evolver model to: ' + self.model_file)
+            self._log('Saved Evolver model to: ' + self.path)
         except Exception as e:
             self._log('Error saving model: ' + str(e), level=logging.error)
 
@@ -220,7 +224,5 @@ class EvolveTensor(object):
     
 if __name__ == '__main__':
     karoov = KarooEvolve(menu=False)
-
-    # Populate first gen from csv with headers. "Label" must be in 's' col
-    karoov.gen_first_pop(datafile='static/datasets/test_r.data')
     ev = EvolveTensor('test_evolver', karoov, persist=True)
+    ev.evolver.gen_first_pop(datafile='static/datasets/test_r.data')
