@@ -42,7 +42,6 @@ import karoo_gp.karoo_gp_base_class as karoo_gp
 
 
 PERSIST_PATH = 'var/evolve/'    # Evolver model and log file path
-MODEL_EXT = '.ev'               # Evolver model file extension
 LOG_EXT = '.log'                # Evolver log file extension
 
 
@@ -133,7 +132,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         self._show_menu()  # Done generating requested number of gens
 
     def _show_menu(self):
-        """ Does fx_karoo_eol(), AKA the Karoo "pause" menu, iff enabled.
+        """ Displays the Karoo "pause" menu, iff enabled.
         """
         if self.menu:
             self.fx_karoo_eol()
@@ -151,12 +150,12 @@ class EvolveTensor(object):
         """
         # Generic object params
         self.ID = ID
-        self.model_file = None
         self.logger = None
         self.persist = False
         self.console_out = False
+        self.path = None                # Save/load directory
 
-        self.evolver = karoo_evolve     # The interface to Karoo GP
+        self.evolver = karoo_evolve     # The interface to karoo_gp
         self.curr_tensor = None         # The current version of the tensor
 
         # kwarg handlers...
@@ -165,17 +164,17 @@ class EvolveTensor(object):
 
         if kwargs.get('persist'):
             self.persist = True
-            if not os.path.exists(PERSIST_PATH):
-                os.mkdir(PERSIST_PATH)
+            self.path = PERSIST_PATH + ID + "/"
+            if not os.path.exists(self.path):
+                os.mkdir(self.path)
 
             # Init logger and output init statment
-            logging.basicConfig(filename=PERSIST_PATH + ID + LOG_EXT,
+            logging.basicConfig(filename=self.path + ID + LOG_EXT,
                                 level=logging.DEBUG,
                                 format='%(asctime)s - %(levelname)s: %(message)s')
             self._log('*** Evolver initialized ***:\n' + str(self))
 
             # Init, and possibly load, model file
-            self.model_file = PERSIST_PATH + ID + MODEL_EXT
             if os.path.isfile(self.model_file):
                 self.load()
 
@@ -196,9 +195,8 @@ class EvolveTensor(object):
         """ Saves a model of the Evolver.
         """
         try:
-            raise NotImplementedError
-            # self.fx_archive_tree_write(self.evolver.population_a, 'a')
-            # self.fx_archive_params_write('Desktop')
+            self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')
+            self.evolver.fx_archive_params_write('Desktop')
             self._log('Saved Evolver model to: ' + self.model_file)
         except Exception as e:
             self._log('Error saving model: ' + str(e), level=logging.error)
@@ -225,4 +223,4 @@ if __name__ == '__main__':
 
     # Populate first gen from csv with headers. "Label" must be in 's' col
     karoov.gen_first_pop(datafile='static/datasets/test_r.data')
-    # ev = EvolveTensor('test_evolver', karoov)
+    ev = EvolveTensor('test_evolver', karoov, persist=True)
