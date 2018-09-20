@@ -28,7 +28,8 @@
 
 
     # TODO: 
-        Abstract log(), save(), etc., to parent class
+        Encapsulate main contents into ANN.from_csv()
+
 
 
     Author: Dustin Fast, 2018
@@ -220,9 +221,6 @@ class EvolveTensor(object):
        
     
 if __name__ == '__main__':
-    kv = KarooEvolve(menu=False)
-    kv.gen_first_pop()      # Train the first population from file
-
-
-    
-    ev = EvolveTensor('test_evolver')
+    karoov = KarooEvolve(menu=False)
+    karoov.gen_first_pop(datafile='static/datasets/test_headers.data')
+    ev = EvolveTensor('test_evolver', karoov)
