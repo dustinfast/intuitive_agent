@@ -11,41 +11,30 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
 
     Structure:
-        EvolveTensor is the main interface, with KarooEvolver as the interface
-        to Karoo GP
+        Evolver is the main interface, with KarooEvolver as the helper
+        interface to Karoo GP and Model as a helper for logging and save/load.
 
-    Dependencies:
-        TensorFlow
-        numpy
-        sympy
-        scikit-learn
-        matplotlib
+    Usage:
+        See __main__ for example usage.        
 
     Conventions:
         t = A tensor
         pop = Population
         indiv = Individual
 
-
     # TODO: 
-        Encapsulate main contents into ANN.from_csv()
-
 
 
     Author: Dustin Fast, 2018
 """
 
-import os
-import logging
+# Imports
+from classlib import Model
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
-
-PERSIST_PATH = 'var/evolve'  # Persistent output path (Karoo expects no end /)
-POP_EXT = '.pop'
+# Constants
 MODEL_EXT = '.tree'
-PARAM_EXT = '.params'
-LOG_EXT = '.log'
 
 
 class KarooEvolve(karoo_gp.Base_GP):
@@ -58,7 +47,7 @@ class KarooEvolve(karoo_gp.Base_GP):
                  tree_pop_max=50,       # Maximum population size
                  tree_depth_min=3,      # Min nodes of any tree
                  tree_depth_max=3,      # Max tree depth
-                 generation_max=1,     # Max generations to evolve
+                 generation_max=1,      # Max generations to evolve
                  tourn_size=10,         # Individuals in each "tournament"
                  precision=6,           # Float points for fx_fitness_eval
                  menu=False             # Denotes Karoo GP "pause" menu enabled
@@ -92,7 +81,7 @@ class KarooEvolve(karoo_gp.Base_GP):
             tree_depth_base (int)   : Initial population tree's depth
             data (str)              : CSV filename
         """ 
-        # Load training data (data is divided into train/val sets internally)
+        # Load training data (data divided into train/validate sets internally)
         self.fx_karoo_data_load(tree_type, tree_depth_base, filename=datafile)
         
         # Construct the first population tree
@@ -100,8 +89,8 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.population_a = ['Generation ' + str(self.generation_id)]
         self.fx_karoo_construct(tree_type, tree_depth_base)
 
-        # self.fx_display_tree(self.tree)  # debug
-        self._eval_first_pop()  # Setup eval func and do eval on populations
+        # Setup eval func and do eval on this initial population
+        self._eval_first_pop()
 
     def _eval_first_pop(self):
         """ Evaluate the first generation of population trees.
@@ -110,7 +99,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         # Setup eval expression, eval and compare fitness of first pop tree
         self.fx_fitness_gym(self.population_a)  
 
-        # Done if only 1 generation or < 10 trees requested. Else gen next pop
+        # If only 1 generation or < 10 trees, finished. Else gen next pop
         if self.tree_pop_max < 10 or self.generation_max == 1:
             self._show_menu
         else:
@@ -132,7 +121,8 @@ class KarooEvolve(karoo_gp.Base_GP):
             # Set curr population to the newly evolved population
             self.population_a = self.fx_evolve_pop_copy(self.population_b, [])
         
-        self._show_menu()  # Done generating requested number of gens
+        # Done generating populations...
+        self._show_menu()
 
     def _show_menu(self):
         """ Displays the Karoo "pause" menu, iff enabled.
@@ -141,88 +131,46 @@ class KarooEvolve(karoo_gp.Base_GP):
             self.fx_karoo_eol()
 
 
-class EvolveTensor(object):
+class Evolver(object):
     """ A genetically evolving tensor.
     """
-    def __init__(self, ID, karoo_evolve, **kwargs):
-        """ ID (str)                    : This Evolver's unique ID number
-
-            **kwargs:
-                persist (bool)          :   Persit mode flag
-                console_out (bool)      :   Output log stmts to console flag
+    def __init__(self, ID, karoo_evolve, console_out, persist):
+        """ ID (str)                : This Evolver's unique ID number
+            console_out (bool)      : Output log stmts to console flag
+            persist (bool)          : Persit mode flag
         """
         # Generic object params
         self.ID = ID
         self.logger = None
-        self.persist = False
+        self.persist = persist
         self.model_file = None
         self.console_out = False
 
         self.evolver = karoo_evolve     # The interface to karoo_gp
         self.tensor = None              # The current version of the tensor
 
-        # kwarg handlers...
-        if kwargs.get('console_out'):
-            self.console_out = True
-
-        if kwargs.get('persist'):
-            self.persist = True
-            self.path = PERSIST_PATH
-            if not os.path.exists(self.path):
-                os.mkdir(self.path)
-
-            # Init logger and output init statment
-            logging.basicConfig(filename=self.path + '/' + ID + LOG_EXT,
-                                level=logging.DEBUG,
-                                format='%(asctime)s - %(levelname)s: %(message)s')
-            self._log('*** Evolver initialized ***:\n' + str(self))
-
-            # Init, and possibly load, model file
-            self.model_file = self.path + '/' + ID + '.tree'
-            if os.path.isfile(self.path):
-                self.load()
+        # Init the Model obj, which handles load, save, log, and console output
+        # save_func = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
+        # save_func2 = self.evolver.fx_archive_params_write('Desktop')
+        self.model = Model(self,
+                           console_out,
+                           persist)
+                        #    model_ext=MODEL_EXT,
+                        #    save_func=save_func,
+                        #    load_func=load_func)
 
     def __str__(self):
-        return 'Evolver ' + self.ID
-
-    def _log(self, log_str, level=logging.info):
-        """ Logs the given string to the Evolver's log file, iff in persist mode.
-            Also outputs the string to the console, iff in console_out mode.
-        """
-        if self.persist:
-            level(log_str)
-
-        if self.console_out:
-            print(log_str)
-
-    def save(self):
-        """ Saves a model of the Evolver.
-        """
-        try:
-            self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')
-            self.evolver.fx_archive_params_write('Desktop')
-            self._log('Saved Evolver model to: ' + self.path)
-        except Exception as e:
-            self._log('Error saving model: ' + str(e), level=logging.error)
-
-    def load(self):
-        """ Loads a model of the Evolver.
-        """
-        try:
-            raise NotImplementedError
-            self._log('Loaded Evolver model from: ' + self.model_file)
-        except Exception as e:
-            self._log('Error loading model: ' + str(e), level=logging.error)
-            exit(0)
+        str_out = 'ID = ' + self.ID + '\n'
+        str_out += 'Tensor = ' + str(self.tensor)
+        return str_out
 
     def forward(self, t):
-        """ Returns the next "fittest" evolved version of the given tensor.
+        """ Returns the next "fittest" version of the given tensor.
         """
         raise NotImplementedError
-        # self.curr_tensor = None
        
     
 if __name__ == '__main__':
     karoov = KarooEvolve(menu=False)
-    ev = EvolveTensor('test_evolver', karoov, persist=True)
+    ev = Evolver('test_evolver', karoov, console_out=True, persist=False)
     ev.evolver.gen_first_pop(datafile='static/datasets/test_r.data')

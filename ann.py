@@ -12,10 +12,7 @@
     PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
 
     Structure:
-        ANN is the main interface, with DataFromCSV as a helper.
-
-    Dependencies:
-        PyTorch
+        ANN is the main interface, with DataFromCSV and Model as helpers.
 
     Usage: 
         See __main__ for example usage.
@@ -32,26 +29,25 @@
         Noise Params
         Fails if some class types missing between training and validation set.
         Expand ANN to allow an arbitrary number of hidden layers
-        Implement option to use a PyTorch.utils.data.DataLoader as data source
+        Implement ability to use a PyTorch.utils.data.DataLoader as data source
         Ensure self.classes is persistent
 
 
     Author: Dustin Fast, 2018
 """
 
-import os
-import logging
-import pandas as pd
+# Imports
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
+import pandas as pd
 
+from classlib import Model
 
-PERSIST_PATH = 'var/ann/'   # ANN model and log file path
+# Constants
 MODEL_EXT = '.pt'           # ANN model file extension
-LOG_EXT = '.log'            # ANN log file extension
 
 
 class DataFromCSV(Dataset):
@@ -59,7 +55,8 @@ class DataFromCSV(Dataset):
         populated from the given CSV file and normalized if specified.
     """
     def __init__(self, csvfile, norm_range=None):
-        """ csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
+        """ Accepts the following parameters:
+            csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
             norm_range (2-tuple): Normalization range, as (min, max). None OK.
         """
         self.classes = None                         # Unique instance labels
@@ -118,26 +115,23 @@ class DataFromCSV(Dataset):
 class ANN(nn.Module):
     """ An artificial neural network with 3 fully connected layers x, y, and z,
         with each layer represented as a tensor.
-        """
-    def __init__(self, ID, dims, f_act=nn.Sigmoid, f_loss=nn.MSELoss, **kwargs):
-        """ ID (str)                    :   This ANNs unique ID number
-            dims (3-tuple)              :   Node counts by layer (x, y, z)
-            f_act (nn.Layer)            :   Node activation function
-            f_loss (nn.LossFunction)    :   Node Loss function
 
-            **kwargs:
-                persist (bool)          :   Persit mode flag
-                console_out (bool)      :   Output log stmts to console flag
+        Layer/Node properties:
+            Each layer is summed according to torch.nn.Linear()
+            Each Node is activated according torch.nn.Sigmoid()
+            Error is computed via torch.nn.MSELoss()
+            Output layer is rectified with torch.nn.functional.relu()
+        """
+    def __init__(self, ID, dims, console_out, persist):
+        """ Accepts the following parameters
+            ID (str)                :   This ANNs unique ID number
+            dims (3-tuple)          :   Node counts by layer (x, y, z)
+            console_out (bool)      :   Output log stmts to console flag
+            persist (bool)          :   Persit mode flag
         """
         super(ANN, self).__init__()
-
-        # Generic object params
         self.ID = ID
-        self.model_file = None
-        self.logger = None
-        self.persist = False
-        self.console_out = False
-
+        self.persist = persist
         self.classes = None  # Unique class labels, set on self.train()
         
         # Layer defs
@@ -152,28 +146,18 @@ class ANN(nn.Module):
         self.f_y = nn.Linear(dims[2], dims[2], bias=True)
 
         # Node activation/loss functions
-        self.f_act = f_act()
-        self.f_loss = f_loss()
+        self.f_act = nn.Sigmoid()
+        self.f_loss = nn.MSELoss()
 
-        # kwarg handlers...
-        if kwargs.get('console_out'):
-            self.console_out = True
-            
-        if kwargs.get('persist'):
-            self.persist = True
-            if not os.path.exists(PERSIST_PATH):
-                os.mkdir(PERSIST_PATH)
-
-            # Init logger and output init statment
-            logging.basicConfig(filename=PERSIST_PATH + ID + LOG_EXT,
-                                level=logging.DEBUG,
-                                format='%(asctime)s - %(levelname)s: %(message)s')
-            self._log('*** ANN initialized ***:\n' + str(self))
-
-            # Init, and possibly load, model file
-            self.model_file = PERSIST_PATH + ID + MODEL_EXT
-            if os.path.isfile(self.model_file):
-                self.load()
+        # Init the Model obj, which handles load, save, log, and console output
+        save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
+        load_func = "self.load_state_dict(torch.load('MODEL_FILE'), strict=False)"
+        self.model = Model(self,
+                           console_out,
+                           persist,
+                           model_ext=MODEL_EXT,
+                           save_func=save_func,
+                           load_func=load_func)
             
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\n'
@@ -182,40 +166,11 @@ class ANN(nn.Module):
         str_out += 'z = ' + str(self.f_y)
         return str_out
 
-    def _log(self, log_str, level=logging.info):
-        """ Logs the given string to the ANN's log file, iff in persist mode.
-            Also outputs the string to the console, iff in console_out mode.
-        """
-        if self.persist:
-            level(log_str)
-
-        if self.console_out:
-            print(log_str)
-
     def _label_from_outputs(self, outputs):
         """ Given an outputs tensor, returns the mapped classification label.
         """
         _, idx = torch.max(outputs, 0)
         return self.classes[idx]
-
-    def save(self):
-        """ Saves a model of the ANN.
-        """
-        try:
-            torch.save(self.state_dict(), self.model_file)
-            self._log('Saved ANN model to: ' + self.model_file)
-        except Exception as e:
-            self._log('Error saving model: ' + str(e), level=logging.error)
-
-    def load(self):
-        """ Loads a model of the ANN.
-        """
-        try:
-            self.load_state_dict(torch.load(self.model_file), strict=False)
-            self._log('Loaded ANN model from: ' + self.model_file)
-        except Exception as e:
-            self._log('Error loading model: ' + str(e), level=logging.error)
-            exit(0)
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
@@ -236,7 +191,7 @@ class ANN(nn.Module):
         """
         info_str = '{} epochs @ lr={}, alpha={}, file={}.'
         info_str = info_str.format(epochs, lr, alpha, data.fname)
-        self._log('Training started: ' + info_str)
+        self.model.log('Training started: ' + info_str)
 
         # Do training
         optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=alpha)        
@@ -251,26 +206,26 @@ class ANN(nn.Module):
 
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
-                self._log('Epoch {} - loss: {}'.format(epoch, curr_loss))
+                self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
 
         # If no class labels yet, use the dataset's.
         if not self.classes:
             self.classes = data.classes
-            self._log('Set self.classes:' + str(self.classes))
+            self.model.log('Set self.classes:' + str(self.classes))
         else:
-            self._log('Still using old self.classes:' + str(self.classes))
+            self.model.log('Still using old self.classes:' + str(self.classes))
 
-        self._log('Training Completed: ' + info_str + '\n')
+        self.model.log('Training Completed: ' + info_str + '\n')
 
         # Save the updated model, including the class labels, to the model file
         if self.persist:
-            self.save()
+            self.model.save()
 
     def validate(self, data, verbose=False):
         """ Validates the ANN against the given data set.
         """
         info_str = 'file={}.'.format(data.fname)
-        self._log('Validation started: ' + info_str)
+        self.model.log('Validation started: ' + info_str)
 
         total = 0
         corr = 0
@@ -292,7 +247,7 @@ class ANN(nn.Module):
 
         log_str = 'Validation Completed: Accuracy=%d%%\n' % (100 * corr / total)
 
-        # If verbose, show detailed accuracy info
+        # If verbose, output detailed accuracy info
         if verbose:
             log_str += 'Correct: %d\n' % corr
             log_str += 'Total: %d\n' % total
@@ -304,7 +259,7 @@ class ANN(nn.Module):
                     log_str += '(0%)'
                 log_str += '\n'
         
-        self._log(log_str)
+        self.model.log(log_str)
 
     def classify(self, inputs):
         """ Returns the ANN's classification of the given input tensor.
@@ -314,10 +269,10 @@ class ANN(nn.Module):
 
 if __name__ == '__main__':
     # Define and load training and validation sets
-    trainfile = 'static/datasets/letter_train.data'
-    # trainfile = 'static/datasets/test.data'  # debug
-    valfile = 'static/datasets/letter_val.data'
-    # valfile = 'static/datasets/test.data'  # debug
+    # trainfile = 'static/datasets/letter_train.data'
+    trainfile = 'static/datasets/test.data'  # debug
+    # valfile = 'static/datasets/letter_val.data'
+    valfile = 'static/datasets/test.data'  # debug
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
@@ -328,8 +283,8 @@ if __name__ == '__main__':
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('ann_1_1', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=1500, lr=.01, alpha=.1, stats_at=100, noise=None)
+    ann = ANN('ann.1.1', ann_dimens, console_out=True, persist=True)
+    ann.train(train_data, epochs=3000, lr=.1, alpha=.4, stats_at=100, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"

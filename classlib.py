@@ -10,7 +10,7 @@
 
 # Imports
 import os
-import torch
+import torch    # Used in eval() - May throw "unused" linter error.
 import logging
 
 # Constants
