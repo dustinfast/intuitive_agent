@@ -52,7 +52,7 @@ class KarooEvolve(karoo_gp.Base_GP):
     """
     def __init__(self, 
                  kernel='c',            # (c)lassifier, (r)egression, or (m)atching
-                 display='s',           # (i)nteractive, (g)eneration, (m)iminal, (s)ilent, or (d)e(b)ug
+                 display='m',           # (i)nteractive, (g)eneration, (m)iminal, (s)ilent, or (d)e(b)ug
                  tree_pop_max=50,       # Maximum population size
                  tree_depth_min=3,      # Min nodes of any tree
                  tree_depth_max=3,      # Max tree depth
@@ -84,14 +84,14 @@ class KarooEvolve(karoo_gp.Base_GP):
         """
         return self.fx_fitness_tournament(tourn_size)
 
-    def gen_first_pop(self, datafile='', tree_type='f', tree_depth_base=3):
+    def gen_first_pop(self, datafile, tree_type='f', tree_depth_base=3):
         """ Generates the initial population tree and fitness function.
             tree_type (char)        : (f)ull, (g)row, or (r)amped 50/50
             tree_depth_base (int)   : Initial population tree's depth
-            datafile (str)          : Data set filename
+            data (str)              : CSV filename
         """ 
-        # Load training and validation data (divided into train/val internally)
-        self.fx_karoo_data_load(tree_type, tree_depth_base, datafile)
+        # Load training data (data is divided into train/val sets internally)
+        self.fx_karoo_data_load(tree_type, tree_depth_base, filename=datafile)
         
         # Construct the first population tree
         self.generation_id = 1
@@ -222,5 +222,7 @@ class EvolveTensor(object):
     
 if __name__ == '__main__':
     karoov = KarooEvolve(menu=False)
-    karoov.gen_first_pop(datafile='static/datasets/test_headers.data')
-    ev = EvolveTensor('test_evolver', karoov)
+
+    # Populate first gen from csv with headers. "Label" must be in 's' col
+    karoov.gen_first_pop(datafile='static/datasets/test_r.data')
+    # ev = EvolveTensor('test_evolver', karoov)
