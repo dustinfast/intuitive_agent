@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 """ A module for genetically evolving a tensor using the Karoo GP library.
 
+    If persistent mode enabled, Evolver state persists between executions via
+    PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
+
     Karoo GP Verision Info: 
         Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
         Python 3 version here: https://github.com/kstaats/karoo_gp/pull/9)
         Small, non-systemic changes to karoo_gp.Base_GP were made by Dustin
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
+
+    Structure:
+        EvolveTensor is the main interface, with KarooEvolver as the interface
+        to Karoo GP
 
     Dependencies:
         TensorFlow
@@ -19,14 +26,24 @@
         pop = Population
         indiv = Individual
 
+
     # TODO: 
+        Encapsulate main contents into ANN.from_csv()
+
 
 
     Author: Dustin Fast, 2018
 """
 
+import os
+import logging
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
+
+
+PERSIST_PATH = 'var/evolve/'    # Evolver model and log file path
+MODEL_EXT = '.ev'               # Evolver model file extension
+LOG_EXT = '.log'                # Evolver log file extension
 
 
 class KarooEvolve(karoo_gp.Base_GP):
@@ -42,7 +59,7 @@ class KarooEvolve(karoo_gp.Base_GP):
                  generation_max=10,     # Max generations to evolve
                  tourn_size=10,         # Individuals in each "tournament"
                  precision=6,           # Float points for fx_fitness_eval
-                 menu=True              # Denotes Karoo GP "pause" menu enabled
+                 menu=False             # Denotes Karoo GP "pause" menu enabled
                  ):
         """"""
         super(KarooEvolve, self).__init__()
@@ -122,7 +139,88 @@ class KarooEvolve(karoo_gp.Base_GP):
             self.fx_karoo_eol()
 
 
+class EvolveTensor(object):
+    """ A genetically evolving tensor.
+    """
+    def __init__(self, ID, karoo_evolve, **kwargs):
+        """ ID (str)                    : This Evolver's unique ID number
+
+            **kwargs:
+                persist (bool)          :   Persit mode flag
+                console_out (bool)      :   Output log stmts to console flag
+        """
+        # Generic object params
+        self.ID = ID
+        self.model_file = None
+        self.logger = None
+        self.persist = False
+        self.console_out = False
+
+        self.evolver = karoo_evolve     # The interface to Karoo GP
+        self.curr_tensor = None         # The current version of the tensor
+
+        # kwarg handlers...
+        if kwargs.get('console_out'):
+            self.console_out = True
+
+        if kwargs.get('persist'):
+            self.persist = True
+            if not os.path.exists(PERSIST_PATH):
+                os.mkdir(PERSIST_PATH)
+
+            # Init logger and output init statment
+            logging.basicConfig(filename=PERSIST_PATH + ID + LOG_EXT,
+                                level=logging.DEBUG,
+                                format='%(asctime)s - %(levelname)s: %(message)s')
+            self._log('*** Evolver initialized ***:\n' + str(self))
+
+            # Init, and possibly load, model file
+            self.model_file = PERSIST_PATH + ID + MODEL_EXT
+            if os.path.isfile(self.model_file):
+                self.load()
+
+    def __str__(self):
+        return self
+
+    def _log(self, log_str, level=logging.info):
+        """ Logs the given string to the Evolver's log file, iff in persist mode.
+            Also outputs the string to the console, iff in console_out mode.
+        """
+        if self.persist:
+            level(log_str)
+
+        if self.console_out:
+            print(log_str)
+
+    def save(self):
+        """ Saves a model of the Evolver.
+        """
+        try:
+            raise NotImplementedError
+            # self.fx_archive_tree_write(self.evolver.population_a, 'a')
+            # self.fx_archive_params_write('Desktop')
+            self._log('Saved Evolver model to: ' + self.model_file)
+        except Exception as e:
+            self._log('Error saving model: ' + str(e), level=logging.error)
+
+    def load(self):
+        """ Loads a model of the Evolver.
+        """
+        try:
+            raise NotImplementedError
+            self._log('Loaded Evolver model from: ' + self.model_file)
+        except Exception as e:
+            self._log('Error loading model: ' + str(e), level=logging.error)
+            exit(0)
+
+    def forward(self, t):
+        """ Returns the next "fittest" evolved version of the given tensor.
+        """
+        raise NotImplementedError
+        # self.curr_tensor = None
+       
+    
 if __name__ == '__main__':
-    kv = KarooEvolve(menu=False)
-    kv.gen_first_pop()        # Train the first population from file
-    # print(kv.get_best())    # debug
+    karoov = KarooEvolve(menu=False)
+    karoov.gen_first_pop(datafile='static/datasets/test_headers.data')
+    ev = EvolveTensor('test_evolver', karoov)

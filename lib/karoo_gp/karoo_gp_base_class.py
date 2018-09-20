@@ -8,6 +8,8 @@
 #   Removed unused imports (collections, operator)
 #   Removed print output of chars: '[36m', '[32m', '[3m', '[1m', '\033', '[0;0m'
 #	Removed 'Are you sure you want to quit?' prompt
+#	Added "If filename passed in from other than cmd line" statment to 
+#		Base_GP.fx_karoo_data()
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -264,7 +266,13 @@ class Base_GP(object):
 		
 		data_dict = {'c':cwd + '/files/data_CLASSIFY.csv', 'r':cwd + '/files/data_REGRESS.csv', 'm':cwd + '/files/data_MATCH.csv', 'p':cwd + '/files/data_PLAY.csv'}
 		
-		if len(sys.argv) == 1: # load data from the default karoo_gp/files/ directory
+		if filename and len(sys.argv) == 1:  # If filename passed in from other than cmd line
+			data_x = np.loadtxt(filename, skiprows = 1, delimiter = ',', dtype = float); data_x = data_x[:,0:-1] # load all but the right-most column
+			data_y = np.loadtxt(filename, skiprows = 1, usecols = (-1,), delimiter = ',', dtype = float) # load only right-most column (class labels)
+			header = open(filename,'r')
+			self.dataset = filename
+		
+		elif len(sys.argv) == 1: # load data from the default karoo_gp/files/ directory
 			data_x = np.loadtxt(data_dict[self.kernel], skiprows = 1, delimiter = ',', dtype = float); data_x = data_x[:,0:-1] # load all but the right-most column
 			data_y = np.loadtxt(data_dict[self.kernel], skiprows = 1, usecols = (-1,), delimiter = ',', dtype = float) # load only right-most column (class labels)
 			header = open(data_dict[self.kernel],'r')
