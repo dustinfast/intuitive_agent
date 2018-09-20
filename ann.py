@@ -43,7 +43,6 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 
-# import sys; sys.path.append('modules/') # add directory 'modules' to the current path
 
 PERSIST_PATH = 'var/ann/'   # ANN model and log file path
 MODEL_EXT = '.pt'           # ANN model file extension
