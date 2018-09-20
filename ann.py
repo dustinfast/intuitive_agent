@@ -55,7 +55,7 @@ LOG_EXT = '.log'            # ANN log file extension
 
 class DataFromCSV(Dataset):
     """ A set of inputs and targets (i.e. labels and features) for ANN(),
-        populated from the given CSV file.
+        populated from the given CSV file and normalized if specified.
     """
     def __init__(self, csvfile, norm_range=None):
         """ csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
@@ -328,7 +328,7 @@ if __name__ == '__main__':
 
     # Init, train, and subsequently validate the ANN
     ann = ANN('ann_1_2', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=1700, lr=.1, alpha=.2, stats_at=50, noise=None)
+    ann.train(train_data, epochs=50, lr=.1, alpha=.2, stats_at=10, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
