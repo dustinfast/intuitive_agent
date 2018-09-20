@@ -16,23 +16,29 @@
     Author: Dustin Fast, 2018
 """
 
-import ann 
+import ann
+import evolve
 
-
-class AgentLayer(object):
-    """ The top level layer object, from which the agent's layers inherit.
+class Layer(object):
+    """ The top level layer object, from which each layer of the agent inherits
+        Each child class is expected to override every member declared here 
+        in a way congruent with what they are defined to represent here.
     """
-    def __init__(self):
+    def __init__(self): 
         self.size = -1      # An n-tuple representing the layer-dependent size
 
     def forward(self):
         """ Represents the agent state-machine stepping forward one step.
-            Each child class must override this function.
+        """
+        raise NotImplementedError
+
+    def load(self):
+        """ Loads the layer from file in a layer-dependent way.
         """
         raise NotImplementedError
 
 
-class LayerOne(AgentLayer):
+class LayerOne(Layer):
     """
     """
     def __init__(self, num_anns, ann_args):
@@ -40,17 +46,18 @@ class LayerOne(AgentLayer):
             ann_args (tuple):   Well-formed paramters for ann.ANN()
         """
         self.size = num_anns
-        self.anns = [ann.ANN(*ann_args) for i in range(num_anns)]
+        self.anns = [ann.ANN(ID=i, *ann_args) for i in range(num_anns)]
 
 
-class LayerTwo(AgentLayer):
+class LayerTwo(Layer):
     """
     """
     def __init__(self):
         raise NotImplementedError
+        # self.evolver = evolve.
 
 
-class LayerThree(AgentLayer):
+class LayerThree(Layer):
     """
     """
     def __init__(self):
@@ -60,12 +67,16 @@ class LayerThree(AgentLayer):
 class Agent(object):
     """
     """
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(self, ID):
+        self.ID = ID
 
 
 if __name__ == '__main__':
     raise NotImplementedError
+    # Generate run number.
+
+    # Change log dir accordingly
+
 
     # Suppose data sets A, B, C
 
