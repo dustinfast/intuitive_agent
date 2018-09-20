@@ -27,6 +27,7 @@
         t = A tensor
 
     # TODO: 
+        Iniital bias = -1, initial bias wt = .5 
         Encapsulate main contents into ANN.from_csv()
         Noise Params
         Fails if some class types missing between training and validation set.
@@ -327,8 +328,8 @@ if __name__ == '__main__':
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('ann_1_2', ann_dimens, persist=True, console_out=True)
-    ann.train(train_data, epochs=50, lr=.1, alpha=.2, stats_at=10, noise=None)
+    ann = ANN('ann_1_1', ann_dimens, persist=True, console_out=True)
+    ann.train(train_data, epochs=1500, lr=.01, alpha=.1, stats_at=100, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
