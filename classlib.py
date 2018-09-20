@@ -8,15 +8,21 @@
     Author: Dustin Fast, 2018
 """
 
+# Imports
 import os
+import torch
 import logging
 
-LOG_LEVEL = logging.DEBUG
+# Constants
 OUT_PATH = 'var/models'
+LOGFILE_EXT = '.log'
+LOG_LEVEL = logging.DEBUG
+
 
 class Model(object):
-    """ The parent class for many of the inutive agent's classes, exposing 
-        logging, saving, loading, and forward methods. 
+    """ The Model class, used by many of the inutive agent's classes. Exposes 
+        logging, saving, and loading methods. A "child" is defined here as
+        any module using this class, not necessarily inheriting from it.
 
         Console Output:
             Each child may output via self.log() with console_out enabled.
@@ -26,75 +32,75 @@ class Model(object):
             be logged to the model's logfile OUT_PATH/child_type/child_ID.log.
             Additionally, saving/loading of the model is enabled to/from file
             OUT_PATH/child_type/child_ID.model_ext w/ self.save() & self.load()
-
-        Inheritance:
-            If specified by any method definition below, inheriting classes
-            must override that method in a way congruent with what that method
-            is defined here to represent.
     """
-    def __init__(self, child_ID, child_type, console_out, persist, **kwargs):
+    def __init__(self, child, console_out, persist, **kwargs):
         """ Accepts the following parameters:
-            child_ID (str)          : Denotes child's unqiue ID
-            child_type (str)        : Denotes child type. Ex: 'ANN'  
+            child (obj)             : A ref to the child object
             console_out (bool)      : Console output flag
             persist (bool)          : Persist mode flag
 
             If persist, kwargs must include:
-            path (str)              : File in/out directory. Ex: 'var/model'
-            model_ext (str)         : Model filename extension. Ex: '.pt'
-            save_func (function)    : The save function to use
-            save_args (tuple)       : A tuple of save_func arguments
-            load_func (function)    : The load function to use
-            load_args (tuple)       : A tuple of load_func arguments
+            model_ext (str)    : Model filename extension. Ex: '.pt'
+            save_func (str)    : Save function and args (see example)
+            load_func (str)    : Load function and args (see example)
             
-            Save func/arg example: 
-                To implement "torch.save(self.state_dict(), self.model_file)":
-                Use save_func = torch.save
-                and save_args = (self.state_dict(), self.model_file)
-
-            Load func/arg example:
-                To implement "load_state_dict(torch.load(self.model_file))":
-                use load_func = load_state_dict
-                and load_args = (torch.load(self.model_file),)
-
-            Note: For save/load error msg purposes, self.model_file is assumed.
+            Load/Save function example ('MODEL_FILE' placeholder required): 
+                save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
+                load_func = "load_state_dict(torch.load('MODEL_FILE'))"
+                The func string will be used to save/load with eval()
+                Note: Ensure you import any depencies of save/load funcs
         """
         # Model properties
+        self._child = child
         self._console_out = console_out
         self._persist = persist
-        self.model_file = None
+        self._model_file = None
+        self._save_func = None
+        self._load_func = None
 
         # Init persist mode, if specified
         if self._persist:
-            path = kwargs.get('path')
             model_ext = kwargs.get('model_ext')
-            self._save_func = kwargs.get('save_func')
-            self._save_args = kwargs.get('save_args')
-            self._load_func = kwargs.get('load_func')
-            self._load_args = kwargs.get('load_args')
+            save_func = kwargs.get('save_func')
+            load_func = kwargs.get('load_func')
 
-            # Ensure good accompanying args
-            if not (path and model_ext and
-                    self._save_func and self._save_args and
-                    self._load_func and self._load_args):
+            # Ensure good accompanying kwargs
+            if not (model_ext and save_func and load_func):
                 raise Exception(
                     'ERROR: Persistant mode set but missing attributes.')
 
-            # Init persist mode and create output path if not exists
-            self._persist = True
-            if not os.path.exists(path):
-                os.mkdir(path)
-            file_prefix = path + '/' + child_type + '/' + child_ID
+            # Form filenames from kwargs
+            child_type = child.__class__.__name__
+            output_path = OUT_PATH + '/' + child_type
+            file_prefix = output_path + '/' + child.ID
+            log_file = file_prefix + LOGFILE_EXT
+            self._model_file = file_prefix + model_ext
+
+            # Replace 'MODEL_FILE' placeholder in load/save_func
+            self._save_func = save_func.replace('MODEL_FILE', self._model_file)
+            self._load_func = load_func.replace('MODEL_FILE', self._model_file)
+            
+            if self._save_func == save_func or self._load_func == load_func:
+                raise Exception("ERROR: Missing 'MODEL_FILE' placeholder.")
+
+            # Replace refs to self with refs to child obj
+            self._save_func = self._save_func.replace('self.', 'self._child.')
+            self._load_func = self._load_func.replace('self.', 'self._child.')
+
+            # Create output path if not exists
+            if not os.path.exists(OUT_PATH):
+                os.mkdir(OUT_PATH)
+            if not os.path.exists(output_path):
+                os.mkdir(output_path)
 
             # Init logger and output initialization statment
-            logging.basicConfig(filename=file_prefix + '.log',
+            logging.basicConfig(filename=log_file,
                                 level=LOG_LEVEL,
                                 format='%(asctime)s - %(levelname)s: %(message)s')
-            self.log('*** Initialized ' + child_type + ' ***:\n' + str(self))
+            self.log('*** Initialized ' + child_type + ' ***:\n' + str(child))
 
             # Denote model file and, if it exists, load the model from it
-            self.model_file = file_prefix + model_ext
-            if os.path.isfile(self.model_file):
+            if os.path.isfile(self._model_file):
                 self.load()
 
     def log(self, log_str, level=logging.info):
@@ -108,29 +114,23 @@ class Model(object):
             print(log_str)
 
     def save(self):
-        """ Saves the model to the file given by self.model_file.
+        """ Saves the model to the file given by self._model_file.
         """
         try:
-            self._save_func(*self._save_args)
-            self.log('Saved model to: ' + self.model_file)
+            eval(self._save_func)
+            self.log('Saved model to: ' + self._model_file)
         except Exception as e:
             err_str = 'Error saving model: ' + str(e)
             self.log(err_str, level=logging.error)
             raise Exception(err_str)
 
     def load(self):
-        """ Loads the model from the file given by self.model_file.
+        """ Loads the model from the file given by self._model_file.
         """
         try:
-            self._load_func(*self._load_args)
-            self.log('Loaded model from: ' + self.model_file)
+            eval(self._load_func)
+            self.log('Loaded model from: ' + self._model_file)
         except Exception as e:
             err_str = 'Error loading model: ' + str(e)
             self.log(err_str, level=logging.error)
             raise Exception(err_str)
-
-    def forward(self):
-        """ Represents the state-machine stepping forward one step.
-            Each inheriting class is expected to override this method.
-        """
-        raise NotImplementedError
