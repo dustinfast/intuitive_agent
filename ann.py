@@ -32,6 +32,7 @@
     # TODO: 
         Noise Params
         Fix: All unique classes must be present in both training and val set
+        Best check point persistence for online learning
 
 
     Author: Dustin Fast, 2018
