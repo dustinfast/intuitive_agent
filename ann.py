@@ -25,9 +25,9 @@
 
     # TODO: 
         Noise Params
-        Fails if some class types missing between training and validation set.
+        Test if some class types missing between training and validation set
         Expand ANN to allow an arbitrary number of hidden layers
-        Implement ability to use a PyTorch.utils.data.DataLoader as data source
+        Ability to use a PyTorch.utils.data.DataLoader as data source
 
 
     Author: Dustin Fast, 2018
@@ -192,7 +192,7 @@ class ANN(nn.Module):
         # self.y = F.relu(self.y)
         return self.y
 
-    def train(self, data, epochs=100, lr=.1, alpha=.3, stats_at=10, noise=None):
+    def train(self, data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -250,10 +250,8 @@ class ANN(nn.Module):
         with torch.no_grad():
             for row in data:
                 inputs, target = iter(row)
-                # outputs = self(inputs)
                 pred_class = self.classify(inputs)
                 target_class = self._label_from_outputs(target)
-                # pred_class = self._label_from_outputs(outputs)
                 
                 total += 1
                 class_total[target_class] += 1
@@ -313,4 +311,4 @@ if __name__ == '__main__':
     # Example of a classification request, given a feature vector for "B"
     inputs = torch.tensor([4,2,5,4,4,8,7,6,6,7,6,6,2,8,7,10], dtype=torch.float)
     prediction = ann.classify(inputs)
-    print('Test Classification: ' + str(prediction))  # Should print "B"
+    print('Test Classification: ' + str(prediction))
