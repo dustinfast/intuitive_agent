@@ -25,9 +25,9 @@
 
     # TODO: 
         Noise Params
+        Remove norm param from DataFromCSV
         Test if some class types missing between training and validation set
-        Expand ANN to allow an arbitrary number of hidden layers
-        Ability to use a PyTorch.utils.data.DataLoader as data source
+        Ability to use PyTorch.utils.data.DataLoader as data source
 
 
     Author: Dustin Fast, 2018
@@ -284,9 +284,9 @@ class ANN(nn.Module):
 if __name__ == '__main__':
     # Load the training and validation data sets
     trainfile = 'static/datasets/letter_train.data'
-    trainfile = 'static/datasets/test3.data'  # debug
+    # trainfile = 'static/datasets/test3.data'  # debug
     valfile = 'static/datasets/letter_val.data'
-    valfile = 'static/datasets/test3.data'  # debug
+    # valfile = 'static/datasets/test3.data'  # debug
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
@@ -294,13 +294,12 @@ if __name__ == '__main__':
     x_sz = train_data.feature_count
     h_sz = 14
     y_sz = train_data.class_count
-    ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init the ann
-    ann = ANN('test_ann', ann_dimens, console_out=True, persist=True)
+    ann = ANN('test_ann', (x_sz, h_sz, y_sz), console_out=True, persist=True)
 
     # Train the ann with the training set
-    ann.train(train_data, epochs=100, lr=.1, alpha=.9, stats_at=100, noise=None)
+    ann.train(train_data, epochs=100, lr=.1, alpha=.9, stats_at=20, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data)
