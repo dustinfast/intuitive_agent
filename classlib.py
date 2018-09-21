@@ -134,3 +134,17 @@ class Model(object):
             err_str = 'Error loading model: ' + str(e)
             self.log(err_str, level=logging.error)
             raise Exception(err_str)
+
+class Pipe(object):
+    """ A datapipe for passing data in a producer/consumer fashion.
+    """
+    def __init__(self):
+        self.continer = None
+
+    def write(self, data):
+        self.container = data
+
+    def consume(self):
+        temp = self.container
+        self.container = None
+        return temp
