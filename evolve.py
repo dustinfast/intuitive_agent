@@ -132,9 +132,9 @@ class KarooEvolve(karoo_gp.Base_GP):
 
 
 class Evolver(object):
-    """ A genetically evolving tensor.
+    """ A genetically evolving numpy array.
     """
-    def __init__(self, ID, karoo_evolve, console_out, persist):
+    def __init__(self, ID, console_out, persist):
         """ ID (str)                : This Evolver's unique ID number
             console_out (bool)      : Output log stmts to console flag
             persist (bool)          : Persit mode flag
@@ -146,8 +146,8 @@ class Evolver(object):
         self.model_file = None
         self.console_out = False
 
-        self.evolver = karoo_evolve     # The interface to karoo_gp
-        self.tensor = None              # The current version of the tensor
+        self.evolver = KarooEvolve(menu=False)     # The karoo_gp interface
+        self.array = None                          # The current array
 
         # Init the Model obj, which handles load, save, log, and console output
         # save_func = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
@@ -161,16 +161,15 @@ class Evolver(object):
 
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\n'
-        str_out += 'Tensor = ' + str(self.tensor)
+        str_out += 'Data = ' + str(self.array)
         return str_out
 
-    def forward(self, t):
-        """ Returns the next "fittest" version of the given tensor.
+    def forward(self):
+        """ Sets the next "fittest" version of the array
         """
         raise NotImplementedError
        
     
 if __name__ == '__main__':
-    karoov = KarooEvolve(menu=False)
-    ev = Evolver('test_evolver', karoov, console_out=True, persist=False)
+    ev = Evolver('test_evolver', console_out=True, persist=False)
     ev.evolver.gen_first_pop(datafile='static/datasets/test_r.data')

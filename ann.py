@@ -25,6 +25,7 @@
 
     # TODO: 
         Noise Params
+        Move DataFromCSV to classlib
         Remove norm param from DataFromCSV
         Test if some class types missing between training and validation set
         Ability to use PyTorch.utils.data.DataLoader as data source
@@ -296,10 +297,10 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('test_ann', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann.1.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
 
     # Train the ann with the training set
-    ann.train(train_data, epochs=100, lr=.1, alpha=.9, stats_at=20, noise=None)
+    ann.train(train_data, epochs=500, lr=.1, alpha=.9, stats_at=100, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data)
