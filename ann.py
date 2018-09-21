@@ -35,87 +35,16 @@
 """
 
 # Imports
+import logging
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Dataset
-from torch.autograd import Variable as V
-import logging
-import pandas as pd
 
-from classlib import Model
+from classlib import Model, DataFromCSV
 
 
 # Constants
 MODEL_EXT = '.pt'           # ANN model file extension
-
-
-class DataFromCSV(Dataset):
-    """ A set of inputs & targets (i.e. labels & features) as torch.tensors,
-        populated from the given CSV file and normalized if specified.
-        self.inputs = torch.FloatTensor, with a gradient for torch.optim.
-        self.targets = torch.FloatTensors, converted from str->float if needed.
-    """
-    def __init__(self, csvfile, normalize=False):
-        """ Accepts the following parameters:
-            csvfile (str)   : CSV file of form: label, feat_1, ... , feat_n
-            normalize       : If True, inputs data is normalized
-        """
-        self.inputs = None                          # 3D Inputs tensor
-        self.targets = None                         # 3D Targets tensor
-        self.class_labels = None                    # Unique instance labels
-        self.class_count = None                     # Num unique labels
-        self.feature_count = None                   # Num input features
-        self.normalized = normalize                 # Denotes normalized data
-        self.fname = csvfile                        # CVS file name
-        
-        data = pd.read_csv(csvfile, header=None)    # csvfile -> pd.DataFrame
-
-        # Populate class label info
-        self.class_labels = list(data[0].unique())
-        self.class_count = len(self.class_labels)
-
-        # Load inputs and normalize if specified
-        inputs = data.loc[:, 1:]  # All rows, all cols but leftmost
-        if normalize:
-            self.norm_max = max(inputs.max())
-            self.norm_min = min(inputs.min())
-            inputs.apply(self._normalize)
-            
-        # Store inputs as a torch.tensor with gradients
-        self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
-        self.feature_count = self.inputs.size()[1]
-
-        # Init targets
-        targets = data.loc[:, :0]  # All rows, only leftmost col
-        targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
-        self.targets = targets
-
-    def __str__(self):
-        str_out = 'Classes: ' + str(self.class_labels) + '\n'
-        str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
-        str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
-        return str_out
-
-    def __len__(self):
-        return len(self.targets)
-
-    def __getitem__(self, idx):
-        return self.inputs[idx], self.targets[idx]
-
-    def _map_outnode(self, label):
-        """ Given a class label, returns zeroed tensor with tensor[label] = 1.
-            Facilitates mapping each class to its corresponding output node
-        """
-        tgt_width = len(self.class_labels)
-        target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
-        target[self.class_labels.index(label)] = 1
-        return target
-
-    def _normalize(self, t):
-        """ Returns a normalized representation of the given tensor
-        """
-        return (t - self.norm_min) / (self.norm_max - self.norm_min)
 
 
 class ANN(nn.Module):
@@ -311,7 +240,7 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=False)
 
     # Train the ann with the training set
     ann.train(train_data, epochs=1000, lr=.01, alpha=.9, stats_at=10, noise=None)

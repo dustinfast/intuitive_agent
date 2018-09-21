@@ -10,8 +10,12 @@
 
 # Imports
 import os
-import torch    # Used in eval() - May throw "unused" linter error.
 import logging
+
+import torch
+from torch.utils.data import Dataset
+from torch.autograd import Variable as V
+import pandas as pd
 
 
 # Constants
@@ -137,83 +141,70 @@ class Model(object):
             raise Exception(err_str)
 
 
-class REPL(object):
-    """ A dynamic Read-Eval-Print-Loop. I.e., a command line interface.
-        Contains two predefined commands: help, and exit. Additional cmds may
-        be added with add_cmd(). These additional cmds all operate on the 
-        object instance given as the context.
+class DataFromCSV(Dataset):
+    """ A set of inputs & targets (i.e. labels & features) as torch.tensors,
+        populated from the given CSV file and normalized if specified.
+        self.inputs = torch.FloatTensor, with a gradient for torch.optim.
+        self.targets = torch.FloatTensors, converted from str->float if needed.
     """
 
-    def __init__(self, context, prompt='>>', welcome_msg=None):
-        """ Instantiates an Prompt object.
-            context: The object all commands operate on.
-            prompt: The Prompt prompt.
-            welcome: String to display on Prompt start.
+    def __init__(self, csvfile, normalize=False):
+        """ Accepts the following parameters:
+            csvfile (str)   : CSV file of form: label, feat_1, ... , feat_n
+            normalize       : If True, inputs data is normalized
         """
-        self.running = False  # kill flag
-        self.context = context
-        self.prompt = prompt
-        self.welcome_msg = welcome_msg
-        self.exit_command = None
-        self.commands = {'help': 'self._help()',
-                         'exit': 'self._exit()'}
+        self.inputs = None                          # 3D Inputs tensor
+        self.targets = None                         # 3D Targets tensor
+        self.class_labels = None                    # Unique instance labels
+        self.class_count = None                     # Num unique labels
+        self.feature_count = None                   # Num input features
+        self.normalized = normalize                 # Denotes normalized data
+        self.fname = csvfile                        # CVS file name
 
-    def start(self):
-        """ Starts the Prompt.
+        data = pd.read_csv(csvfile, header=None)    # csvfile -> pd.DataFrame
+
+        # Populate class label info
+        self.class_labels = list(data[0].unique())
+        self.class_count = len(self.class_labels)
+
+        # Load inputs and normalize if specified
+        inputs = data.loc[:, 1:]  # All rows, all cols but leftmost
+        if normalize:
+            self.norm_max = max(inputs.max())
+            self.norm_min = min(inputs.min())
+            inputs.apply(self._normalize)
+
+        # Store inputs as a torch.tensor with gradients
+        self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
+        self.feature_count = self.inputs.size()[1]
+
+        # Init targets
+        targets = data.loc[:, :0]  # All rows, only leftmost col
+        targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
+        self.targets = targets
+
+    def __str__(self):
+        str_out = 'Classes: ' + str(self.class_labels) + '\n'
+        str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
+        str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
+        return str_out
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+    def _map_outnode(self, label):
+        """ Given a class label, returns zeroed tensor with tensor[label] = 1.
+            Facilitates mapping each class to its corresponding output node
         """
-        self.running = True
-        if self.welcome_msg:
-            print(self.welcome_msg)
-        while self.running:
-            uinput = raw_input(self.prompt)
-            cmd = self.commands.get(uinput)
+        tgt_width = len(self.class_labels)
+        target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
+        target[self.class_labels.index(label)] = 1
+        return target
 
-            if not uinput:
-                continue  # if empty input received
-            if not cmd:
-                print('Invalid command: "' + str(uinput) + '". Try "help".')
-            else:
-                eval(cmd)
-
-        self.running = False
-
-    def get_repl(self):
-        """ Returns an instance of self with predefined start cmd, stop cmd, 
-            and exit conditions.
-            Assumes context has start() and stop() members.
-            After calling get_repl, start the repl with Prompt.start()
+    def _normalize(self, t):
+        """ Returns a normalized representation of the given tensor
         """
-        repl = Prompt(self.context, '')
-        repl.add_cmd('start', 'start()')
-        repl.add_cmd('stop', 'stop()')
-        repl.set_exitcmd('stop')
-        return repl
-
-    def add_cmd(self, cmd_txt, expression):
-        """ Makes a command available via the Prompt. Accepts:
-                cmd_txt: Txt cmd entered by the user.
-                expression: A well-formed python statment. Ex: 'print('Hello)'
-        """
-        if cmd_txt == 'help' or cmd_txt == 'exit':
-            raise ValueError('An internal cmd override was attempted.')
-        self.commands[cmd_txt] = 'self.context.' + expression
-
-    def set_exitcmd(self, cmd):
-        """ Specifies a command to run on exit. 
-        """
-        self.exit_command = cmd
-
-    def _help(self):
-        """ Outputs all available commands to the console, excluding 'help'.
-        """
-        cmds = [c for c in sorted(self.commands.keys()) if c != 'help']
-
-        print('Available commands:')
-        print('\n'.join(cmds))
-
-    def _exit(self):
-        """ Calls exit() after doing self.exit_command (if defined).
-        """
-        if self.exit_command:
-            eval(self.commands[self.exit_command])
-        self.running = False
+        return (t - self.norm_min) / (self.norm_max - self.norm_min)
