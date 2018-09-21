@@ -51,42 +51,48 @@ MODEL_EXT = '.pt'           # ANN model file extension
 
 
 class DataFromCSV(Dataset):
-    """ A set of inputs and targets (i.e. labels and features) for ANN(),
+    """ A set of inputs & targets (i.e. labels & features) as torch.tensors,
         populated from the given CSV file and normalized if specified.
+        self.inputs = torch.FloatTensor, with a gradient for torch.optim.
+        self.targets = torch.FloatTensors, converted from str->float if needed.
     """
-    def __init__(self, csvfile, norm_range=None):
+    def __init__(self, csvfile, normalize=False):
         """ Accepts the following parameters:
-            csvfile (str):        CSV file of form: label, feat_1, ... , feat_n
-            norm_range (2-tuple): Normalization range, as (min, max). None OK.
+            csvfile (str)   : CSV file of form: label, feat_1, ... , feat_n
+            normalize       : If True, inputs data is normalized
         """
-        self.classes = None                         # Unique instance labels
-        self.class_count = None                     # Num unique labels
-        self.feature_count = None                   # Num input features
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
-        self.norm = norm_range                      # Normalization range
+        self.class_labels = None                    # Unique instance labels
+        self.class_count = None                     # Num unique labels
+        self.feature_count = None                   # Num input features
+        self.normalized = normalize                 # Denotes normalized data
         self.fname = csvfile                        # CVS file name
         
         data = pd.read_csv(csvfile, header=None)    # csvfile -> pd.DataFrame
 
-        # Populate class info
-        self.classes = list(data[0].unique())
-        self.class_count = len(self.classes)
+        # Populate class label info
+        self.class_labels = list(data[0].unique())
+        self.class_count = len(self.class_labels)
 
-        # Init inputs, normalizing as specified
-        inputs = data.loc[:, 1:]
-        if self.norm:
-            inputs.apply(self.normalize)
+        # Load inputs and normalize if specified
+        inputs = data.loc[:, 1:]  # All rows, all cols but leftmost
+        if normalize:
+            self.norm_max = max(inputs.max())
+            self.norm_min = min(inputs.min())
+            inputs.apply(self._normalize)
+            
+        # Store inputs as a torch.tensor with gradients
         self.inputs = V(torch.FloatTensor(inputs.values), requires_grad=True)
         self.feature_count = self.inputs.size()[1]
 
         # Init targets
-        targets = data.loc[:, :0]
+        targets = data.loc[:, :0]  # All rows, only leftmost col
         targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
 
     def __str__(self):
-        str_out = 'Classes: ' + str(self.classes) + '\n'
+        str_out = 'Classes: ' + str(self.class_labels) + '\n'
         str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
         str_out += 'Row 1 Inputs: ' + str(self.inputs[0])
         return str_out
@@ -101,15 +107,15 @@ class DataFromCSV(Dataset):
         """ Given a class label, returns zeroed tensor with tensor[label] = 1.
             Facilitates mapping each class to its corresponding output node
         """
-        tgt_width = len(self.classes)
+        tgt_width = len(self.class_labels)
         target = torch.tensor([0 for i in range(tgt_width)], dtype=torch.float)
-        target[self.classes.index(label)] = 1
+        target[self.class_labels.index(label)] = 1
         return target
 
-    def normalize(self, t):
-        """ Returns a normalized representation of the given tensor. 
+    def _normalize(self, t):
+        """ Returns a normalized representation of the given tensor
         """
-        return (t - self.norm[0]) / (self.norm[1] - self.norm[0])
+        return (t - self.norm_min) / (self.norm_max - self.norm_min)
 
 
 class ANN(nn.Module):
@@ -145,14 +151,19 @@ class ANN(nn.Module):
         self.f_h = nn.Linear(dims[1], dims[2], bias=True)
         self.f_y = nn.Linear(dims[2], dims[2], bias=True)
 
-        # Node activation/loss functions
-        self.f_act = nn.Sigmoid()
+        # # Node activation/loss functions
+        # self.f_act = nn.Sigmoid()
         self.f_loss = nn.MSELoss()
 
         # Set initial node bias
-        self.f_x.bias.data.fill_(start_bias)
-        self.f_h.bias.data.fill_(start_bias)
-        self.f_y.bias.data.fill_(start_bias)
+        # self.f_x.bias.data.fill_(start_bias)
+        # self.f_h.bias.data.fill_(start_bias)
+        # self.f_y.bias.data.fill_(start_bias)
+
+        self.test = nn.Sequential(nn.Linear(dims[0], dims[1]),
+                                            nn.ReLU(),
+                                            nn.Linear(dims[1], dims[2]),
+                                            nn.Sigmoid())
 
         # Init the Model obj, which handles load, save, log, and console output
         save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
@@ -180,18 +191,19 @@ class ANN(nn.Module):
         except TypeError:
             self.model.log('Must set class labels first.', logging.error)
 
-    def set_labels(self, data):
-        """ Sets the class labels from the given DataFromCSV object.
+    def set_labels(self, classes):
+        """ Sets the class labels from the given list of classes.
         """
-        self.class_labels = data.classes
+        self.class_labels = classes
 
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
         """
-        self.x = self.f_act(self.f_x(t))            # Update input layer
-        h = self.f_act(self.f_h(self.x))            # Update hidden layer
-        self.y = self.f_act(self.f_y(h))            # Update output layer
-        # self.y = F.relu(self.y)
+        # self.x = self.f_act(self.f_x(t))            # Update input layer
+        # h = self.f_act(self.f_h(self.x))            # Update hidden layer
+        # self.y = self.f_act(self.f_y(h))            # Update output layer
+        # # self.y = F.relu(self.y)
+        self.y = self.test(t)
         return self.y
 
     def train(self, data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None):
@@ -223,12 +235,13 @@ class ANN(nn.Module):
 
         # If no class labels yet, use the dataset's.
         if not self.class_labels:
-            self.set_labels(data)
+            self.set_labels(data.class_labels)
             self.model.log('Set class labels: ' + str(self.class_labels))
         else:
             self.model.log('Using existing labels: ' + str(self.class_labels))
 
         self.model.log('Training Completed: ' + info_str + '\n')
+        self.model.log('Last epcoh loss: {}'.format(curr_loss))
 
         # Save the updated model, including the class labels, to the model file
         if self.persist:
@@ -286,11 +299,11 @@ class ANN(nn.Module):
 if __name__ == '__main__':
     # Load the training and validation data sets
     trainfile = 'static/datasets/letter_train.data'
-    # trainfile = 'static/datasets/test3.data'  # debug
+    trainfile = 'static/datasets/test.data'  # debug
     valfile = 'static/datasets/letter_val.data'
-    # valfile = 'static/datasets/test3.data'  # debug
-    train_data = DataFromCSV(trainfile, (0, 15))
-    val_data = DataFromCSV(valfile, (0, 15))
+    valfile = 'static/datasets/test.data'  # debug
+    train_data = DataFromCSV(trainfile, normalize=True)
+    val_data = DataFromCSV(valfile, normalize=True)
 
     # Define the ANN's layer sizes.
     x_sz = train_data.feature_count
@@ -298,13 +311,13 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann.1.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=True)
 
     # Train the ann with the training set
-    ann.train(train_data, epochs=500, lr=.1, alpha=.9, stats_at=100, noise=None)
+    ann.train(train_data, epochs=1000, lr=.01, alpha=.9, stats_at=10, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
-    ann.set_labels(train_data)
+    ann.set_labels(train_data.class_labels)
 
     # Validate the ann against the validation set
     ann.validate(val_data, verbose=True)
