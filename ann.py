@@ -120,14 +120,14 @@ class ANN(nn.Module):
             Each layer is summed according to torch.nn.Linear()
             Each Node is activated according torch.nn.Sigmoid()
             Error is computed via torch.nn.MSELoss()
-            Output layer is rectified with torch.nn.functional.relu()
         """
-    def __init__(self, ID, dims, console_out, persist):
+    def __init__(self, ID, dims, console_out, persist, start_bias=-1):
         """ Accepts the following parameters
-            ID (str)                :   This ANNs unique ID number
-            dims (3-tuple)          :   Node counts by layer (x, y, z)
-            console_out (bool)      :   Output log stmts to console flag
-            persist (bool)          :   Persit mode flag
+            ID (str)                : This ANNs unique ID number
+            dims (3-tuple)          : Node counts by layer (x, y, z)
+            console_out (bool)      : Output log stmts to console flag
+            persist (bool)          : Persit mode flag
+            start_bias (float)      : Initial node bias
         """
         super(ANN, self).__init__()
         self.ID = ID
@@ -149,6 +149,11 @@ class ANN(nn.Module):
         self.f_act = nn.Sigmoid()
         self.f_loss = nn.MSELoss()
 
+        # Set initial node bias
+        self.f_x.bias.data.fill_(start_bias)
+        self.f_h.bias.data.fill_(start_bias)
+        self.f_y.bias.data.fill_(start_bias)
+
         # Init the Model obj, which handles load, save, log, and console output
         save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
         load_func = "self.load_state_dict(torch.load('MODEL_FILE'), strict=False)"
@@ -158,7 +163,7 @@ class ANN(nn.Module):
                            model_ext=MODEL_EXT,
                            save_func=save_func,
                            load_func=load_func)
-            
+
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\n'
         str_out += 'x = ' + str(self.f_x) + '\n'
@@ -178,7 +183,7 @@ class ANN(nn.Module):
         self.x = self.f_act(self.f_x(t))            # Update input layer
         h = self.f_act(self.f_h(self.x))            # Update hidden layer
         self.y = self.f_act(self.f_y(h))            # Update output layer
-        self.y = F.relu(self.y)                     # Rectify output layer
+        # self.y = F.relu(self.y)
         return self.y
 
     def train(self, data, epochs=100, lr=.1, alpha=.3, stats_at=10, noise=None):
@@ -269,10 +274,10 @@ class ANN(nn.Module):
 
 if __name__ == '__main__':
     # Define and load training and validation sets
-    # trainfile = 'static/datasets/letter_train.data'
-    trainfile = 'static/datasets/test.data'  # debug
-    # valfile = 'static/datasets/letter_val.data'
-    valfile = 'static/datasets/test.data'  # debug
+    trainfile = 'static/datasets/letter_train.data'
+    # trainfile = 'static/datasets/test.data'  # debug
+    valfile = 'static/datasets/letter_val.data'
+    # valfile = 'static/datasets/test.data'  # debug
     train_data = DataFromCSV(trainfile, (0, 15))
     val_data = DataFromCSV(valfile, (0, 15))
 
@@ -283,8 +288,9 @@ if __name__ == '__main__':
     ann_dimens = (x_sz, h_sz, y_sz)
 
     # Init, train, and subsequently validate the ANN
-    ann = ANN('ann.1.1', ann_dimens, console_out=True, persist=True)
-    ann.train(train_data, epochs=3000, lr=.1, alpha=.4, stats_at=100, noise=None)
+    ann = ANN('ann.1.9', ann_dimens, console_out=True, persist=True)
+    # ann.train(train_data, epochs=10000, lr=.1, alpha=.9, stats_at=10, noise=None)
+    ann.train(train_data, epochs=1000, lr=.1, alpha=.9, stats_at=100, noise=None)
     ann.validate(val_data, verbose=True)
 
     # Example of a classification request, given a feature vector for "b"
