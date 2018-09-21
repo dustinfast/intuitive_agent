@@ -33,6 +33,7 @@ from classlib import Model
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
+
 # Constants
 MODEL_EXT = '.tree'
 

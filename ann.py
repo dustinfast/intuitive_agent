@@ -45,6 +45,7 @@ import pandas as pd
 
 from classlib import Model
 
+
 # Constants
 MODEL_EXT = '.pt'           # ANN model file extension
 

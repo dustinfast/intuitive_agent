@@ -13,6 +13,7 @@ import os
 import torch    # Used in eval() - May throw "unused" linter error.
 import logging
 
+
 # Constants
 OUT_PATH = 'var/models'
 LOGFILE_EXT = '.log'

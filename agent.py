@@ -17,23 +17,30 @@
 """
 
 # Imports
-import ann
+import Queue
+import multiprocessing
+
+from ann import ANN
 from evolve import Evolver
-from classlib import Pipe
+
+
+# Constants
+CONSOLE_OUT = True
+
 
 class LayerOne(object):
     """ The agent's "conceptual" Layer.
     """
-    def __init__(self, size, ann_args):
-        """ size (int):     Number of anns this layer is composed of
-            ann_args (tuple):   Well-formed paramters for ann.ANN()
+    def __init__(self, size, dims):
+        """ Accepts the folllowing parameters:
+            size (int)          : Number of anns this layer is composed of
         """
         self.size = size
-        self.anns = [ann.ANN(ID=i, *ann_args) for i in range(size)]
-        self.outputs = [None for i in range(size)]
+        self.anns = [ANN(i, dims, CONSOLE_OUT, True) for i in range(dims[2])]
+        self.outputs = [None for i in range(dims[2])]
 
     def forward(self, inputs):
-        """ Steps the layer forward one step.
+        """ Steps the layer forward one step with the given input array
         """
         for i in range(self.size):
             self.outputs[i] = self.anns[i].classify(inputs[i])
@@ -43,43 +50,82 @@ class LayerTwo(object):
     """ The agent's "intutive" layer.
     """
     def __init__(self):
+        """ Accepts the folllowing parameters:
+        """
+        self.outputs = None
         self.evolver = Evolver('evolver', console_out=True, persist=False)
 
     def forward(self, inputs):
-        """ Steps the layer forward one step.
+        """ Steps the layer forward one step with the given input array
         """
-        raise NotImplementedError
+        return inputs  # temp
 
 
 class LayerThree(object):
     """ The agent's "attentive" layer.
     """
     def __init__(self):
-        raise NotImplementedError
+        """ Accepts the folllowing parameters:
+        """
+        self.outputs = None
+
+    def forward(self, inputs):
+        """ Steps the layer forward one step with the given input array
+        """
+        return inputs  # temp
 
 
-class Agent(object):
-    """ The intutive agent, implemented as an iterator.
+class Agent(multiprocessing.Process):
+    """ The intutive agent, implemented as a seperate process to allow
+        REPL with poison pill.
     """
-    def __init__(self, ID, max_steps=None):
+    def __init__(self, ID, dims, dataset):
+        """ Accepts the following parameters:
+            ID (int)        : The agent's unique ID
+            dims (tuple)    : The layer size dimensions
+        """
+        super.__init__(self)
         self.ID = ID
-        self.max_steps = max_steps
+        self.data = dataset
+        self.killq = multiprocessing.Queue()  # Input queue for poison pill
 
-    def __iter__(self):
-        self.a = 0
-        self.b = 1
-        return self
+        # Agent layers (see README.md for detailed description)
+        self.layer_one = LayerOne(dims[0], ())
+        self.layer_two = LayerTwo()
+        self.layer_three = LayerThree()
 
-    def __next__(self):
-        if self.max_steps and self.a > self.max_steps:
-            raise StopIteration
+    def forward(self, inputs):
+        """ Steps the agent forward one step with the given input array.
+        """
+        # Step each layer forward w/prev layer's output as next layer input.
+        self.layer_one.forward(inputs)
+        self.layer_two.forward(self.layer_one.outputs)
+        self.layer_three.forward(self.layer_two.outputs)
+        
+    def run(self):
+        """ Steps the agent forward indefinitely until poison pill received.
+        """
+        i = -1
+        while True:
+            # Increment i,resetting if needed
+            i += 1
+            if i >= self.data.size:
+                i = 0
 
-        self.a, self.b = self.b, self.a + self.b
-        return self
+            # Step agent forward one step
+            self.forward(self.data[i])
+            
+            # Check for poison pill
+            try:
+                self.killq.get(timeout=.1)
+                return
+            except Queue.Empty:
+                pass
 
 
 if __name__ == '__main__':
     raise NotImplementedError
+    
     # Generate run number.
 
     # Change log dir accordingly
