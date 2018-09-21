@@ -1,26 +1,33 @@
 #!/usr/bin/env python
 """ A module for genetically evolving a tensor using the Karoo GP library.
 
-    If persistent mode enabled, Evolver state persists between executions via
-    PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
+    If CONSOLE_OUT = True:
+        The evovler's output is printed to stdout
 
-    Karoo GP Verision Info: 
-        Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
-        Python 3 version here: https://github.com/kstaats/karoo_gp/pull/9)
-        Small, non-systemic changes to karoo_gp.Base_GP were made by Dustin
-        Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
+    If PERSIST = True:
+        Evolver state persists between executions via PERSIST_PATH/ID.MODEL_EXT
+        and output is logged to PERSIST_PATH/ID.LOG_EXT.
 
-    Structure:
+    Module Structure:
         Evolver is the main interface, with KarooEvolver as the helper
-        interface to Karoo GP and Model as a helper for logging and save/load.
+        interface to Karoo GP.
+        Evolver persistence and output is handled by classlib.ModelHandler.
 
-    Usage:
-        See __main__ for example usage.        
+    Dependencies:
+        PyTorch
+        Numpy
+        Sympy
+        Scikit-learn
+        MatplotLib
+        
+    Usage: 
+        See "__main__" for example usage.
 
-    Conventions:
-        t = A tensor
-        pop = Population
-        indiv = Individual
+    Karoo GP Version Info: 
+        Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
+        Python 3 version from https://github.com/kstaats/karoo_gp/pull/9.
+        Small, non-systemic changes to karoo_gp.Base_GP were made by Dustin
+        Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
 
@@ -29,9 +36,9 @@
 """
 
 # Imports
-from classlib import Model
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
+from classlib import ModelHandler
 
 
 # Constants
@@ -150,15 +157,15 @@ class Evolver(object):
         self.evolver = KarooEvolve(menu=False)     # The karoo_gp interface
         self.array = None                          # The current array
 
-        # Init the Model obj, which handles load, save, log, and console output
-        # save_func = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
-        # save_func2 = self.evolver.fx_archive_params_write('Desktop')
-        self.model = Model(self,
-                           console_out,
-                           persist)
+        # Init the load, save, log, and console output handler
+        # f_save = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
+        # f_load = self.evolver.fx_archive_params_write('Desktop')
+        # self.ModelHandler = ModelHandler(self,
+        #                    console_out,
+        #                    persist)
                         #    model_ext=MODEL_EXT,
-                        #    save_func=save_func,
-                        #    load_func=load_func)
+                        #    save_func=f_save,
+                        #    load_func=f_load)
 
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\n'

@@ -3,32 +3,35 @@
     Pandas libraries.
 
     The ANN functions as a classifier, with the output classification denoted
-    by the active (argmax(y)) output node.
+    by the active (argmax(y)) output node. However, the mapping of labels to
+    output nodes is handled internally, and the ann.classify() interface is all
+    the end-user needs to know about after the model is initialized & trained.
     
-    Dataset extraction from CSV and mapping of features and classes to each
-    output node is facilitated by DataFromCSV().
-    
-    If persistent mode enabled, ANN state persists between exectutions via file
-    PERSIST_PATH/ID.MODEL_EXT and status msgs logged to PERSIST_PATH/ID.LOG_EXT
+    If CONSOLE_OUT = True:
+        The ANN's output is printed to stdout
 
-    Structure:
-        ANN is the main interface, with DataFromCSV and Model as helpers.
+    If PERSIST = True:
+        ANN state persists between executions via PERSIST_PATH/ID.MODEL_EXT
+        and output is logged to PERSIST_PATH/ID.LOG_EXT.
+
+    Module Structure:
+        ANN is the main interface. It expects training/validation data as
+        a classlib.DataFrom object instance. 
+        ANN persistence and output is handled by classlib.ModelHandler.
+
+    Dependencies:
+        PyTorch
+        Numpy
+        Sympy
+        Scikit-learn
+        MatplotLib
 
     Usage: 
-        See __main__ for example usage.
-
-    Conventions:
-        x = Input layer (i.e. the set of input-layer nodes)
-        h = Hidden layer
-        y = Output layer
-        t = A tensor
+        See "__main__" for example usage.
 
     # TODO: 
         Noise Params
-        Move DataFromCSV to classlib
-        Remove norm param from DataFromCSV
-        Test if some class types missing between training and validation set
-        Ability to use PyTorch.utils.data.DataLoader as data source
+        Fix: All unique classes must be present in both training and val set
 
 
     Author: Dustin Fast, 2018
@@ -36,15 +39,13 @@
 
 # Imports
 import logging
-
 import torch
 import torch.nn as nn
-
-from classlib import Model, DataFromCSV
+from classlib import ModelHandler, DataFrom
 
 
 # Constants
-MODEL_EXT = '.pt'           # ANN model file extension
+MODEL_EXT = '.pt'   # ANN model file extension
 
 
 class ANN(nn.Module):
@@ -67,48 +68,30 @@ class ANN(nn.Module):
         super(ANN, self).__init__()
         self.ID = ID
         self.persist = persist
+        self.inputs_sz = dims[0]
+        self.outputs_sz = dims[2]
+        self.outputs = torch.randn(dims[2])
         self.class_labels = None
-        
-        # Layer defs
-        self.x_sz = dims[0]
-        self.y_sz = dims[2]
-        self.x = torch.randn(dims[0])
-        self.y = torch.randn(dims[2])
-        
-        # Layer activation functions
-        self.f_x = nn.Linear(dims[0], dims[1], bias=True)
-        self.f_h = nn.Linear(dims[1], dims[2], bias=True)
-        self.f_y = nn.Linear(dims[2], dims[2], bias=True)
 
-        # # Node activation/loss functions
-        # self.f_act = nn.Sigmoid()
-        self.f_loss = nn.MSELoss()
+        # Defineoss function and sequential layers
+        self.loss_func = nn.MSELoss()
+        self.seq_layers = nn.Sequential(
+            nn.Linear(dims[0], dims[1]),
+                      nn.ReLU(),
+                      nn.Linear(dims[1], dims[2]),
+                      nn.Sigmoid())
 
-        # Set initial node bias
-        # self.f_x.bias.data.fill_(start_bias)
-        # self.f_h.bias.data.fill_(start_bias)
-        # self.f_y.bias.data.fill_(start_bias)
-
-        self.test = nn.Sequential(nn.Linear(dims[0], dims[1]),
-                                            nn.ReLU(),
-                                            nn.Linear(dims[1], dims[2]),
-                                            nn.Sigmoid())
-
-        # Init the Model obj, which handles load, save, log, and console output
-        save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
-        load_func = "self.load_state_dict(torch.load('MODEL_FILE'), strict=False)"
-        self.model = Model(self,
-                           console_out,
-                           persist,
-                           model_ext=MODEL_EXT,
-                           save_func=save_func,
-                           load_func=load_func)
+        # Init the load, save, log, and console output handler
+        f_save = "torch.save(self.state_dict(), 'MODEL_FILE')"
+        f_load = "self.load_state_dict(torch.load('MODEL_FILE'), strict=False)"
+        self.model = ModelHandler(self, console_out, persist,
+                                  model_ext=MODEL_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
 
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\n'
-        str_out += 'x = ' + str(self.f_x) + '\n'
-        str_out += 'h = ' + str(self.f_h) + '\n'
-        str_out += 'z = ' + str(self.f_y)
+        str_out += 'Layers = ' + str(self.seq_layers)
         return str_out
 
     def _label_from_outputs(self, outputs):
@@ -128,24 +111,27 @@ class ANN(nn.Module):
     def forward(self, t):
         """ Feeds the given tensor through the ANN, thus updating output layer.
         """
-        # self.x = self.f_act(self.f_x(t))            # Update input layer
-        # h = self.f_act(self.f_h(self.x))            # Update hidden layer
-        # self.y = self.f_act(self.f_y(h))            # Update output layer
-        # # self.y = F.relu(self.y)
-        self.y = self.test(t)
-        return self.y
+        self.outputs = self.seq_layers(t)
+        return self.outputs
 
     def train(self, data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
             lr (float):         Learning rate
-            alpha (float):      Learning momentum
+            alpha (float):      Learning gain/momentum
             stats_at (int):     Print status every stats_at epochs (0=never)
         """
         info_str = '{} epochs @ lr={}, alpha={}, file={}.'
         info_str = info_str.format(epochs, lr, alpha, data.fname)
         self.model.log('Training started: ' + info_str)
+
+        # If no class labels set yet, assign the dataset's
+        if not self.class_labels:
+            self.set_labels(data.class_labels)
+            self.model.log('Set class labels: ' + str(self.class_labels))
+        else:
+            self.model.log('Using existing labels: ' + str(self.class_labels))
 
         # Do training
         optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=alpha)        
@@ -154,25 +140,21 @@ class ANN(nn.Module):
                 inputs, target = iter(row)
                 optimizer.zero_grad()
                 outputs = self(inputs)
-                curr_loss = self.f_loss(outputs, target)
+                curr_loss = self.loss_func(outputs, target)
                 curr_loss.backward()
                 optimizer.step()
+            if curr_loss == 0.0: break
 
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
                 self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
-
-        # If no class labels yet, use the dataset's.
-        if not self.class_labels:
-            self.set_labels(data.class_labels)
-            self.model.log('Set class labels: ' + str(self.class_labels))
-        else:
-            self.model.log('Using existing labels: ' + str(self.class_labels))
+                self.validate(val_data, verbose=False)
 
         self.model.log('Training Completed: ' + info_str + '\n')
         self.model.log('Last epcoh loss: {}'.format(curr_loss))
+        self.model.log('Using labels: ' + str(self.class_labels))
 
-        # Save the updated model, including the class labels, to the model file
+        # If persisting, save the updated model
         if self.persist:
             self.model.save()
 
@@ -226,13 +208,14 @@ class ANN(nn.Module):
 
 
 if __name__ == '__main__':
+    global val_data  # debug
     # Load the training and validation data sets
     trainfile = 'static/datasets/letter_train.data'
-    trainfile = 'static/datasets/test.data'  # debug
+    # trainfile = 'static/datasets/test3.data'  # debug
     valfile = 'static/datasets/letter_val.data'
-    valfile = 'static/datasets/test.data'  # debug
-    train_data = DataFromCSV(trainfile, normalize=True)
-    val_data = DataFromCSV(valfile, normalize=True)
+    # valfile = 'static/datasets/test3r.data'  # debug
+    train_data = DataFrom(trainfile, normalize=True)
+    val_data = DataFrom(valfile, normalize=True)
 
     # Define the ANN's layer sizes.
     x_sz = train_data.feature_count
@@ -240,10 +223,10 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=False)
-
+    ann = ANN('ann_400.01.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    
     # Train the ann with the training set
-    ann.train(train_data, epochs=1000, lr=.01, alpha=.9, stats_at=10, noise=None)
+    ann.train(train_data, epochs=400, lr=.01, alpha=.9, stats_at=50, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)

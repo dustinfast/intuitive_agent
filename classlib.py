@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """ A collection of shared and/or parent classes for the intutive agent.
 
-    Conventions:
-
     # TODO: 
+        DataFrom() -> allow PyTorch.utils.data.DataLoader usage
 
     Author: Dustin Fast, 2018
 """
@@ -24,8 +23,8 @@ LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
 
 
-class Model(object):
-    """ The Model class, used by many of the inutive agent's classes. Exposes 
+class ModelHandler(object):
+    """ The ModelHandler, used by many of the inutive agent's classes for
         logging, saving, and loading methods. A "child" is defined here as
         any module using this class, not necessarily inheriting from it.
 
@@ -34,7 +33,7 @@ class Model(object):
         
         Model Persistance:
             If persist mode enabled, any string passed to self.log() will also
-            be logged to the model's logfile OUT_PATH/child_type/child_ID.log.
+            be logged to the model log file OUT_PATH/child_type/child_ID.log.
             Additionally, saving/loading of the model is enabled to/from file
             OUT_PATH/child_type/child_ID.model_ext w/ self.save() & self.load()
     """
@@ -141,34 +140,40 @@ class Model(object):
             raise Exception(err_str)
 
 
-class DataFromCSV(Dataset):
+class DataFrom(Dataset):
     """ A set of inputs & targets (i.e. labels & features) as torch.tensors,
         populated from the given CSV file and normalized if specified.
         self.inputs = torch.FloatTensor, with a gradient for torch.optim.
         self.targets = torch.FloatTensors, converted from str->float if needed.
+        Assumes CSV file w/no header with format: label, feat_1, ... , feat_n
     """
 
     def __init__(self, csvfile, normalize=False):
         """ Accepts the following parameters:
-            csvfile (str)   : CSV file of form: label, feat_1, ... , feat_n
-            normalize       : If True, inputs data is normalized
+            csvfile (str)       : CSV filename
+            normalize           : If True, inputs data is normalized
         """
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
         self.class_labels = None                    # Unique instance labels
         self.class_count = None                     # Num unique labels
         self.feature_count = None                   # Num input features
+        self.row_count = None                       # Num data rows
         self.normalized = normalize                 # Denotes normalized data
         self.fname = csvfile                        # CVS file name
 
+        # Load data
         data = pd.read_csv(csvfile, header=None)    # csvfile -> pd.DataFrame
+        inputs = data.loc[:, 1:]                    # All cols but leftmost
+        targets = data.loc[:, :0]                   # Only leftmost col
 
         # Populate class label info
-        self.class_labels = list(data[0].unique())
+        # self.class_labels = list(data[0].unique())
+        self.class_labels = sorted(list(data[0].unique()), key=lambda x: x)
         self.class_count = len(self.class_labels)
+        self.row_count = len(inputs)
 
         # Load inputs and normalize if specified
-        inputs = data.loc[:, 1:]  # All rows, all cols but leftmost
         if normalize:
             self.norm_max = max(inputs.max())
             self.norm_min = min(inputs.min())
@@ -179,9 +184,10 @@ class DataFromCSV(Dataset):
         self.feature_count = self.inputs.size()[1]
 
         # Init targets
-        targets = data.loc[:, :0]  # All rows, only leftmost col
         targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
+
+        print('DATAFROM: ' + str(self.class_labels))
 
     def __str__(self):
         str_out = 'Classes: ' + str(self.class_labels) + '\n'

@@ -1,132 +1,144 @@
 #!/usr/bin/env python
-"""  The intuitive agent, implemented as a state machine.
-
-    Conventions:
-        x = Input layer (i.e. the set of input-layer nodes)
-        y = Output layer
-        t = Some arbitrary tensor
-
-    The agent layers:
+"""  The intuitive agent. See README.md for description.
         
+    If CONSOLE_OUT = True:
+        The Agent and its sub-module output is printed to stdout
+
+    If PERSIST = True:
+        Agent and its sub-module states persists between executions via files
+        at PERSIST_PATH/ID.MODEL_EXT and their output is logged to 
+        PERSIST_PATH/ID.LOG_EXT.
+
+    Module Structure:
+        Agent is the main interface. It expects training/validation data as
+        a classlib.DataFrom object instance. 
+        Agent persistence and output is handled by classlib.ModelHandler.
+
+    Dependencies:
+        PyTorch
+        Numpy
+        Sympy
+        Scikit-learn
+        MatplotLib
+
+    Usage: 
+        Run from the terminal with './agent.py'.
 
     # TODO: 
         REPL
+        Prepend Agent ID to sub-module IDs
 
 
     Author: Dustin Fast, 2018
 """
 
 # Imports
-import queue
-import multiprocessing
+import threading
 
 from ann import ANN
 from evolve import Evolver
+from classlib import ModelHandler, DataFrom
 
 
 # Constants
 CONSOLE_OUT = True
 PERSIST = False
+MODEL_EXT = '.ag'
 
 
-class LayerOne(object):
-    """ The agent's "conceptual" Layer.
+class Agent(threading.Thread):
+    """ The intutive agent, implemented as a process to allow REPL and
+        and demonstrate
     """
-    def __init__(self, size, dims):
-        """ Accepts the folllowing parameters:
-            size (int)          : Number of anns this layer is composed of
-        """
-        self.size = size
-        self.anns = [ANN(i, dims, CONSOLE_OUT, PERSIST) for i in range(dims[2])]
-        self.outputs = [None for i in range(dims[2])]
-
-    def forward(self, inputs):
-        """ Steps the layer forward one step with the given inputs.
-        """
-        for i in range(self.size):
-            self.outputs[i] = self.anns[i].classify(inputs[i])
-
-
-class LayerTwo(object):
-    """ The agent's "intutive" layer.
-    """
-    def __init__(self, size):
-        """ Accepts the folllowing parameters:
-        """
-        self.outputs = None
-        self.evolver = Evolver('evolver', CONSOLE_OUT, PERSIST)
-
-    def forward(self, inputs):
-        """ Steps the layer forward one step with the given inputs.
-        """
-        self.outputs = inputs  # temp
-
-
-class LayerThree(object):
-    """ The agent's "attentive" layer.
-    """
-    def __init__(self, size):
-        """ Accepts the folllowing parameters:
-        """
-        self.outputs = None
-
-    def forward(self, inputs):
-        """ Steps the layer forward one step with the given inputs.
-        """
-        self.outputs = inputs  # temp
-
-
-class Agent(multiprocessing.Process):
-    """ The intutive agent, implemented as a seperate process to allow
-        REPL with poison pill.
-    """
-    def __init__(self, ID, dims, dataset):
+    def __init__(self, ID, depth, l1_dims, l3_dims):
         """ Accepts the following parameters:
-            ID (int)        : The agent's unique ID
-            dims (tuple)    : The layer size dimensions
+            ID (int)                : The agent's unique ID
+            depth (int)             : Layer 1 and 2 "node" depth
+            l1_dims (tuple)         : Layer 1 ann dimensions
+            l3_dims (tuple)         : Layer 3 ann dimensions
         """
-        multiprocessing.Process.__init__(self)
+        threading.Thread.__init__(self)
         self.ID = ID
-        self.data = dataset
-        self.killq = multiprocessing.Queue()  # Input queue for poison pill
+        self.data = None        # TODO
+        self.model = None       # The ModelHandler, defined below
+        self.running = False    # Denotes thread is running
 
-        # Agent layers (see README.md for detailed description)
-        self.layer_one = LayerOne(dims[0])
-        self.layer_two = LayerTwo(dims[1])
-        self.layer_three = LayerThree(dims[3])
+        # Define agent layers - each layer is a dict of nodes and outputs
+        # Note: Layers 2 and 3 have one node. 
+        self.layer1 = {'nodes': [], 'outputs': []}
+        self.layer2 = {'node': None, 'outputs': []}
+        self.layer3 = {'node': None, 'outputs': []}
+
+        # Init the agent layers. They will each auto-load, if able, on init.
+        for i in range(depth):
+            # Build node ID prefixes & suffixes, denoting the agent and depth
+            prefix = self.ID + '_'
+            suffix = str(i)
+
+            # Init layer1 and 2 outputs at this depth
+            self.layer1['outputs'].append([None for i in range(depth)])
+            self.layer2['outputs'].append([None for i in range(depth)])
+
+            # Init layer 1 node at this depth
+            id1 = prefix + 'l1_node' + suffix
+            self.layer1['nodes'].append(ANN(id1, l1_dims, CONSOLE_OUT, PERSIST))
+
+            # Init the layers with singular nodes (i.e. at depth 0 only)
+            if i == 0:
+                id2 = prefix + 'l2_node' + suffix
+                id3 = prefix + 'l3_node' + suffix
+                self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
+                self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)
+
+        print(self)
+        exit()
+
+        # Init the load, save, log, and console output handler
+        f_save = "self.save('MODEL_FILE')"
+        f_load = "self.load(MODEL_FILE')"
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+                                  model_ext=MODEL_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
+
+    def train(self, trainfile, validationfile):
+        """ Trains the agent from the given training and validation files.
+        """
+        raise NotImplementedError
 
     def forward(self, inputs):
-        """ Steps the agent forward one step with the given inputs.
+        """ Steps the agent forward one step, with the given inputs (a tensor)
+            as input to layer one, and then each layer's output given as
+            input to the next layer.
         """
-        # Step each layer forward w/prev layer's output as next layer's input
-        self.layer_one.forward(inputs)
-        self.layer_two.forward(self.layer_one.outputs)
-        self.layer_three.forward(self.layer_two.outputs)
-        
-    def run(self):
+        raise NotImplementedError
+
+    def start(self, data, stop_at_eof=False):
         """ Steps the agent forward indefinitely until poison pill received.
         """
+        if not data:
+            return
+
         i = -1
-        while True:
-            # Increment i,resetting if needed
+        while self.running:
             i += 1
-            if i >= self.data.size:
+            if i >= data.row_count:
+                if stop_at_eof:
+                    break
                 i = 0
 
             # Step agent forward one step
             self.forward(self.data[i])
+
+            # Prompt for feedback, or search resources, to verify new concept
             
-            # Check for poison pill
-            try:
-                self.killq.get(timeout=.1)
-                return
-            except Queue.Empty:
-                pass
+        self.model.log('Stopped.')
+        return
 
 
 if __name__ == '__main__':
-    dataset = [1, 2, 3, 4, 5]
-    agent = Agent('test_agent', ((16, 14, 26), 3, 3), dataset)
+    # Init the agent (ID, depth_for_l1_l2, layer1_dims, layer3_dims)
+    agent = Agent('agent1', 3, (16, 14, 26), (16, 14, 26))
 
     # agent.start()
     
