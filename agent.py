@@ -17,7 +17,7 @@
 """
 
 # Imports
-import Queue
+import queue
 import multiprocessing
 
 from ann import ANN
@@ -26,6 +26,7 @@ from evolve import Evolver
 
 # Constants
 CONSOLE_OUT = True
+PERSIST = False
 
 
 class LayerOne(object):
@@ -36,11 +37,11 @@ class LayerOne(object):
             size (int)          : Number of anns this layer is composed of
         """
         self.size = size
-        self.anns = [ANN(i, dims, CONSOLE_OUT, True) for i in range(dims[2])]
+        self.anns = [ANN(i, dims, CONSOLE_OUT, PERSIST) for i in range(dims[2])]
         self.outputs = [None for i in range(dims[2])]
 
     def forward(self, inputs):
-        """ Steps the layer forward one step with the given input array
+        """ Steps the layer forward one step with the given inputs.
         """
         for i in range(self.size):
             self.outputs[i] = self.anns[i].classify(inputs[i])
@@ -49,30 +50,30 @@ class LayerOne(object):
 class LayerTwo(object):
     """ The agent's "intutive" layer.
     """
-    def __init__(self):
+    def __init__(self, size):
         """ Accepts the folllowing parameters:
         """
         self.outputs = None
-        self.evolver = Evolver('evolver', console_out=True, persist=False)
+        self.evolver = Evolver('evolver', CONSOLE_OUT, PERSIST)
 
     def forward(self, inputs):
-        """ Steps the layer forward one step with the given input array
+        """ Steps the layer forward one step with the given inputs.
         """
-        return inputs  # temp
+        self.outputs = inputs  # temp
 
 
 class LayerThree(object):
     """ The agent's "attentive" layer.
     """
-    def __init__(self):
+    def __init__(self, size):
         """ Accepts the folllowing parameters:
         """
         self.outputs = None
 
     def forward(self, inputs):
-        """ Steps the layer forward one step with the given input array
+        """ Steps the layer forward one step with the given inputs.
         """
-        return inputs  # temp
+        self.outputs = inputs  # temp
 
 
 class Agent(multiprocessing.Process):
@@ -84,20 +85,20 @@ class Agent(multiprocessing.Process):
             ID (int)        : The agent's unique ID
             dims (tuple)    : The layer size dimensions
         """
-        super.__init__(self)
+        multiprocessing.Process.__init__(self)
         self.ID = ID
         self.data = dataset
         self.killq = multiprocessing.Queue()  # Input queue for poison pill
 
         # Agent layers (see README.md for detailed description)
-        self.layer_one = LayerOne(dims[0], ())
-        self.layer_two = LayerTwo()
-        self.layer_three = LayerThree()
+        self.layer_one = LayerOne(dims[0])
+        self.layer_two = LayerTwo(dims[1])
+        self.layer_three = LayerThree(dims[3])
 
     def forward(self, inputs):
-        """ Steps the agent forward one step with the given input array.
+        """ Steps the agent forward one step with the given inputs.
         """
-        # Step each layer forward w/prev layer's output as next layer input.
+        # Step each layer forward w/prev layer's output as next layer's input
         self.layer_one.forward(inputs)
         self.layer_two.forward(self.layer_one.outputs)
         self.layer_three.forward(self.layer_two.outputs)
@@ -124,7 +125,10 @@ class Agent(multiprocessing.Process):
 
 
 if __name__ == '__main__':
-    raise NotImplementedError
+    dataset = [1, 2, 3, 4, 5]
+    agent = Agent('test_agent', ((16, 14, 26), 3, 3), dataset)
+
+    # agent.start()
     
     # Generate run number.
 
