@@ -26,7 +26,8 @@
 
     # TODO: 
         REPL
-        Prepend Agent ID to sub-module IDs
+        Train layer3
+        Classify layer3 output in agent.step
 
 
     Author: Dustin Fast, 2018
@@ -130,11 +131,10 @@ class Agent(threading.Thread):
         #     print(d)
         #     print('\n')
 
-
         # Feed inputs to layer 1
         for i in range(self.depth):
             inputs = data[i][0]
-            self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs))
+            self.model.log('Feeding L1, node ' + str(i) + ' w: ' + str(inputs))
             self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs)
 
             # debug
@@ -143,7 +143,7 @@ class Agent(threading.Thread):
 
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
-            # self.model.log('Feeding L2: ' + str(self.layer1['outputs'][i]))
+            self.model.log('Feeding L2 w: ' + str(self.layer1['outputs'][i]))
             # TODO: Evolve through layer 2
             self.layer2['outputs'][i] = self.layer1['outputs'][i]
 
@@ -151,7 +151,7 @@ class Agent(threading.Thread):
         l3_inputs = torch.cat(
             [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
-        # self.model.log('Feeding L3 ' + str(l3_inputs))
+        self.model.log('Feeding L3 w:' + str(l3_inputs))
         self.layer3['output'] = self.layer3['node'](l3_inputs)
 
         # print(self.layer3['output'])
