@@ -41,7 +41,7 @@ from classlib import ModelHandler, DataFrom
 
 
 # Constants
-CONSOLE_OUT = True
+CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.ag'
 L3_OUT_NODES = 26
@@ -92,7 +92,6 @@ class Agent(threading.Thread):
             id1 = prefix + 'lv1_node' + suffix
             self.layer1['nodes'].append(ANN(id1, l1_dims[i], CONSOLE_OUT, PERSIST))
 
-
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
         f_load = "self.load(MODEL_FILE')"
@@ -102,8 +101,7 @@ class Agent(threading.Thread):
                                   load_func=f_load)
 
     def __str__(self):
-        ret_str = 'ID = ' + self.ID + '/n'
-        # TODO: ret_str += 'Layer 1: ' + 
+        ret_str = 'ID = ' + self.ID
         return ret_str
 
     def train(self, train_data, val_data):
@@ -112,7 +110,7 @@ class Agent(threading.Thread):
         # Train each layer1 node
         for i in range(self.depth):
             self.layer1['nodes'][i].train(
-                train_data[i], epochs=200, lr=.1, alpha=.9, noise=None)
+                train_data[i], epochs=100, lr=.01, alpha=.9 , noise=None)
 
         for i in range(self.depth):
             self.layer1['nodes'][i].validate(val_data[i], verbose=True)
@@ -127,9 +125,11 @@ class Agent(threading.Thread):
                 data (list)      : [(inputs, targets), ... ]
         """
         # debug
+        print('STEP\n')
         # for d in data:
         #     print(d)
         #     print('\n')
+
 
         # Feed inputs to layer 1
         for i in range(self.depth):
@@ -182,7 +182,7 @@ class Agent(threading.Thread):
             for i in range(min_rows):
                 row = []
                 for j in range(self.depth):
-                    row.append([d for d in iter(data[i][j])])
+                    row.append([d for d in iter(data[j][i])])
                 
                 # Step agent forward one step
                 self._step(row)
@@ -229,17 +229,17 @@ def get_dims(data):
 
 if __name__ == '__main__':
     # Define the agent "sensory input" datasets.
-    in_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    tr_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
+    tr_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    vl_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
-               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
+    vl_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
     #            DataFrom('static/datasets/letters.csv', normalize=True),
