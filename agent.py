@@ -34,6 +34,7 @@
 
 # Imports
 import threading
+import torch
 from ann import ANN
 from evolve import Evolver
 from classlib import ModelHandler, DataFrom
@@ -43,6 +44,7 @@ from classlib import ModelHandler, DataFrom
 CONSOLE_OUT = True
 PERSIST = False
 MODEL_EXT = '.ag'
+L3_OUT_NODES = 26
 
 
 class Agent(threading.Thread):
@@ -64,10 +66,9 @@ class Agent(threading.Thread):
         self.running = False    # Denotes thread is running
 
         # Define agent layers - each layer is a dict of nodes and outputs
-        # Note: Layers 2 and 3 have one node. 
         self.layer1 = {'nodes': [], 'outputs': []}
         self.layer2 = {'node': None, 'outputs': []}
-        self.layer3 = {'node': None, 'outputs': []}
+        self.layer3 = {'node': None, 'output': None}
 
         # Init the agent layers. They will each auto-load, if able, on init.
         for i in range(depth):
@@ -81,7 +82,7 @@ class Agent(threading.Thread):
 
             # Init layer 1 node at this depth
             id1 = prefix + 'lv1_node' + suffix
-            self.layer1['nodes'].append(ANN(id1, l1_dims, CONSOLE_OUT, PERSIST))
+            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CONSOLE_OUT, PERSIST))
 
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
@@ -99,9 +100,6 @@ class Agent(threading.Thread):
                                   save_func=f_save,
                                   load_func=f_load)
 
-        print(self.layer1['nodes'][0])
-        print(self.layer3['node'])
-
     def __str__(self):
         raise NotImplementedError
 
@@ -117,22 +115,24 @@ class Agent(threading.Thread):
         """
         # Feed inputs to layer 1
         for i in range(self.depth):
-            self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs[i]))
+            # self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs[i]))
             self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs[i])
 
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
-            self.model.log('Feeding L2: ' + str(self.layer1['outputs'][i]))
+            # self.model.log('Feeding L2: ' + str(self.layer1['outputs'][i]))
             # TODO: Evolve through layer 2
             self.layer2['outputs'][i] = self.layer1['outputs'][i]
 
-        # Feed layer 2 outputs to layer 3 inputs
-        for i in range(self.depth):
-            # TODO: Convert to the lyer3 input dims
-        
-        # self.model.log('Feeding L3 ' + str(self.layer2['outputs'][i]))
-        # self.layer3['outputs'][i] = self.layer3['node'](
-        #     self.layer2['outputs'][i])
+        # Concatt layer 2 outputs into a tensor of size layer 3 inputs
+        l3_inputs = torch.cat(
+            [self.layer2['outputs'][i] for i in range(self.depth)], 0)
+
+        # self.model.log('Feeding L3 ' + str(l3_inputs)
+        self.layer3['output'] = self.layer3['node'](l3_inputs)
+
+        print(self.layer3['output'])
+        # print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
 
@@ -147,13 +147,22 @@ class Agent(threading.Thread):
                 stop_at_eof (bool)  : Denotes run til end of data
         """
         self.model.log('Agent thread started.')
+        min_rows = min([d.row_count for d in data])
         self.running = True
 
-        # TODO: Init layer1 class labels
+        # Init layer1 class labels
+        for i in range(self.depth):
+            self.layer1['nodes'][i].set_labels(data[i].class_labels)
 
+        # Determine stop point, if any
         while self.running:
-            for row in data:
-                inputs = [d for d, _ in iter(row)]
+            # Iterate each row of each dataset
+            for i in range(min_rows):
+                for j in range(self.depth):
+                    inputs, targets = [d for d in iter(data[i][j])]
+
+                    # print(str(i) + ' : ' + str(j) + '-> ' + str(inputs))
+                    # print('\n')
                 self._step(inputs)  # Step agent forward one step
             if stop_at_eof:
                 break
@@ -166,25 +175,54 @@ class Agent(threading.Thread):
         self.running = False
 
 
+def get_dims(data):
+    """ Helper function to determine agents dimensions from the data given.
+        Returns a 3-tuple of lists: (depth, layer1_dims, layer3_dims)
+        Accepts:
+            data (list)     : A list of DataFrom objects 
+    """
+    # Determine agent shape from given data - assumes 3-layer (x, h, y) anns
+    l1_dims = []
+    l3_dims = []
+    l3_y = 0
+    depth = len(in_data)
+    for i in range(depth):
+        l1_dims.append([])                              # New dim in l1_dims
+        l1_dims[i].append(in_data[i].feature_count)     # x layer size
+        l1_dims[i].append(0)                            # Placeholder for h sz
+        l1_dims[i].append(in_data[i].class_count)       # y layer size
+        l1_dims[i][1] = int(
+            (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz iss xy avg
+        l3_y += l1_dims[i][2]                           # count total outputs
+
+    l3_dims.append(l3_y)            # x sz is combined l1 outputs
+    l3_dims.append(0)               # h layer sz placeholder
+    l3_dims.append(L3_OUT_NODES)    # y layer sz
+    l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
+ 
+    return depth, l1_dims, l3_dims
+
+
 if __name__ == '__main__':
-    # Init the agent (ID, depth_for_l1_l2, layer1_dims, layer3_dims)
-    depth = 3
-    layer1_dims = (16, 14, 26)
-    layer2_dims = (26, 14, 16)
-    agent = Agent('agent1', depth, layer1_dims, layer2_dims)
+    # Define the agent "sensory input" datasets.
+    in_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
 
-    # Define data file
-    # datafile = 'static/datasets/test3x4.csv'  # debug
-    data1 = DataFrom('static/datasets/test.csv', normalize=True)
-    data2 = DataFrom('static/datasets/test.csv', normalize=True)
-    data3 = DataFrom('static/datasets/test.csv', normalize=True)
-    data = [data1, data2, data3]
+    # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+    #            DataFrom('static/datasets/letters.csv', normalize=True),
+    #            DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    # Start the agent thread with the data list
-    agent.start(data, True)
-
-    # agent.start()
+    # Determine agent dimensions based on in_data shape
+    depth, l1_dims, l3_dims = get_dims(in_data)
     
+    # Init the agent, composed of a layer1 of "depth" ANN's. 
+    # Each ANN[i] receives rows from in_data[i] as input simultaneously.
+    agent = Agent('agent1', depth, l1_dims, l3_dims)
+
+    # Start the agent thread with the in_data list
+    agent.start(in_data, True)
+
     # Generate run number.
 
     # Change log dir accordingly

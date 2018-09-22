@@ -154,6 +154,8 @@ class DataFrom(Dataset):
         """
         self.inputs = None                          # 3D Inputs tensor
         self.targets = None                         # 3D Targets tensor
+        self.raw_inputs = None                      # Original inputs form
+        self.raw_targets = None                     # Original targets form
         self.class_labels = None                    # Unique instance labels
         self.class_count = None                     # Num unique labels
         self.feature_count = None                   # Num input features
@@ -166,8 +168,9 @@ class DataFrom(Dataset):
         inputs = data.loc[:, 1:]                    # All cols but leftmost
         targets = data.loc[:, :0]                   # Only leftmost col
 
-        # Populate class label info
-        # self.class_labels = list(data[0].unique())
+        # Populate non-tensor member info
+        self.raw_inputs = inputs
+        self.raw_targets = targets
         self.class_labels = sorted(list(data[0].unique()), key=lambda x: x)
         self.class_count = len(self.class_labels)
         self.row_count = len(inputs)
@@ -185,6 +188,8 @@ class DataFrom(Dataset):
         # Init targets
         targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
+
+        # Set raw input members
 
     def __str__(self):
         str_out = 'Classes: ' + str(self.class_labels) + '\n'

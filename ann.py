@@ -4,8 +4,9 @@
 
     The ANN functions as a classifier, with the output classification denoted
     by the active (argmax(y)) output node. However, the mapping of labels to
-    output nodes is handled internally, and the ann.classify() interface is all
-    the end-user needs to know about after the model is initialized & trained.
+    output nodes is handled internally, and the use of ann.classify (inputs)
+    is all an end-user might need to use after the model is initialized and
+    trained. For a raw results tensor, however, use ANN.forward(inputs)
     
     If CONSOLE_OUT = True:
         The ANN's output is printed to stdout
@@ -58,7 +59,7 @@ class ANN(nn.Module):
             Each Node is activated according torch.nn.Sigmoid()
             Error is computed via torch.nn.MSELoss()
         """
-    def __init__(self, ID, dims, console_out, persist, start_bias=-1):
+    def __init__(self, ID, dims, console_out, persist):
         """ Accepts the following parameters
             ID (str)                : This ANNs unique ID number
             dims (3-tuple)          : Node counts by layer (x, y, z)
@@ -74,8 +75,10 @@ class ANN(nn.Module):
         self.outputs = torch.randn(dims[2])
         self.class_labels = None
 
-        # Defineoss function and sequential layers
+        # Define loss function 
         self.loss_func = nn.MSELoss()
+
+        # Define sequential layers: Linear->ReLU->Linear->Sigmoid
         self.seq_layers = nn.Sequential(
             nn.Linear(dims[0], dims[1]),
                       nn.ReLU(),
@@ -149,11 +152,10 @@ class ANN(nn.Module):
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
                 self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
-                self.validate(val_data, verbose=False)
+                self.validate(val_data, verbose=False)  # debug
 
         self.model.log('Training Completed: ' + info_str + '\n')
         self.model.log('Last epcoh loss: {}'.format(curr_loss))
-        self.model.log('Using labels: ' + str(self.class_labels))
 
         # If persisting, save the updated model
         if self.persist:
@@ -203,7 +205,7 @@ class ANN(nn.Module):
         self.model.log(log_str)
 
     def classify(self, inputs):
-        """ Returns the ANN's classification of the given input tensor.
+        """ Returns the ANN's classification label of the given input tensor.
         """
         return self._label_from_outputs(self(inputs))
 
@@ -211,23 +213,21 @@ class ANN(nn.Module):
 if __name__ == '__main__':
     global val_data  # debug
     # Load the training and validation data sets
-    trainfile = 'static/datasets/letter_train.data'
-    # trainfile = 'static/datasets/test3.data'  # debug
-    valfile = 'static/datasets/letter_val.data'
-    # valfile = 'static/datasets/test3r.data'  # debug
+    trainfile = 'static/datasets/letter_train.csv'
+    valfile = 'static/datasets/letter_val.csv'
     train_data = DataFrom(trainfile, normalize=True)
     val_data = DataFrom(valfile, normalize=True)
 
     # Define the ANN's layer sizes.
     x_sz = train_data.feature_count
-    h_sz = 14
+    h_sz = 21
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_400.01.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_1000.001.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
     
     # Train the ann with the training set
-    ann.train(train_data, epochs=400, lr=.01, alpha=.9, stats_at=50, noise=None)
+    ann.train(train_data, epochs=1000, lr=.001, alpha=.9, stats_at=50, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
