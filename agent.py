@@ -34,7 +34,6 @@
 
 # Imports
 import threading
-
 from ann import ANN
 from evolve import Evolver
 from classlib import ModelHandler, DataFrom
@@ -59,6 +58,7 @@ class Agent(threading.Thread):
         """
         threading.Thread.__init__(self)
         self.ID = ID
+        self.depth = depth
         self.data = None        # TODO
         self.model = None       # The ModelHandler, defined below
         self.running = False    # Denotes thread is running
@@ -80,18 +80,16 @@ class Agent(threading.Thread):
             self.layer2['outputs'].append([None for i in range(depth)])
 
             # Init layer 1 node at this depth
-            id1 = prefix + 'l1_node' + suffix
+            id1 = prefix + 'lv1_node' + suffix
             self.layer1['nodes'].append(ANN(id1, l1_dims, CONSOLE_OUT, PERSIST))
 
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
-                id2 = prefix + 'l2_node' + suffix
-                id3 = prefix + 'l3_node' + suffix
+                id2 = prefix + 'vl2_node' + suffix
+                id3 = prefix + 'lv3_node' + suffix
                 self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
                 self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)
-
-        print(self)
-        exit()
+                self.layer3['ouputs'] = [None for i in range(l3_dims[2])]
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -101,44 +99,89 @@ class Agent(threading.Thread):
                                   save_func=f_save,
                                   load_func=f_load)
 
+        print(self.layer1['nodes'][0])
+        print(self.layer3['node'])
+
+    def __str__(self):
+        raise NotImplementedError
+
     def train(self, trainfile, validationfile):
         """ Trains the agent from the given training and validation files.
         """
         raise NotImplementedError
 
-    def forward(self, inputs):
-        """ Steps the agent forward one step, with the given inputs (a tensor)
-            as input to layer one, and then each layer's output given as
-            input to the next layer.
+    def _step(self, inputs):
+        """ Steps the agent forward one step with the given list DataFrom objs
+            (one for each depth) as input to layer one, who's ouput is fed to
+            layer 2, etc.
         """
-        raise NotImplementedError
+        # Feed inputs to layer 1
+        for i in range(self.depth):
+            self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs[i]))
+            self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs[i])
+
+        # Feed layer 1 outputs to layer 2 inputs
+        for i in range(self.depth):
+            self.model.log('Feeding L2: ' + str(self.layer1['outputs'][i]))
+            # TODO: Evolve through layer 2
+            self.layer2['outputs'][i] = self.layer1['outputs'][i]
+
+        # Feed layer 2 outputs to layer 3 inputs
+        for i in range(self.depth):
+            # TODO: Convert to the lyer3 input dims
+        
+        # self.model.log('Feeding L3 ' + str(self.layer2['outputs'][i]))
+        # self.layer3['outputs'][i] = self.layer3['node'](
+        #     self.layer2['outputs'][i])
+            
+        # On new connection: Prompt for feedback, or search, to verify
+
+        # for out in self.layer3['outputs']:
+        #     print(out)
 
     def start(self, data, stop_at_eof=False):
-        """ Steps the agent forward indefinitely until poison pill received.
+        """ Starts the agent thread, stepping the agent forward until stopped 
+            externally with self.stop() or (eof reached AND stop_at_eof)
+            Accepts:
+                data (list)         : A list of classlib.DataFrom objects
+                stop_at_eof (bool)  : Denotes run til end of data
         """
-        if not data:
-            return
+        self.model.log('Agent thread started.')
+        self.running = True
 
-        i = -1
+        # TODO: Init layer1 class labels
+
         while self.running:
-            i += 1
-            if i >= data.row_count:
-                if stop_at_eof:
-                    break
-                i = 0
+            for row in data:
+                inputs = [d for d, _ in iter(row)]
+                self._step(inputs)  # Step agent forward one step
+            if stop_at_eof:
+                break
+        self.stop()
 
-            # Step agent forward one step
-            self.forward(self.data[i])
-
-            # Prompt for feedback, or search resources, to verify new concept
-            
+    def stop(self):
+        """ Stops the thread.
+        """
         self.model.log('Stopped.')
-        return
+        self.running = False
 
 
 if __name__ == '__main__':
     # Init the agent (ID, depth_for_l1_l2, layer1_dims, layer3_dims)
-    agent = Agent('agent1', 3, (16, 14, 26), (16, 14, 26))
+    depth = 3
+    layer1_dims = (16, 14, 26)
+    layer2_dims = (26, 14, 16)
+    agent = Agent('agent1', depth, layer1_dims, layer2_dims)
+
+    # Define data file
+    # datafile = 'static/datasets/test3x4.data'  # debug
+    data1 = DataFrom('static/datasets/test.data', normalize=True)
+    data2 = DataFrom('static/datasets/test.data', normalize=True)
+    data3 = DataFrom('static/datasets/test.data', normalize=True)
+    data = [data1, data2, data3]
+
+    # Start the agent thread with the data list
+    agent.start(data, True)
 
     # agent.start()
     

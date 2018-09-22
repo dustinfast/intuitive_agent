@@ -187,8 +187,6 @@ class DataFrom(Dataset):
         targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
 
-        print('DATAFROM: ' + str(self.class_labels))
-
     def __str__(self):
         str_out = 'Classes: ' + str(self.class_labels) + '\n'
         str_out += 'Row 1 Target: ' + str(self.targets[0]) + '\n'
