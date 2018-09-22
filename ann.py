@@ -34,6 +34,7 @@
         Noise Params
         Fix: All unique classes must be present in both training and val set
         Best check point persistence for online learning
+        Remove global valdata
 
 
     Author: Dustin Fast, 2018
@@ -152,7 +153,7 @@ class ANN(nn.Module):
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
                 self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
-                self.validate(val_data, verbose=False)  # debug
+                # self.validate(val_data, verbose=False)  # debug
 
         self.model.log('Training Completed: ' + info_str + '\n')
         self.model.log('Last epcoh loss: {}'.format(curr_loss))
@@ -211,23 +212,26 @@ class ANN(nn.Module):
 
 
 if __name__ == '__main__':
-    global val_data  # debug
+    # global val_data  # debug
     # Load the training and validation data sets
+    'static/datasets/test/test3x2.csv'
     trainfile = 'static/datasets/letter_train.csv'
+    trainfile = 'static/datasets/test/test3x2.csv'  # debug
     valfile = 'static/datasets/letter_val.csv'
+    valfile = 'static/datasets/test/test3x2.csv'  # debug
     train_data = DataFrom(trainfile, normalize=True)
     val_data = DataFrom(valfile, normalize=True)
 
-    # Define the ANN's layer sizes.
+    # Define the ANN's layer sizes from the training set
     x_sz = train_data.feature_count
-    h_sz = 21
+    h_sz = int((train_data.feature_count + train_data.class_count) / 2)
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_1000.001.9', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=True)
     
     # Train the ann with the training set
-    ann.train(train_data, epochs=1000, lr=.001, alpha=.9, stats_at=50, noise=None)
+    ann.train(train_data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
@@ -237,5 +241,5 @@ if __name__ == '__main__':
 
     # Example of a classification request, given a feature vector for "B"
     inputs = torch.tensor([4,2,5,4,4,8,7,6,6,7,6,6,2,8,7,10], dtype=torch.float)
-    prediction = ann.classify(inputs)
-    print('Test Classification: ' + str(prediction))
+    # prediction = ann.classify(inputs)
+    # print('Test Classification: ' + str(prediction))

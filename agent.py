@@ -42,7 +42,7 @@ from classlib import ModelHandler, DataFrom
 
 # Constants
 CONSOLE_OUT = True
-PERSIST = False
+PERSIST = True
 MODEL_EXT = '.ag'
 L3_OUT_NODES = 26
 
@@ -80,10 +80,6 @@ class Agent(threading.Thread):
             self.layer1['outputs'].append([None for i in range(depth)])
             self.layer2['outputs'].append([None for i in range(depth)])
 
-            # Init layer 1 node at this depth
-            id1 = prefix + 'lv1_node' + suffix
-            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CONSOLE_OUT, PERSIST))
-
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
                 id2 = prefix + 'vl2_node' + suffix
@@ -91,6 +87,11 @@ class Agent(threading.Thread):
                 self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
                 self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)
                 self.layer3['ouputs'] = [None for i in range(l3_dims[2])]
+
+            # Init layer 1 node at this depth
+            id1 = prefix + 'lv1_node' + suffix
+            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CONSOLE_OUT, PERSIST))
+
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -101,12 +102,22 @@ class Agent(threading.Thread):
                                   load_func=f_load)
 
     def __str__(self):
-        raise NotImplementedError
+        ret_str = 'ID = ' + self.ID + '/n'
+        # TODO: ret_str += 'Layer 1: ' + 
+        return ret_str
 
-    def train(self, trainfile, validationfile):
+    def train(self, train_data, val_data):
         """ Trains the agent from the given training and validation files.
         """
-        raise NotImplementedError
+        # Train each layer1 node
+        for i in range(self.depth):
+            self.layer1['nodes'][i].train(
+                train_data[i], epochs=200, lr=.1, alpha=.9, noise=None)
+
+        for i in range(self.depth):
+            self.layer1['nodes'][i].validate(val_data[i], verbose=True)
+
+        # TODO: Train layer3 from subset of all three
 
     def _step(self, data):
         """ Steps the agent forward one step with the given list of tuples
@@ -222,6 +233,14 @@ if __name__ == '__main__':
                DataFrom('static/datasets/test/test3x2.csv', normalize=True),
                DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
 
+    tr_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
+
+    vl_data = [DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True),
+               DataFrom('static/datasets/test/test3x2.csv', normalize=True)]
+
     # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
     #            DataFrom('static/datasets/letters.csv', normalize=True),
     #            DataFrom('static/datasets/letters.csv', normalize=True)]
@@ -232,6 +251,9 @@ if __name__ == '__main__':
     # Init the agent, composed of a layer1 of "depth" ANN's. 
     # Each ANN[i] receives rows from in_data[i] as input simultaneously.
     agent = Agent('agent1', depth, l1_dims, l3_dims)
+
+    # Train the agent on the training and val sets
+    agent.train(tr_data, vl_data)
 
     # Start the agent thread with the in_data list
     agent.start(in_data, True)
