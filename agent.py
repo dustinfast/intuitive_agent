@@ -174,10 +174,10 @@ if __name__ == '__main__':
     agent = Agent('agent1', depth, layer1_dims, layer2_dims)
 
     # Define data file
-    # datafile = 'static/datasets/test3x4.data'  # debug
-    data1 = DataFrom('static/datasets/test.data', normalize=True)
-    data2 = DataFrom('static/datasets/test.data', normalize=True)
-    data3 = DataFrom('static/datasets/test.data', normalize=True)
+    # datafile = 'static/datasets/test3x4.csv'  # debug
+    data1 = DataFrom('static/datasets/test.csv', normalize=True)
+    data2 = DataFrom('static/datasets/test.csv', normalize=True)
+    data3 = DataFrom('static/datasets/test.csv', normalize=True)
     data = [data1, data2, data3]
 
     # Start the agent thread with the data list

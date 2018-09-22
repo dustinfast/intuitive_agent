@@ -180,4 +180,4 @@ class Evolver(object):
     
 if __name__ == '__main__':
     ev = Evolver('test_evolver', console_out=True, persist=False)
-    ev.evolver.gen_first_pop(datafile='static/datasets/test_r.data')
+    ev.evolver.gen_first_pop(datafile='static/datasets/test_r.csv')

@@ -211,10 +211,10 @@ class ANN(nn.Module):
 if __name__ == '__main__':
     global val_data  # debug
     # Load the training and validation data sets
-    trainfile = 'static/datasets/letter_train.data'
-    # trainfile = 'static/datasets/test3.data'  # debug
-    valfile = 'static/datasets/letter_val.data'
-    # valfile = 'static/datasets/test3r.data'  # debug
+    trainfile = 'static/datasets/letter_train.csv'
+    # trainfile = 'static/datasets/test3.csv'  # debug
+    valfile = 'static/datasets/letter_val.csv'
+    # valfile = 'static/datasets/test3r.csv'  # debug
     train_data = DataFrom(trainfile, normalize=True)
     val_data = DataFrom(valfile, normalize=True)
 
