@@ -16,9 +16,9 @@
         and output is logged to PERSIST_PATH/ID.LOG_EXT.
 
     Module Structure:
-        ANN is the main interface. It expects training/validation data as
-        a classlib.DataFrom object instance. 
-        ANN persistence and output is handled by classlib.ModelHandler.
+        ANN() is the main interface. It expects training/validation data as
+        an instance object of type classlib.DataFrom(). 
+        ANN persistence and output is handled by classlib.ModelHandler().
 
     Dependencies:
         PyTorch
@@ -33,8 +33,8 @@
     # TODO: 
         Noise Params
         Fix: All unique classes must be present in both training and val set
-        Best check point persistence for online learning
-        Remove global valdata
+        Best check point persistence (for online learning)
+        EMU: new_average = (1.0 - self.mu) * x + self.mu * self.shadow[name]
 
 
     Author: Dustin Fast, 2018
@@ -42,8 +42,10 @@
 
 # Imports
 import logging
+
 import torch
 import torch.nn as nn
+
 from classlib import ModelHandler, DataFrom
 
 

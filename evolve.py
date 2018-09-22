@@ -30,7 +30,7 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-
+        Apply tensor ops for each input node according to genetic expr
 
     Author: Dustin Fast, 2018
 """
@@ -38,6 +38,7 @@
 # Imports
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
+
 from classlib import ModelHandler
 
 
@@ -79,7 +80,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.evolve_cross = int(0.7 * self.tree_pop_max)    # Crossover
 
     def get_best(self, tourn_size=10):
-        """ Returns winner of a new tourney of tourney_size random contenders.
+        """ Returns winner of new tourney of "tourney_size" random contenders.
         """
         return self.fx_fitness_tournament(tourn_size)
 
@@ -89,7 +90,7 @@ class KarooEvolve(karoo_gp.Base_GP):
             tree_depth_base (int)   : Initial population tree's depth
             data (str)              : CSV filename
         """ 
-        # Load training data (data divided into train/validate sets internally)
+        # Load training data
         self.fx_karoo_data_load(tree_type, tree_depth_base, filename=datafile)
         
         # Construct the first population tree
@@ -140,7 +141,8 @@ class KarooEvolve(karoo_gp.Base_GP):
 
 
 class Evolver(object):
-    """ A genetically evolving numpy array.
+    """ A handler for element-wise tensor operations according to a genetically
+        evolving expression tree.
     """
     def __init__(self, ID, console_out, persist):
         """ ID (str)                : This Evolver's unique ID number
@@ -155,7 +157,7 @@ class Evolver(object):
         self.console_out = False
 
         self.evolver = KarooEvolve(menu=False)     # The karoo_gp interface
-        self.array = None                          # The current array
+        self.expression = None                     # The current expression tree
 
         # Init the load, save, log, and console output handler
         # f_save = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
@@ -172,8 +174,9 @@ class Evolver(object):
         str_out += 'Data = ' + str(self.array)
         return str_out
 
-    def forward(self):
-        """ Sets the next "fittest" version of the array
+    def forward(self, tensors):
+        """ Returns the given list of tensors after performing element-wise
+            operations on them according to the current expression tree.
         """
         raise NotImplementedError
        

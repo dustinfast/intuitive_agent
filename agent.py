@@ -1,18 +1,19 @@
 #!/usr/bin/env python
-"""  The intuitive agent. See README.md for description.
+""" The top-level module for the intuitive agent application. 
+    See README.md for description of the agent and the application as a whole.
         
     If CONSOLE_OUT = True:
-        The Agent and its sub-module output is printed to stdout
+        The Agent and its sub-modules print their output to stdout
 
     If PERSIST = True:
         Agent and its sub-module states persists between executions via files
-        at PERSIST_PATH/ID.MODEL_EXT and their output is logged to 
+        PERSIST_PATH/ID.MODEL_EXT, and their output is logged to 
         PERSIST_PATH/ID.LOG_EXT.
 
     Module Structure:
-        Agent is the main interface. It expects training/validation data as
-        a classlib.DataFrom object instance. 
-        Agent persistence and output is handled by classlib.ModelHandler.
+        Agent() is the main interface. It expects training/validation data as
+        an instance obj of type classlib.DataFrom(). 
+        Agent persistence and output is handled by classlib.ModelHandler().
 
     Dependencies:
         PyTorch
@@ -25,9 +26,11 @@
         Run from the terminal with './agent.py'.
 
     # TODO: 
-        REPL
-        Train layer3
+        REPL (Do this last)
+        Training func (layer 1 done)
+        Layer 2 pipe
         Classify layer3 output in agent.step
+        model.log outputs to single file for all sub-modules
 
 
     Author: Dustin Fast, 2018
@@ -35,7 +38,10 @@
 
 # Imports
 import threading
+import logging
+
 import torch
+
 from ann import ANN
 from evolve import Evolver
 from classlib import ModelHandler, DataFrom
@@ -146,7 +152,7 @@ class Agent(threading.Thread):
         if len(data_row) != self.depth:
             err_str = 'Mismatched data_row size - expected ' + str(self.depth)
             err_str += ', recieved ' + str(len(data_row))
-            self.model.log(err_str)
+            self.model.log(err_str, logging.error)
             exit(-1)
 
         # Feed inputs to layer 1
@@ -251,25 +257,32 @@ class Agent(threading.Thread):
 
 
 if __name__ == '__main__':
-    # Define the agent "sensory input" datasets.
+    # Agent "sensory input" data. Length of this list denotes the agent depth.
     in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    tr_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+    # Layer 1 training data. Length must match len(in_data) 
+    l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
+                DataFrom('static/datasets/letters.csv', normalize=True),
+                DataFrom('static/datasets/letters.csv', normalize=True)]
+
+    # Layer 1 validation data - Length must match len(in_data)
+    l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    vl_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
+    # Layer 2 training data
+    l2_data = DataFrom('static/datasets/letters.csv', normalize=True)
 
-    # Init the agent, composed of a layer1 of "depth" ANN's. 
-    # Each ANN[i] receives rows from in_data[i] as input simultaneously.
+    # Layer 3 "Resource" data
+    l3_data = DataFrom('static/datasets/letters.csv', normalize=True)
+
+    # Instantiate the agent (agent shape is derived automatically from in_data)
     agent = Agent('agent1', in_data)
 
     # Train the agent on the training and val sets
-    agent.train(tr_data, vl_data)
+    agent.train(l1_train, l1_vald)
 
     # Start the agent thread with the in_data list
     agent.start(in_data, True)

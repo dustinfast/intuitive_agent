@@ -47,10 +47,11 @@ class ModelHandler(object):
             save_func (str)    : Save function and args (see example)
             load_func (str)    : Load function and args (see example)
             
-            Load/Save function example ('MODEL_FILE' placeholder required): 
+            Load/Save function example: 
                 save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
                 load_func = "load_state_dict(torch.load('MODEL_FILE'))"
                 The func string will be used to save/load with eval()
+                Note: The 'MODEL_FILE' placeholder is required.
                 Note: Ensure you import any depencies of save/load funcs
         """
         # Model properties
@@ -96,13 +97,14 @@ class ModelHandler(object):
             if not os.path.exists(output_path):
                 os.mkdir(output_path)
 
-            # Init logger and output initialization statment
-            logging.basicConfig(filename=log_file,
-                                level=LOG_LEVEL,
-                                format='%(asctime)s - %(levelname)s: %(message)s')
+            # Init logger and log the initialization of the child
+            logging.basicConfig(
+                filename=log_file,
+                level=LOG_LEVEL,
+                format='%(asctime)s - %(levelname)s: %(message)s')
             self.log('*** Initialized ' + child_type + ' ***:\n' + str(child))
 
-            # Denote model file and, if it exists, load the model from it
+            # Denote model filename and, if it exists, load the model from it
             if os.path.isfile(self._model_file):
                 self.load()
 
@@ -188,8 +190,6 @@ class DataFrom(Dataset):
         # Init targets
         targets = targets.apply(lambda t: self._map_outnode(t.iloc[0]), axis=1)
         self.targets = targets
-
-        # Set raw input members
 
     def __str__(self):
         str_out = 'Classes: ' + str(self.class_labels) + '\n'
