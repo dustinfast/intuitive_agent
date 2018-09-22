@@ -108,15 +108,27 @@ class Agent(threading.Thread):
         """
         raise NotImplementedError
 
-    def _step(self, inputs):
-        """ Steps the agent forward one step with the given list DataFrom objs
-            (one for each depth) as input to layer one, who's ouput is fed to
-            layer 2, etc.
+    def _step(self, data):
+        """ Steps the agent forward one step with the given list of tuples
+            (one for each depth) of inputs and targets. Each tuple, by depth,
+            is fed to layer one, who's ouput is fed to layer 2, etc.
+            Accepts:
+                data (list)      : [(inputs, targets), ... ]
         """
+        # debug
+        # for d in data:
+        #     print(d)
+        #     print('\n')
+
         # Feed inputs to layer 1
         for i in range(self.depth):
-            # self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs[i]))
-            self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs[i])
+            inputs = data[i][0]
+            self.model.log('Feeding L1, node ' + str(i) + ': ' + str(inputs))
+            self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs)
+
+            # debug
+            print(self.layer1['nodes'][i]._label_from_outputs(
+                self.layer1['outputs'][i]))
 
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
@@ -128,10 +140,10 @@ class Agent(threading.Thread):
         l3_inputs = torch.cat(
             [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
-        # self.model.log('Feeding L3 ' + str(l3_inputs)
+        # self.model.log('Feeding L3 ' + str(l3_inputs))
         self.layer3['output'] = self.layer3['node'](l3_inputs)
 
-        print(self.layer3['output'])
+        # print(self.layer3['output'])
         # print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
@@ -154,16 +166,17 @@ class Agent(threading.Thread):
         for i in range(self.depth):
             self.layer1['nodes'][i].set_labels(data[i].class_labels)
 
-        # Determine stop point, if any
         while self.running:
             # Iterate each row of each dataset
             for i in range(min_rows):
+                row = []
                 for j in range(self.depth):
-                    inputs, targets = [d for d in iter(data[i][j])]
+                    row.append([d for d in iter(data[i][j])])
+                
+                # Step agent forward one step
+                self._step(row)
 
-                    # print(str(i) + ' : ' + str(j) + '-> ' + str(inputs))
-                    # print('\n')
-                self._step(inputs)  # Step agent forward one step
+            # If at eof and stop at eof specified, stop.   
             if stop_at_eof:
                 break
         self.stop()
