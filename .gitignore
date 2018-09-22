@@ -1,7 +1,8 @@
 *.pyc
 test*
+
 .vscode/
-data/
+static/datasets/test
 var/
-sh/
+
 lib/karoo_gp/runs/
