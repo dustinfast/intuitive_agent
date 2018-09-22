@@ -49,22 +49,26 @@ L3_OUT_NODES = 26
 
 
 class Agent(threading.Thread):
-    """ The intutive agent, implemented as a process to allow REPL and
-        and demonstrate
+    """ The intutive agent.
+        The constructor accepts the agent's "sensory input" data, from which
+        the layer dimensions are derived. After init, start the agent from 
+        the terminal with 'agent start', which runs the agent as a seperate
+        process - running this way allows the user to still interact with the
+        agent while it's running via the terminal.
     """
-    def __init__(self, ID, depth, l1_dims, l3_dims):
+    def __init__(self, ID, input_data):
         """ Accepts the following parameters:
-            ID (int)                : The agent's unique ID
-            depth (int)             : Layer 1 and 2 "node" depth
-            l1_dims (tuple)         : Layer 1 ann dimensions
-            l3_dims (tuple)         : Layer 3 ann dimensions
+            ID (str)                : The agent's unique ID
         """
         threading.Thread.__init__(self)
         self.ID = ID
-        self.depth = depth
-        self.data = None        # TODO
+        self.depth = None
+        self.data = input_data        
         self.model = None       # The ModelHandler, defined below
         self.running = False    # Denotes thread is running
+
+        # Determine agent layer dimensions from input data
+        self.depth, l1_dims, l3_dims = self._get_dimensions(input_data)
 
         # Define agent layers - each layer is a dict of nodes and outputs
         self.layer1 = {'nodes': [], 'outputs': []}
@@ -72,14 +76,14 @@ class Agent(threading.Thread):
         self.layer3 = {'node': None, 'output': None}
 
         # Init the agent layers. They will each auto-load, if able, on init.
-        for i in range(depth):
+        for i in range(self.depth):
             # Build node ID prefixes & suffixes, denoting the agent and depth
             prefix = self.ID + '_'
             suffix = str(i)
 
             # Init layer1 and 2 outputs at this depth
-            self.layer1['outputs'].append([None for i in range(depth)])
-            self.layer2['outputs'].append([None for i in range(depth)])
+            self.layer1['outputs'].append([None for i in range(self.depth)])
+            self.layer2['outputs'].append([None for i in range(self.depth)])
 
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
@@ -106,7 +110,11 @@ class Agent(threading.Thread):
         return ret_str
 
     def train(self, train_data, val_data):
-        """ Trains the agent from the given training and validation files.
+        """ Trains the agent from the given DataFiles as follows -
+            Layer One:
+
+            Layer Two:
+
         """
         # Train each layer1 node
         for i in range(self.depth):
@@ -116,25 +124,35 @@ class Agent(threading.Thread):
         for i in range(self.depth):
             self.layer1['nodes'][i].validate(val_data[i], verbose=True)
 
+        # TODO: Train layer2 from train data
+
         # TODO: Train layer3 from subset of all three
 
-    def _step(self, data):
-        """ Steps the agent forward one step with the given list of tuples
-            (one for each depth) of inputs and targets. Each tuple, by depth,
-            is fed to layer one, who's ouput is fed to layer 2, etc.
+    def _step(self, data_row):
+        """ Steps the agent forward one step with the given data row: A list
+            of tuples (one for each depth) of inputs and targets. Each tuple,
+            by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
+            Note: At this time, the 'targets' in the data row are not used.
             Accepts:
-                data (list)      : [(inputs, targets), ... ]
+                data_row (list)      : [(inputs, targets), ... ]
         """
         # debug
-        print('STEP\n')
+        print('\nSTEP')
         # for d in data:
         #     print(d)
         #     print('\n')
 
+        # Ensure well formed data_row
+        if len(data_row) != self.depth:
+            err_str = 'Mismatched data_row size - expected ' + str(self.depth)
+            err_str += ', recieved ' + str(len(data_row))
+            self.model.log(err_str)
+            exit(-1)
+
         # Feed inputs to layer 1
         for i in range(self.depth):
-            inputs = data[i][0]
-            self.model.log('Feeding L1, node ' + str(i) + ' w: ' + str(inputs))
+            inputs = data_row[i][0]
+            self.model.log('Feeding L1, node ' + str(i) + ':\n' + str(inputs))
             self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs)
 
             # debug
@@ -143,19 +161,19 @@ class Agent(threading.Thread):
 
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
-            self.model.log('Feeding L2 w: ' + str(self.layer1['outputs'][i]))
+            self.model.log('Feeding L2:\n' + str(self.layer1['outputs'][i]))
             # TODO: Evolve through layer 2
             self.layer2['outputs'][i] = self.layer1['outputs'][i]
 
-        # Concatt layer 2 outputs into a tensor of size layer 3 inputs
+        # Reshape layer 2 outputs to match layer 3 input size
         l3_inputs = torch.cat(
             [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
-        self.model.log('Feeding L3 w:' + str(l3_inputs))
+        self.model.log('Feeding L3 w:\n' + str(l3_inputs))
         self.layer3['output'] = self.layer3['node'](l3_inputs)
 
         # print(self.layer3['output'])
-        # print(self.layer3['node'].classify(self.layer3['output']))
+        print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
 
@@ -193,38 +211,43 @@ class Agent(threading.Thread):
         self.stop()
 
     def stop(self):
-        """ Stops the thread.
+        """ Stops the thread. May be called from the REPL, for example.
         """
         self.model.log('Stopped.')
         self.running = False
 
+    def _get_dimensions(self, in_data):
+        """ Helper function. Determines agent's shape from the given data.
+            Returns the following 3-tuple: (depth = an int,
+                                            layer1_dims = [int, int, int],
+                                            layer3_dims = [int, int int])
+            Assumes:
+                Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
+            Accepts:
+                data (list)     : A list of DataFrom objects
+        """
+        depth = len(in_data)
+        l1_dims = []
+        l3_dims = []
+        l3_y = 0
+        
+        # Determine Layer 1 dimensions
+        for i in range(depth):
+            l1_dims.append([])                              # New L1 dimension
+            l1_dims[i].append(in_data[i].feature_count)     # x layer size
+            l1_dims[i].append(0)                            # h sz placeholder
+            l1_dims[i].append(in_data[i].class_count)       # y layer size
+            l1_dims[i][1] = int(
+                (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
+            l3_y += l1_dims[i][2]                           # Total L1 outputs
 
-def get_dims(data):
-    """ Helper function to determine agents dimensions from the data given.
-        Returns a 3-tuple of lists: (depth, layer1_dims, layer3_dims)
-        Accepts:
-            data (list)     : A list of DataFrom objects 
-    """
-    # Determine agent shape from given data - assumes 3-layer (x, h, y) anns
-    l1_dims = []
-    l3_dims = []
-    l3_y = 0
-    depth = len(in_data)
-    for i in range(depth):
-        l1_dims.append([])                              # New dim in l1_dims
-        l1_dims[i].append(in_data[i].feature_count)     # x layer size
-        l1_dims[i].append(0)                            # Placeholder for h sz
-        l1_dims[i].append(in_data[i].class_count)       # y layer size
-        l1_dims[i][1] = int(
-            (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz iss xy avg
-        l3_y += l1_dims[i][2]                           # count total outputs
-
-    l3_dims.append(l3_y)            # x sz is combined l1 outputs
-    l3_dims.append(0)               # h layer sz placeholder
-    l3_dims.append(L3_OUT_NODES)    # y layer sz
-    l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
- 
-    return depth, l1_dims, l3_dims
+        # Determine layer 3 dims from layer 1 dims
+        l3_dims.append(l3_y)            # x sz is combined l1 outputs
+        l3_dims.append(0)               # h layer sz placeholder
+        l3_dims.append(L3_OUT_NODES)    # y layer sz
+        l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
+    
+        return depth, l1_dims, l3_dims
 
 
 if __name__ == '__main__':
@@ -241,16 +264,9 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-    #            DataFrom('static/datasets/letters.csv', normalize=True),
-    #            DataFrom('static/datasets/letters.csv', normalize=True)]
-
-    # Determine agent dimensions based on in_data shape
-    depth, l1_dims, l3_dims = get_dims(in_data)
-    
     # Init the agent, composed of a layer1 of "depth" ANN's. 
     # Each ANN[i] receives rows from in_data[i] as input simultaneously.
-    agent = Agent('agent1', depth, l1_dims, l3_dims)
+    agent = Agent('agent1', in_data)
 
     # Train the agent on the training and val sets
     agent.train(tr_data, vl_data)
