@@ -156,7 +156,7 @@ class Agent(threading.Thread):
             self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs)
 
             # debug
-            print(self.layer1['nodes'][i]._label_from_outputs(
+            print(self.layer1['nodes'][i].classify_outputs(
                 self.layer1['outputs'][i]))
 
         # Feed layer 1 outputs to layer 2 inputs
@@ -173,7 +173,7 @@ class Agent(threading.Thread):
         self.layer3['output'] = self.layer3['node'](l3_inputs)
 
         # print(self.layer3['output'])
-        print(self.layer3['node'].classify(self.layer3['output']))
+        # print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
 

@@ -99,15 +99,6 @@ class ANN(nn.Module):
         str_out += 'Layers = ' + str(self.seq_layers)
         return str_out
 
-    def _label_from_outputs(self, outputs):
-        """ Given an outputs tensor, returns the mapped classification label.
-        """
-        try:
-            _, idx = torch.max(outputs, 0)
-            return self.class_labels[idx]
-        except TypeError:
-            self.model.log('Must set class labels first.', logging.error)
-
     def set_labels(self, classes):
         """ Sets the class labels from the given list of classes.
         """
@@ -181,8 +172,9 @@ class ANN(nn.Module):
             for row in data:
                 inputs, target = iter(row)
                 pred_class = self.classify(inputs)
-                target_class = self._label_from_outputs(target)
+                target_class = self.classify_outputs(target)
                 
+                # Aggregate accuracy
                 total += 1
                 class_total[target_class] += 1
                 if target_class == pred_class:
@@ -205,10 +197,27 @@ class ANN(nn.Module):
         
         self.model.log(log_str)
 
-    def classify(self, inputs):
-        """ Returns the ANN's classification label of the given input tensor.
+    def max_index(self, t):
+        """ Returns the element index w/the highest value in the given tensor.
+            Ex: If t = tensor(1, 2, 4, 2), returns 2
         """
-        return self._label_from_outputs(self(inputs))
+        _, idx = torch.max(t, 0)
+        return idx
+
+    def classify_outputs(self, outputs):
+        """ Returns the ANN's classification label of the given outputs tensor.
+            I.e. outputs is the tensor produced by the output layer.
+        """
+        try:
+            return self.class_labels[self.max_index(outputs)]
+        except TypeError:
+            self.model.log('Must set class labels first.', logging.error)
+
+    def classify(self, inputs):
+        """ Returns the ANN's classification label of the given inputs tensor.
+            I.e. inputs is the initial input-layers input.
+        """
+        return self.classify_outputs(self(inputs))
 
 
 if __name__ == '__main__':
