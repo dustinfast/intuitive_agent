@@ -2,7 +2,6 @@
 """ A collection of shared and/or parent classes for the intutive agent.
 
     # TODO: 
-        DataFrom() -> allow PyTorch.utils.data.DataLoader usage
 
     Author: Dustin Fast, 2018
 """
