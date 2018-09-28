@@ -140,10 +140,49 @@ class KarooEvolve(karoo_gp.Base_GP):
             self.fx_karoo_eol()
 
 
+# class TensorEvolver(object):
+#     """ A handler for element-wise tensor operations according to a genetically
+#         evolving expression tree.
+#     """
+#     def __init__(self, ID, console_out, persist):
+#         """ ID (str)                : This Evolver's unique ID number
+#             console_out (bool)      : Output log stmts to console flag
+#             persist (bool)          : Persit mode flag
+#         """
+#         # Generic object params
+#         self.ID = ID
+#         self.model_file = None
+#         self.persist = persist
+
+#         self.evolver = KarooEvolve(menu=False)     # The karoo_gp interface
+#         self.expression = None                     # The current expression tree
+
+#         # Init the load, save, log, and console output handler
+#         # f_save = "self.evolver.fx_archive_tree_write(self.evolver.population_a, 'a')"
+#         # f_load = self.evolver.fx_archive_params_write('Desktop')
+#         # self.ModelHandler = ModelHandler(self,
+#         #                    console_out,
+#         #                    persist)
+#                         #    model_ext=MODEL_EXT,
+#                         #    save_func=f_save,
+#                         #    load_func=f_load)
+
+#     def __str__(self):
+#         str_out = 'ID = ' + self.ID
+#         # str_out += 'Data = ' + str(self.array)
+#         return str_out
+
+#     def forward(self, tensors):
+#         """ Returns the given list of tensors after performing element-wise
+#             operations on them according to the current expression tree.
+#         """
+#         raise NotImplementedError
+
+
 class Evolver(object):
-    """ A handler for element-wise tensor operations according to a genetically
-        evolving expression tree.
+    """ A handler for evolving a string of binary digits of the given length.
     """
+
     def __init__(self, ID, console_out, persist):
         """ ID (str)                : This Evolver's unique ID number
             console_out (bool)      : Output log stmts to console flag
@@ -151,10 +190,9 @@ class Evolver(object):
         """
         # Generic object params
         self.ID = ID
-        self.logger = None
         self.persist = persist
-        self.model_file = None
-        self.console_out = False
+        # self.length = length
+        self.string = None
 
         self.evolver = KarooEvolve(menu=False)     # The karoo_gp interface
         self.expression = None                     # The current expression tree
@@ -165,13 +203,13 @@ class Evolver(object):
         # self.ModelHandler = ModelHandler(self,
         #                    console_out,
         #                    persist)
-                        #    model_ext=MODEL_EXT,
-                        #    save_func=f_save,
-                        #    load_func=f_load)
+        #    model_ext=MODEL_EXT,
+        #    save_func=f_save,
+        #    load_func=f_load)
 
     def __str__(self):
-        str_out = 'ID = ' + self.ID + '\n'
-        str_out += 'Data = ' + str(self.array)
+        str_out = 'ID = ' + self.ID
+        # str_out += 'Data = ' + str(self.array)
         return str_out
 
     def forward(self, tensors):

@@ -76,7 +76,10 @@ class Agent(threading.Thread):
         # Determine agent layer dimensions from input data
         self.depth, l1_dims, l3_dims = self._get_dimensions(input_data)
 
-        # Define agent layers - each layer is a dict of nodes and outputs
+        # Define agent layers - each layer is defined as:
+        #   layer1 = { [ann0, ann1, ... ], [ann0_output, ann1_output, ...] }
+        #   layer2 = { evolver, [ann0_toggle, ann1_toggle, ... ]}
+        #   layer3 = { agent, agent_output }
         self.layer1 = {'nodes': [], 'outputs': []}
         self.layer2 = {'node': None, 'outputs': []}
         self.layer3 = {'node': None, 'output': None}
@@ -159,32 +162,37 @@ class Agent(threading.Thread):
         for i in range(self.depth):
             inputs = data_row[i][0]
             self.model.log('Feeding L1, node ' + str(i) + ':\n' + str(inputs))
-            self.layer1['outputs'][i] = self.layer1['nodes'][i](inputs)
 
-            # debug
-            print(self.layer1['nodes'][i].classify_outputs(
-                self.layer1['outputs'][i]))
+            # Set output to node's result, where tensor(max) = 1, all others = 0
+            output = self.layer1['nodes'][i](inputs)
+            _, max_idx = torch.max(output, 0)
+            self.layer1['outputs'][i] = torch.zeros_like(output)
+            self.layer1['outputs'][i][max_idx] = 1
 
+            # print(self.layer1['outputs'][i])  # debug
+            
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
             self.model.log('Feeding L2:\n' + str(self.layer1['outputs'][i]))
             # TODO: Evolve through layer 2
             self.layer2['outputs'][i] = self.layer1['outputs'][i]
-
-        # Reshape layer 2 outputs to match layer 3 input size
+            
+        # Flatten layer 2 outputs to one large layer 3 input
         l3_inputs = torch.cat(
             [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
         self.model.log('Feeding L3 w:\n' + str(l3_inputs))
         self.layer3['output'] = self.layer3['node'](l3_inputs)
 
-        # print(self.layer3['output'])
+        print(self.layer3['output'])
         # print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
 
         # for out in self.layer3['outputs']:
         #     print(out)
+
+        # Update noise ann noise param / signal "in context".
 
     def start(self, data, stop_at_eof=False):
         """ Starts the agent thread, stepping the agent forward until stopped 
@@ -211,7 +219,7 @@ class Agent(threading.Thread):
                 # Step agent forward one step
                 self._step(row)
 
-            # If at eof and stop at eof specified, stop.   
+            # Stop if at eof and stop at eof specified
             if stop_at_eof:
                 break
         self.stop()
@@ -253,6 +261,8 @@ class Agent(threading.Thread):
         l3_dims.append(L3_OUT_NODES)    # y layer sz
         l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
     
+        # TODO: Derive l3 output labels
+
         return depth, l1_dims, l3_dims
 
 
