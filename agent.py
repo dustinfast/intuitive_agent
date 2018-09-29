@@ -51,7 +51,6 @@ from classlib import ModelHandler, DataFrom
 CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.ag'
-L3_OUT_NODES = 26
 
 
 class Agent(threading.Thread):
@@ -69,16 +68,21 @@ class Agent(threading.Thread):
         threading.Thread.__init__(self)
         self.ID = ID
         self.depth = None
-        self.data = input_data        
         self.model = None       # The ModelHandler, defined below
         self.running = False    # Denotes thread is running
+        self.out_labels = None  # Agent output labels
+        self.data = input_data        
 
-        # Determine agent layer dimensions from input data
-        self.depth, l1_dims, l3_dims = self._get_dimensions(input_data)
+        # Determine agent layer dimensions and output labels from input data
+        dims = tuple(self._get_dimensions(input_data))
+        self.depth = dims[0]
+        l1_dims = dims[1]
+        l3_dims = dims[2]
+        self.out_labels = dims[3]
 
         # Define agent layers - each layer is defined as:
         #   layer1 = { [ann0, ann1, ... ], [ann0_output, ann1_output, ...] }
-        #   layer2 = { evolver, [ann0_toggle, ann1_toggle, ... ]}
+        #   layer2 = { evolver, [ann0_toggle, ann1_toggle, ... ] }
         #   layer3 = { agent, agent_output }
         self.layer1 = {'nodes': [], 'outputs': []}
         self.layer2 = {'node': None, 'outputs': []}
@@ -100,7 +104,6 @@ class Agent(threading.Thread):
                 id3 = prefix + 'lv3_node' + suffix
                 self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
                 self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)
-                self.layer3['ouputs'] = [None for i in range(l3_dims[2])]
 
             # Init layer 1 node at this depth
             id1 = prefix + 'lv1_node' + suffix
@@ -182,9 +185,15 @@ class Agent(threading.Thread):
             [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
         self.model.log('Feeding L3 w:\n' + str(l3_inputs))
-        self.layer3['output'] = self.layer3['node'](l3_inputs)
+        output = self.layer3['node'](l3_inputs)
 
-        print(self.layer3['output'])
+        self.layer3['output'] = ''
+        for i, o in enumerate(output):
+            if o > .5:
+                self.layer3['output'] += self.out_labels[i]
+
+        print(self.layer3['output'])  # debug
+
         # print(self.layer3['node'].classify(self.layer3['output']))
             
         # On new connection: Prompt for feedback, or search, to verify
@@ -231,10 +240,11 @@ class Agent(threading.Thread):
         self.running = False
 
     def _get_dimensions(self, in_data):
-        """ Helper function. Determines agent's shape from the given data.
+        """ Helper function - determines agent's shape and output.
             Returns the following 3-tuple: (depth = an int,
                                             layer1_dims = [int, int, int],
-                                            layer3_dims = [int, int int])
+                                            layer3_dims = [int, int int],
+                                            layer3_labels = [str, str, ... ])
             Assumes:
                 Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
             Accepts:
@@ -244,6 +254,7 @@ class Agent(threading.Thread):
         l1_dims = []
         l3_dims = []
         l3_y = 0
+        l3_labels = []
         
         # Determine Layer 1 dimensions
         for i in range(depth):
@@ -254,16 +265,15 @@ class Agent(threading.Thread):
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
             l3_y += l1_dims[i][2]                           # Total L1 outputs
+            l3_labels += in_data[i].class_labels            # L3 output labels
 
         # Determine layer 3 dims from layer 1 dims
-        l3_dims.append(l3_y)            # x sz is combined l1 outputs
-        l3_dims.append(0)               # h layer sz placeholder
-        l3_dims.append(L3_OUT_NODES)    # y layer sz
+        l3_dims.append(l3_y)                # x sz is combined l1 outputs
+        l3_dims.append(0)                   # h layer sz placeholder
+        l3_dims.append(len(l3_labels))      # y layer sz
         l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
-    
-        # TODO: Derive l3 output labels
 
-        return depth, l1_dims, l3_dims
+        return depth, l1_dims, l3_dims, l3_labels
 
 
 if __name__ == '__main__':
