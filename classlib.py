@@ -224,7 +224,7 @@ class DataFrom(Dataset):
         return (t - self.norm_min) / (self.norm_max - self.norm_min)
 
 
-def word_exists(word, lang='en'):
+def is_word(word, lang='en'):
     """ Returns True iff the given word is defined by the oxford dictionary. 
         Results are obtained via HTTP GET request to OxfordDictionaries.com. 
         API info may be found at: https://developer.oxforddictionaries.com/
@@ -239,7 +239,7 @@ def word_exists(word, lang='en'):
     # URL, including language and word in question
     url = 'https://od-api.oxforddictionaries.com:443/api/v1/entries/'
     url += lang + '/'
-    url += word.lower()
+    url += word
 
     # Query OxfordDictionaries.com
     try:
