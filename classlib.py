@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """ A collection of shared and/or parent classes for the intutive agent.
 
+    Dependencies:
+        Pandas
+        PyTorch
+        Requests (pip install requests)
+
     # TODO: 
 
     Author: Dustin Fast, 2018
@@ -8,6 +13,7 @@
 
 # Imports
 import os
+import requests
 import logging
 
 import torch
@@ -216,3 +222,29 @@ class DataFrom(Dataset):
         """ Returns a normalized representation of the given tensor
         """
         return (t - self.norm_min) / (self.norm_max - self.norm_min)
+
+
+def word_exists(word, lang='en'):
+    """ Returns True iff the given word is defined by the oxford dictionary. 
+        Results are obtained via HTTP GET request to OxfordDictionaries.com. 
+        API info may be found at: https://developer.oxforddictionaries.com/
+        Accepts:
+            word (str)      : The word of interest
+            lang (str)      : Language. Ex: en = english, es = spanish, etc.
+    """
+    # Oxford dictionary API credentials
+    app_id = 'fa088f2c'
+    app_key = '71fca31a4ca067d4d3df45997ce78b0e'
+
+    # URL, including language and word in question
+    url = 'https://od-api.oxforddictionaries.com:443/api/v1/entries/'
+    url += lang + '/'
+    url += word.lower()
+
+    # Query OxfordDictionaries.com
+    try:
+        r = requests.get(url, headers={'app_id': app_id, 'app_key': app_key})
+        if r.status_code == 200:
+            return True
+    except:
+        raise Exception("HTTP GET failed - Connection error.")

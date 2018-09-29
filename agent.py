@@ -6,7 +6,7 @@
         The Agent and its sub-modules print their output to stdout
 
     If PERSIST = True:
-        Agent and its sub-module states persists between executions via files
+        Agent and its sub-module states persist between executions via files
         PERSIST_PATH/ID.MODEL_EXT, and their output is logged to 
         PERSIST_PATH/ID.LOG_EXT.
 
@@ -21,15 +21,17 @@
         Sympy
         Scikit-learn
         MatplotLib
+        Requests
 
     Usage: 
         Run from the terminal with './agent.py'.
 
     # TODO: 
+        L3 training file (do this now)
+        l2 training file
         REPL (Do this last)
         Training func (layer 1 done)
         Layer 2 pipe
-        Classify layer3 output in agent.step
         model.log outputs to single file for all sub-modules
 
 
@@ -37,8 +39,8 @@
 """
 
 # Imports
-import threading
 import logging
+import threading
 
 import torch
 
@@ -118,15 +120,10 @@ class Agent(threading.Thread):
                                   load_func=f_load)
 
     def __str__(self):
-        ret_str = 'ID = ' + self.ID
-        return ret_str
+        return 'ID = ' + self.ID
 
     def train(self, train_data, val_data):
         """ Trains the agent from the given DataFiles as follows -
-            Layer One:
-
-            Layer Two:
-
         """
         # Train each layer1 node
         for i in range(self.depth):
@@ -138,7 +135,7 @@ class Agent(threading.Thread):
 
         # TODO: Train layer2 from train data
 
-        # TODO: Train layer3 from subset of all three
+        # TODO: Train layer3 from subset of all L1 files
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -259,23 +256,23 @@ class Agent(threading.Thread):
         # Determine Layer 1 dimensions
         for i in range(depth):
             l1_dims.append([])                              # New L1 dimension
-            l1_dims[i].append(in_data[i].feature_count)     # x layer size
+            l1_dims[i].append(in_data[i].feature_count)     # x size
             l1_dims[i].append(0)                            # h sz placeholder
-            l1_dims[i].append(in_data[i].class_count)       # y layer size
+            l1_dims[i].append(in_data[i].class_count)       # y size
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
             l3_y += l1_dims[i][2]                           # Total L1 outputs
             l3_labels += in_data[i].class_labels            # L3 output labels
 
         # Determine layer 3 dims from layer 1 dims
-        l3_dims.append(l3_y)                # x sz is combined l1 outputs
+        l3_dims.append(l3_y)                # x sz is combined L1 outputs
         l3_dims.append(0)                   # h layer sz placeholder
         l3_dims.append(len(l3_labels))      # y layer sz
         l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
 
         return depth, l1_dims, l3_dims, l3_labels
 
-
+    
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
     in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
