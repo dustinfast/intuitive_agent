@@ -30,8 +30,6 @@
 
     Author: Dustin Fast, 2018
 """
-
-# Imports
 import logging
 import threading
 
@@ -39,8 +37,6 @@ from ann import ANN
 # from evolve import Evolver
 from classlib import ModelHandler, DataFrom
 
-
-# Constants
 CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.ag'

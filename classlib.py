@@ -2,8 +2,8 @@
 """ A collection of shared and/or parent classes for the intutive agent.
 
     Dependencies:
-        Pandas
-        PyTorch
+        Pandas (pip install pandas)
+        PyTorch (see (see https://pytorch.org)
         Requests (pip install requests)
 
     # TODO: 
@@ -11,17 +11,13 @@
     Author: Dustin Fast, 2018
 """
 
-# Imports
 import os
 import logging
-
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 import pandas as pd
 
-
-# Constants
 OUT_PATH = 'var/models'
 LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG

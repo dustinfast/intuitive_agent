@@ -1,24 +1,10 @@
 #!/usr/bin/env python
 """ A module for genetically evolving a tensor using the Karoo GP library.
 
-    If CONSOLE_OUT = True:
-        The evovler's output is printed to stdout
-
-    If PERSIST = True:
-        Evolver state persists between executions via PERSIST_PATH/ID.MODEL_EXT
-        and output is logged to PERSIST_PATH/ID.LOG_EXT.
-
     Module Structure:
         Evolver is the main interface, with KarooEvolver as the helper
         interface to Karoo GP.
         Evolver persistence and output is handled by classlib.ModelHandler.
-
-    Dependencies:
-        PyTorch
-        Numpy
-        Sympy
-        Scikit-learn
-        MatplotLib
         
     Usage: 
         See "__main__" for example usage.
@@ -35,16 +21,12 @@
     Author: Dustin Fast, 2018
 """
 
-# Imports
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
 from classlib import ModelHandler
 
-
-# Constants
 MODEL_EXT = '.tree'
-
 
 class KarooEvolve(karoo_gp.Base_GP):
     """ A Karoo GP wrapper class.

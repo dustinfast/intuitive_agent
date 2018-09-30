@@ -14,7 +14,7 @@
         ANN persistence and output is handled by classlib.ModelHandler().
 
     External ependencies:
-        PyTorch (see https://pytorch.org/)
+        PyTorch (see https://pytorch.org)
 
     Usage: 
         See "__main__" for example usage.
@@ -28,16 +28,12 @@
     Author: Dustin Fast, 2018
 """
 
-# Imports
 import logging
-
 import torch
 import torch.nn as nn
 
 from classlib import ModelHandler, DataFrom
 
-
-# Constants
 MODEL_EXT = '.pt'   # ANN model file extension
 
 
