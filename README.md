@@ -54,3 +54,8 @@ This layer will be implemented as a singular ANN having a set `M` of input nodes
 ## Proof of Concept
 
 Upon completion of development, proof of concept will be attempted in the following way: The attentive-layer ANN will be trained on a set of known conceptual links between some set of concepts known by the conceptual-layer. The entire agent will then be subjected to the validation set. In this way, a successful intuitive agent will be demonstrated by the attentive layer's discovery of previously unlearned connections in the validation set.
+
+
+## #TODO:
+    Allow comment lines in all data files
+    Allow larger inputs to L3, so conceptual els can stack
