@@ -23,6 +23,8 @@ LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
 
 
+# Begin Classes ----------------------------------------------------------- #
+
 class ModelHandler(object):
     """ The ModelHandler, used by many of the inutive agent's classes for
         logging, saving, and loading methods. A "child" is defined here as
@@ -217,3 +219,23 @@ class DataFrom(Dataset):
         """ Returns a normalized representation of the given tensor
         """
         return (t - self.norm_min) / (self.norm_max - self.norm_min)
+
+
+# End Classes ----------------------------------------------------------- #
+# Begin Functions ------------------------------------------------------- #
+
+def easy_join(lst, seperator, last_seperator):
+    """ Given a list, seperator (str), and last element seperator (str),
+        returns a string of the list items in joined as specified. Example:
+            Given lst = ['one', 'two', 'three'],
+                  seperator = ', '
+                  last_sep = ', and'
+            Returns "one, two, and three"
+    """
+    listlen = len(lst)
+    if listlen > 1:
+        return seperator.join(lst[:-1]) + last_seperator + lst[-1]
+    elif listlen == 1:
+        return lst[0]
+    elif listlen == 0:
+        return ''
