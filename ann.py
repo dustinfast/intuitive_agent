@@ -8,32 +8,20 @@
     is all an end-user might need to use after the model is initialized and
     trained. For a raw results tensor, however, use ANN.forward(inputs)
     
-    If CONSOLE_OUT = True:
-        The ANN's output is printed to stdout
-
-    If PERSIST = True:
-        ANN state persists between executions via PERSIST_PATH/ID.MODEL_EXT
-        and output is logged to PERSIST_PATH/ID.LOG_EXT.
-
     Module Structure:
         ANN() is the main interface. It expects training/validation data as
         an instance object of type classlib.DataFrom(). 
         ANN persistence and output is handled by classlib.ModelHandler().
 
-    Dependencies:
-        PyTorch
-        Numpy
-        Sympy
-        Scikit-learn
-        MatplotLib
+    External ependencies:
+        PyTorch (see https://pytorch.org/)
 
     Usage: 
         See "__main__" for example usage.
 
     # TODO: 
-        Noise Params
+        "In Context" Param
         Fix: All unique classes must be present in both training and val set
-        Best check point persistence (for online learning)
         EMU: new_average = (1.0 - self.mu) * x + self.mu * self.shadow[name]
 
 
