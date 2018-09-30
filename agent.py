@@ -16,24 +16,17 @@
         Agent persistence and output is handled by classlib.ModelHandler().
 
     Dependencies:
-        PyTorch
-        Numpy
-        Sympy
-        Scikit-learn
-        MatplotLib
-        Requests
+        PyTorch (see https://pytorch.org)
+        Requests (pip instal requests)
 
     Usage: 
         Run from the terminal with './agent.py'.
 
     # TODO: 
-        L3 training file (do this now)
-        l2 training file
-        REPL (Do this last)
-        Training func (layer 1 done)
+        L2 training function and file
         Layer 2 pipe
-        model.log outputs to single file for all sub-modules
-
+        REPL (Do this last)
+        Fix: model.log outputs to single file for all sub-modules
 
     Author: Dustin Fast, 2018
 """
@@ -42,10 +35,8 @@
 import logging
 import threading
 
-import torch
-
 from ann import ANN
-from evolve import Evolver
+# from evolve import Evolver
 from classlib import ModelHandler, DataFrom
 
 
@@ -71,15 +62,15 @@ class Agent(threading.Thread):
         self.ID = ID
         self.depth = None
         self.model = None       # The ModelHandler, defined below
-        self.running = False    # Denotes thread is running
+        self.running = False    # Denotes agent thread is running
         self.out_labels = None  # Agent output labels
         self.data = input_data        
 
-        # Determine agent layer dimensions and output labels from input data
+        # Determine, from input data, agent's dimensions & output labels
         dims = tuple(self._get_dimensions(input_data))
         self.depth = dims[0]
         l1_dims = dims[1]
-        l3_dims = dims[2]
+        l3_size = dims[2]
         self.out_labels = dims[3]
 
         # Define agent layers - each layer is defined as:
@@ -104,8 +95,8 @@ class Agent(threading.Thread):
             if i == 0:
                 id2 = prefix + 'vl2_node' + suffix
                 id3 = prefix + 'lv3_node' + suffix
-                self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
-                self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)
+                # TODO: self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
+                # TODO: self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)  # Mode 2?
 
             # Init layer 1 node at this depth
             id1 = prefix + 'lv1_node' + suffix
@@ -135,8 +126,6 @@ class Agent(threading.Thread):
 
         # TODO: Train layer2 from train data
 
-        # TODO: Train layer3 from subset of all L1 files
-
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
             of tuples (one for each depth) of inputs and targets. Each tuple,
@@ -145,51 +134,54 @@ class Agent(threading.Thread):
             Accepts:
                 data_row (list)      : [(inputs, targets), ... ]
         """
-        # debug
-        print('\nSTEP')
-        # for d in data:
-        #     print(d)
-        #     print('\n')
+        print('\nSTEP')  # debug
 
         # Ensure well formed data_row
         if len(data_row) != self.depth:
             err_str = 'Mismatched data_row size - expected ' + str(self.depth)
             err_str += ', recieved ' + str(len(data_row))
             self.model.log(err_str, logging.error)
-            exit(-1)
 
+        # ----------------------- Layer 1 ----------------------------
         # Feed inputs to layer 1
         for i in range(self.depth):
             inputs = data_row[i][0]
             self.model.log('Feeding L1, node ' + str(i) + ':\n' + str(inputs))
 
-            # Set output to node's result, where tensor(max) = 1, all others = 0
-            output = self.layer1['nodes'][i](inputs)
-            _, max_idx = torch.max(output, 0)
-            self.layer1['outputs'][i] = torch.zeros_like(output)
-            self.layer1['outputs'][i][max_idx] = 1
+            # Set output as node's "one-hot" result
+            # output = self.layer1['nodes'][i](inputs)
+            # _, max_idx = torch.max(output, 0)
+            # self.layer1['outputs'][i] = torch.zeros_like(output)
+            # self.layer1['outputs'][i][max_idx] = 1
 
-            # print(self.layer1['outputs'][i])  # debug
+            # Set output as node's classification
+            self.layer1['outputs'][i] = self.layer1['nodes'][i].classify(inputs)
             
+            # print(self.layer1['outputs'][i])  # debug
+        
+        # ----------------------- Layer 2 ----------------------------
         # Feed layer 1 outputs to layer 2 inputs
         for i in range(self.depth):
             self.model.log('Feeding L2:\n' + str(self.layer1['outputs'][i]))
             # TODO: Evolve through layer 2
             self.layer2['outputs'][i] = self.layer1['outputs'][i]
-            
+        
+        # ----------------------- Layer 3 ----------------------------
         # Flatten layer 2 outputs to one large layer 3 input
-        l3_inputs = torch.cat(
-            [self.layer2['outputs'][i] for i in range(self.depth)], 0)
+        # l3_inputs = torch.cat(
+        #     [self.layer2['outputs'][i] for i in range(self.depth)], 0)
 
-        self.model.log('Feeding L3 w:\n' + str(l3_inputs))
-        output = self.layer3['node'](l3_inputs)
+        # self.model.log('Feeding L3 w:\n' + str(l3_inputs))
+        # output = self.layer3['node'](l3_inputs)
 
-        self.layer3['output'] = ''
-        for i, o in enumerate(output):
-            if o > .5:
-                self.layer3['output'] += self.out_labels[i]
+        # self.layer3['output'] = ''
+        for i, o in enumerate(self.layer2['outputs']):
+            # if o > .5:
+            #     self.layer3['output'] += self.out_labels[i]
+            print(o)
 
-        print(self.layer3['output'])  # debug
+        # print(self.layer3['output'])  # debug
+        # exit()
 
         # print(self.layer3['node'].classify(self.layer3['output']))
             
@@ -236,41 +228,34 @@ class Agent(threading.Thread):
         self.model.log('Stopped.')
         self.running = False
 
-    def _get_dimensions(self, in_data):
+    @staticmethod
+    def _get_dimensions(in_data):
         """ Helper function - determines agent's shape and output.
-            Returns the following 3-tuple: (depth = an int,
-                                            layer1_dims = [int, int, int],
-                                            layer3_dims = [int, int int],
-                                            layer3_labels = [str, str, ... ])
+            Returns the following 4-tuple: (depth = int,
+                                            l1_dims = [int, int, int],
+                                            l3_size = int,
+                                            l3_labels = [str, str, ... ])
             Assumes:
                 Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
             Accepts:
-                data (list)     : A list of DataFrom objects
+                in_data (list)     : A list of DataFrom objects
         """
         depth = len(in_data)
         l1_dims = []
-        l3_dims = []
-        l3_y = 0
+        l3_size = 0
         l3_labels = []
-        
-        # Determine Layer 1 dimensions
+
         for i in range(depth):
             l1_dims.append([])                              # New L1 dimension
-            l1_dims[i].append(in_data[i].feature_count)     # x size
+            l1_dims[i].append(in_data[i].feature_count)     # x node count
             l1_dims[i].append(0)                            # h sz placeholder
-            l1_dims[i].append(in_data[i].class_count)       # y size
+            l1_dims[i].append(in_data[i].class_count)       # y node count
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-            l3_y += l1_dims[i][2]                           # Total L1 outputs
+            l3_size += l1_dims[i][2]                        # Num L3 outputs
             l3_labels += in_data[i].class_labels            # L3 output labels
 
-        # Determine layer 3 dims from layer 1 dims
-        l3_dims.append(l3_y)                # x sz is combined L1 outputs
-        l3_dims.append(0)                   # h layer sz placeholder
-        l3_dims.append(len(l3_labels))      # y layer sz
-        l3_dims[1] = int((l3_dims[0] + l3_dims[2]) / 2)  # h sz iss xy avg
-
-        return depth, l1_dims, l3_dims, l3_labels
+        return depth, l1_dims, l3_size, l3_labels
 
     
 if __name__ == '__main__':
@@ -299,7 +284,7 @@ if __name__ == '__main__':
     agent = Agent('agent1', in_data)
 
     # Train the agent on the training and val sets
-    agent.train(l1_train, l1_vald)
+    # agent.train(l1_train, l1_vald)
 
     # Start the agent thread with the in_data list
     agent.start(in_data, True)
