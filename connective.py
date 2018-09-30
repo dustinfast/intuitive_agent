@@ -13,6 +13,7 @@
         See "__main__" for example usage.
 
     # TODO: 
+        Learn to associate metric from types of each element in given data
 
     Author: Dustin Fast, 2018
 """
@@ -23,40 +24,44 @@ MODEL_EXT = '.cn'
 
 class Connective(object):
     def __init__(self):
-        # self.ann = ?
         pass
     
     def is_connective(self, data):
         """ Returns True iff the given data elements can be verified as having
             some conceptual connection.
+            Accepts:
+                data (str or list)  : A string or list of elements
+                metric (function)   : The function to use as a comparator
         """
-        # Determine type of possible connections
+        if type(data) is str:
+            return self.is_noun(data)
+        else:
+            raise Exception("Unhandled data type encountered.")
 
-        # Try each possible connection type
+    @staticmethod
+    def is_noun(word, lang='en'):
+        """ Returns True iff the given word is a noun in the english language.
+            Results are obtained from OxfordDictionaries.com via HTTP GET.
+            For API info, see: https://developer.oxforddictionaries.com
+            Accepts:
+                word (str)      : The word of interest
+                lang (str)      : Language. Ex: en = english, es = spanish, etc.
+        """
+        # OxfordDictionaries.com API credentials
+        creds = {'app_id': 'fa088f2c',
+                 'app_key': '71fca31a4ca067d4d3df45997ce78b0e'}
 
-def is_noun(word, lang='en'):
-    """ Returns True iff the given word is a noun in the US/English dictionary.
-        Results are obtained via HTTP GET request to OxfordDictionaries.com. 
-        API info may be found at: https://developer.oxforddictionaries.com/
-        Accepts:
-            word (str)      : The word of interest
-            lang (str)      : Language. Ex: en = english, es = spanish, etc.
-    """
-    # Oxford dictionary API credentials
-    app_id = 'fa088f2c'
-    app_key = '71fca31a4ca067d4d3df45997ce78b0e'
+        # URL, including language and word in question
+        url = 'https://od-api.oxforddictionaries.com:443/api/v1/entries/'
+        url += lang + '/'
+        url += word
+        url += '/lexicalCategory%3Dnoun'
+        url += '/regions=us'
 
-    # URL, including language and word in question
-    url = 'https://od-api.oxforddictionaries.com:443/api/v1/entries/'
-    url += lang + '/'
-    url += word
-    url += '/lexicalCategory%3Dnoun'
-    url += '/regions=us'
-
-    # Query OxfordDictionaries.com
-    try:
-        r = requests.get(url, headers={'app_id': app_id, 'app_key': app_key})
-        if r.status_code == 200:
-            return True
-    except:
-        raise Exception("HTTP GET failed - Connection error.")
+        # Query OxfordDictionaries.com
+        try:
+            r = requests.get(url, headers=creds)
+            if r.status_code == 200:
+                return True
+        except:
+            raise Exception("HTTP GET failed - Connection error.")
