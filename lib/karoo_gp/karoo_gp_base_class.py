@@ -8,8 +8,8 @@
 #   Removed unused imports (collections, operator)
 #   Removed print output of chars: '[36m', '[32m', '[3m', '[1m', '\033', '[0;0m'
 #	Removed 'Are you sure you want to quit?' prompt
-#	Added "If filename passed in from other than cmd line" statment to 
-#		Base_GP.fx_karoo_data()
+#	Added "If filename passed in from other than cmd line" statment to Base_GP.fx_karoo_data()
+#	Changed (s)ilent mode to not output trees w/highest fitness
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -1389,7 +1389,8 @@ class Base_GP(object):
 					# fitness_best = fitness # set best fitness score
 					# self.fittest_dict.update({tree_id:self.algo_sym}) # add to dictionary
 			
-		print('\n', len(list(self.fittest_dict.keys())), 'trees', np.sort(list(self.fittest_dict.keys())), ' offer the highest fitness scores.')
+		if self.display != 's':		
+			print('\n', len(list(self.fittest_dict.keys())), 'trees', np.sort(list(self.fittest_dict.keys())), ' offer the highest fitness scores.')
 		if self.display == 'g': self.fx_karoo_pause(0)
 		
 		return
