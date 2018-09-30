@@ -13,11 +13,6 @@
         See "__main__" for example usage.
 
     # TODO: 
-        Noise Params
-        Fix: All unique classes must be present in both training and val set
-        Best check point persistence (for online learning)
-        EMU: new_average = (1.0 - self.mu) * x + self.mu * self.shadow[name]
-
 
     Author: Dustin Fast, 2018
 """
@@ -25,6 +20,19 @@
 import requests
 
 MODEL_EXT = '.cn'
+
+class Connective(object):
+    def __init__(self):
+        # self.ann = ?
+        pass
+    
+    def is_connective(self, data):
+        """ Returns True iff the given data elements can be verified as having
+            some conceptual connection.
+        """
+        # Determine type of possible connections
+
+        # Try each possible connection type
 
 def is_noun(word, lang='en'):
     """ Returns True iff the given word is a noun in the US/English dictionary.
