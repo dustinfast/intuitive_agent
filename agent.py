@@ -171,10 +171,13 @@ class Agent(threading.Thread):
         # output = self.layer3['node'](l3_inputs)
 
         # self.layer3['output'] = ''
-        for i, o in enumerate(self.layer2['outputs']):
+        # for i, o in enumerate(self.layer2['outputs']):
             # if o > .5:
             #     self.layer3['output'] += self.out_labels[i]
-            print(o)
+
+        for eachdimension in self.layer2['outputs']:
+            # TODO: Cycle through each dimension of the evolved tensor
+            pass 
 
         # print(self.layer3['output'])  # debug
         # exit()
@@ -271,7 +274,7 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Layer 2 training data
-    l2_data = DataFrom('static/datasets/letters.csv', normalize=True)
+    l2_train = DataFrom('static/datasets/nouns_sum.csv', normalize=True)
 
     # Layer 3 "Resource" data
     l3_data = DataFrom('static/datasets/letters.csv', normalize=True)
