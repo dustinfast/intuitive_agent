@@ -17,9 +17,9 @@
 
 import classlib
 
-INFILE = 'static/datasets/test/nouns_4.dat'    # File w/single label per line
-OUTFILE = 'static/datasets/test/nouns_4f.dat'  # Resulting file
-MAX_LEN = 4                                    # Max length of any label
+INFILE = 'static/datasets/test/nouns_4.dat'     # File w/single label per line
+OUTFILE = 'static/datasets/test/nouns_4f.dat'   # Resulting file
+MAX_LEN = 4  # Max length of any label, must be < 26
 
 alpha = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
          'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # Build and append its header
     header = 's'
     for i in range(MAX_LEN):
-        header += ',' + str(i + 1)
+        header += ',' + alpha[i].upper()
     outfile.write(header + '\n')
 
     # Get lines from INFILE as a list
