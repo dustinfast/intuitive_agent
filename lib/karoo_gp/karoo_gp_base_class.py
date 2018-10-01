@@ -11,6 +11,7 @@
 #	Added "If filename passed in from other than cmd line" statment to Base_GP.fx_karoo_data()
 #	Changed (s)ilent mode to not output trees w/highest fitness
 #	Removed "Copy gp.population_b to gp.population_a" output
+#   Added fx_karoo_load_raw()
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -397,6 +398,48 @@ class Base_GP(object):
 		print(self.population_a)
 		
 		return
+
+	def fx_karoo_load_raw(self, params, population):
+
+		''' Updates self according to the given dict of params and population
+			string.
+		'''
+
+		population = population.replace('array', 'np.array')
+		self.population_a = eval(population)
+		print(self.kernel)
+
+        # Updates self based on params
+		for k, v in params.items():
+			if k == 'operands':
+				self.terminals = v
+			elif k == 'kernel': 
+				self.kernel = v
+			elif k == 'tree_depth_max':
+				self.tree_depth_max = v
+			elif k == 'tree_depth_min':
+				self.tree_depth_min = v
+			elif k == 'tourn_size':
+				self.tourn_size = v
+			elif k == 'tree_pop_max':
+				self.tree_pop_max = v
+			elif k == 'generation_id':
+				self.generation_id = v
+
+		fitt_dict = fitt_dict = {'c': 'max', 'r': 'min', 'm': 'max', 'p': ''}
+		self.fitness_type = fitt_dict[self.kernel]
+
+
+		cwd = os.path.dirname(os.path.realpath(__file__))
+		func_dict = {'c':cwd + '/files/operators_CLASSIFY.csv', 'r':cwd + '/files/operators_REGRESS.csv', 'm':cwd + '/files/operators_MATCH.csv', 'p':cwd + '/files/operators_PLAY.csv'}
+		self.functions = np.loadtxt(func_dict[self.kernel], delimiter=',', skiprows=1, dtype = str) # load the user defined functions (operators)
+
+
+
+		print(self.kernel)
+			
+
+			
 		
 	
 	def fx_karoo_construct(self, tree_type, tree_depth_base):
