@@ -16,10 +16,8 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        Load/save model
-        evolver.forward()
+        evolver.forward() should use some % top and some % random expressions
         evolver.update()
-        remove run writes from karoo base class
 
     Author: Dustin Fast, 2018
 """
@@ -270,8 +268,8 @@ class Evolver(object):
 
     def forward(self, inputs):
         """ For each tree in the population, peforms that tree's expression on
-            the given list of inputs. 
-            Returns: a list of lists, one for each expression result.
+            the given list of inputs and returns a list of lists, one for
+            each expression result.
         """
         
         # debug - print the next 2 populations
@@ -375,79 +373,79 @@ if __name__ == '__main__':
 
     
     # debug
-    trainfile = 'static/datasets/words_sum.csv'
-    print('\n\n******* REGRESSION *******')
-    gp_args = {'display': 'm',
-               'kernel': 'r',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # trainfile = 'static/datasets/words_sum.csv'
+    # print('\n\n******* REGRESSION *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'r',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_rsum_sd3_100e', console_out=False, 
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_rsum_sd3_100e', console_out=False, 
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-    print('\n\n******* MATCHING *******')
-    gp_args = {'display': 'm',
-               'kernel': 'm',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # print('\n\n******* MATCHING *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'm',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_msum_sd3_100e', console_out=False,
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_msum_sd3_100e', console_out=False,
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-    print('\n\n******* CLASSIFIER *******')
-    gp_args = {'display': 'm',
-               'kernel': 'c',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # print('\n\n******* CLASSIFIER *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'c',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_csum_sd3_100e', console_out=False,
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_csum_sd3_100e', console_out=False,
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-    trainfile = 'static/datasets/words_cat.csv'
-    print('\n\n******* REGRESSION CAT *******')
-    gp_args = {'display': 'm',
-               'kernel': 'r',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # trainfile = 'static/datasets/words_cat.csv'
+    # print('\n\n******* REGRESSION CAT *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'r',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_rcat_sd3_100e', console_out=False,
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_rcat_sd3_100e', console_out=False,
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-    print('\n\n******* CLASSIFIER CAT*******')
-    gp_args = {'display': 'm',
-               'kernel': 'c',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # print('\n\n******* CLASSIFIER CAT*******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'c',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_ccat_sd3_100e', console_out=False,
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_ccat_sd3_100e', console_out=False,
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-    print('\n\n******* MATCHING CAT*******')
-    gp_args = {'display': 'm',
-               'kernel': 'm',
-               'tree_pop_max': 100,
-               'tree_depth_min': 3,
-               'tree_depth_max': 30,
-               'menu': False}
+    # print('\n\n******* MATCHING CAT*******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'm',
+    #            'tree_pop_max': 100,
+    #            'tree_depth_min': 3,
+    #            'tree_depth_max': 30,
+    #            'menu': False}
 
-    ev = Evolver('test_gp_mcat_sd3_100e', console_out=False,
-                 persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
+    # ev = Evolver('test_gp_mcat_sd3_100e', console_out=False,
+    #              persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
 
 
