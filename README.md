@@ -28,6 +28,8 @@ The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *A
 
 The conceptual layer represents our existing knowledge base of abstract concepts. It consists of a set `A` of artificial neural networks (ANNs) with the following properties -
 
+The order of each `a` in `A` denotes temporal arrival of input.
+
 Each ANN at this level has a set `X` of input nodes consisting of `k` feed-forward sensory input nodes and `m` feedback input nodes, defined as:
 
 | X         | Channel        |  Description |
