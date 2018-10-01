@@ -7,19 +7,22 @@
 
     Results:
     The resulting file, specified by OUTFILE, is of format: LABEL, FEATURES
-    This file also has the header "s,1,2,3, ..., n", Where n = MAX_LEN
-    (each FEATURES w/ len < MAX_LEN is right-padded with 0 until len = MAX_LEN)
+    This file also has the header "s,1,2,3, ..., n", Where n = max_len
+    (each FEATURES w/ len < max_len is right-padded with 0 until len = max_len)
     Each FEATURES is a list of the original label's non-zero index in alpha.
     Each LABEL is a concatenated string of those indexes (without padded 0's).
+
+    Modes:
+        TODO
 
     Author: Dustin Fast, 2018
 """
 
-import classlib
+from classlib import easy_join
 
-INFILE = 'static/datasets/nouns.dat'      # File w/single label per line
-OUTFILE = 'static/datasets/nouns_sumr.csv'  # Resulting file
-MAX_LEN = 7  # Max length of any label, must be < 26
+INFILE = 'static/datasets/words.dat'      # File w/single label per line
+OUTFILE = 'static/datasets/words_cat.csv'  # Resulting file
+MODE = 'cat'  # 'cat' or 'sum'
 
 alpha = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
          'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
@@ -27,31 +30,49 @@ alpha = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
 results = []
 
 if __name__ == '__main__':
+    # Get lines from INFILE as a list
+    with open(INFILE, 'r') as f:
+        lines = f.read().split('\n')
+    
+    max_len = max([len(line) for line in lines])
+    
     # Open output file
     outfile = open(OUTFILE, 'w')
 
     # Build and append file header
     header = ''
-    for i in range(MAX_LEN):
+    for i in range(max_len):
         header += alpha[i].upper() + ','
     outfile.write(header + 's\n')
 
-    # Get lines from INFILE as a list
-    with open(INFILE, 'r') as f:
-        lines = f.read().split('\n')
+    if MODE == 'sum':
+        for line in lines:
+            features = []
+            for ch in line:
+                features.append(alpha.index(ch) + 1)
 
-    for line in lines:
-        features = []
-        for ch in line:
-            features.append(alpha.index(ch) + 1)
+            while len(features) < max_len:
+                features.append(0)
 
-        while len(features) < MAX_LEN:
-            features.append(0)
+            label = sum(features)
+            features = [str(f) for f in features]
+            features = easy_join(features, ',', ',')
+            outfile.write(features + ',' + str(label) + '\n')
 
-        label = sum(features)
-        features = [str(f) for f in features]
-        features = classlib.easy_join(features, ',', ',')
-        outfile.write(features + ',' + str(label) + '\n')
+    elif MODE == 'cat':
+        for line in lines:
+            label = ''
+            features = []
+            for ch in line:
+                dx =  str(alpha.index(ch) + 1)
+                label += dx
+                features.append(dx)
+
+            while len(features) < max_len:
+                features.append('0')
+
+            features = easy_join(features, ',', ',')
+            outfile.write(features + ',' + str(label) + '\n')
 
     # Close output file
     outfile.close()
