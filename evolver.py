@@ -144,9 +144,9 @@ class Evolver(object):
         # Generic object params
         self.ID = ID
         self.persist = persist
-        self.operands = None        # Sympy expression variable labels
+        self.ops = None             # Expression operand labels
 
-        # The karoo_gp interface. See the KarooEvolve class (above) for args
+        # The karoo_gp interface. See class KarooEvolve (above) for args
         self.gp = KarooEvolve(**gp_args)
 
         # Init the load, save, log, and console output handler
@@ -165,7 +165,7 @@ class Evolver(object):
         """
         with open(filename, 'w') as f:
             # Write model params in dict form
-            f.write("{'operands': " + str(self.operands))
+            f.write("{'operands': " + str(self.ops))
             f.write(", 'kernel': '" + str(self.gp.kernel) + "'")
             f.write(", 'tree_depth_max': " + str(self.gp.tree_depth_max))
             f.write(", 'tree_depth_min': " + str(self.gp.tree_depth_min))
@@ -195,7 +195,7 @@ class Evolver(object):
 
         # Init self from the params and population
         params = eval(params)
-        self.operands = params['operands'] 
+        self.ops = params['operands'] 
         self.gp.fx_karoo_load_raw(params, population)
 
     def _iter_pop(self, f):
@@ -211,7 +211,7 @@ class Evolver(object):
     def _get_sym_expr(self, tree):
         """ Returns the sympified expression of the given population tree.
         """
-        self.gp.fx_eval_poly(tree)
+        self.gp.fx_eval_poly(tree)  # Update the gp.algo_sym
         return self.gp.algo_sym
 
     def _expr_strs(self):
@@ -260,7 +260,7 @@ class Evolver(object):
                 self.model.log('Training epoch %d generated:\n%s' % (i, t))
 
         # Denote operands from csv col headers (excluding solutions)
-        self.operands = [t for t in self.gp.terminals if t != 's']
+        self.ops = [t for t in self.gp.terminals if t != 's']
 
         t = self._expr_strs()
         self.model.log('Training complete. Final population:\n%s' % t)
@@ -284,37 +284,55 @@ class Evolver(object):
         #         if 'A + B + C + D + E' in expr:
         #             print('Found: ' + expr)
 
-        # print('ORIGINAL POP:')
-        # self._iter_pop(lambda x: print(str(self._get_sym_expr(x))))
+        results = {}    # Results container: { treeID: [result1, ... ] }
+        processed = []  # Contains evaluated expressions, to avoid duplicates
 
-        # results = []    # Results container
-        # processed = []  # Contains evaluated expressions, to avoid duplicates
+        # Iterate each expression in the current population
+        population = self.gp.population_a
+        for treeID in range(1, len(population)):
+            self.gp.fx_eval_poly(population[treeID])  # Update gp.algo_sym
+            results[treeID] = []                      # Tree results container
 
-        # # Advance the population
-        # population = self.gp.new_pop()
+            # Get the tree's sympy expression str. Ex: "-C - B + 3*D + 2*E + F"
+            expr = str(self.gp.algo_sym) 
 
-        # # Iterate each expression in the population
-        # for tree in range(1, len(population)):
-        #     self.gp.fx_eval_poly(population[tree])
+            # Ensure unique expression w/no nonsensical
+            if expr in processed or '-' in expr:
+                continue
+            processed.append(self.gp.algo_sym)
+            print('Processing tree ' + str(treeID) + ': ' + expr)  # debug
 
-        #     # Ensure unique expression
-        #     if self.gp.algo_sym in processed:
-        #         continue
-        #     processed.append(self.gp.algo_sym)
-            
-        #     # alg_sym will be an expr str. Ex: -C - 3*D + 2*s - E
-        #     expr = str(self.gp.algo_sym).replace('', '')
-        #     print(expr)
+            # Reform the expression by mapping each operand to an input index
+            # Ex new_expr: row[0] + row[1] + 2*row[3] + row[5] + row[4]
+            new_expr = ''
+            for ch in expr:
+                if ch in self.ops:
+                    new_expr += 'row[' + str(self.ops.index(ch)) + ']'
+                else:
+                    new_expr += ch
+            expr = new_expr.split('+')
+            print(new_expr)
 
-        # tree = ast.parse(expr, mode='eval').body
+            # Eval reformed expr against each input, noting the source tree ID
+            for row in inputs:
+                try:
+                    results[treeID].append((row, eval(new_expr)))
+                except IndexError:
+                    pass  # The inputs are too short (may occur in debug)
+        print(results)
 
     def update(self, fitness):
         """ Evolves a new population based on the given fitness metrics.
+            New population evolution occurs in a seperate thread for perf.
+            Accepts:
+                fitness (list)  : ID (int) of each tree confirmed fit
         """
-        # Set each trees fitness param, then do gen_next_pop
+        # Set each tree's fitness param, then do gen_next_pop
         if self.persist():
             # do save..
-            pass
+            
+            # Advance the population # TODO: In a new thread
+            population = self.gp.new_pop()
 
 
 if __name__ == '__main__':
@@ -330,9 +348,27 @@ if __name__ == '__main__':
                'menu': False}
 
     # Init and train the evolver
-    ev = Evolver('test_gp', console_out=True, persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=3, ttype='r', start_depth=5, verbose=True)
+    ev = Evolver('test_gp_min', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=5, ttype='r', start_depth=5, verbose=True)
 
+    # # Example inputs
+    # inputs = [[['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+    #           ['G', 'F', 'E', 'D', 'C', 'B', 'A']]]
+
+    # # Example forward
+    # ev.forward(inputs) 
+
+    # debug
+    # f_out = open('static/datasets/words_1.txt', 'a')
+    # with open('static/datasets/words_2.txt', 'r') as f:
+    #     for line in f:
+    #         if '.' not in line and "'" not in line:
+    #             # ev.forward([line])
+    #             f_out.write(line)
+    # f_out.close()
+            
+
+    
     # debug
     # print('\n\n******* REGRESSION *******')
     # gp_args = {'display': 'm',
