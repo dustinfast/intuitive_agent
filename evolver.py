@@ -361,21 +361,22 @@ class Evolver(object):
             print(self.gp.population_a[treeID][12][1])
 
         # Advance the population # TODO: In a new thread
-        # TODO: self.gp._gen_next_pop(1)
+        self.gp._gen_next_pop(1)
 
         for treeID in range(1, len(self.gp.population_a)):
             print(str(self.gp.sym_expr(treeID)))
             print(self.gp.population_a[treeID][12][1])
 
-        # if online:
-        #     # TODO: learning params to model file
-        #     if self.persist:
-        #         self.model.save()
+        if online:
+            # TODO: learning params to model file
+            if self.persist:
+                self.model.save()
 
 
 if __name__ == '__main__':
-    # Define the training file - see Evolver.train() for format info.
+    # Define the training/validation files
     trainfile = 'static/datasets/words_sum.csv'
+    valfile = 'static/datasets/words.dat'
 
     # Define KarooGP parameters - see KarooEvolver() for possible args.
     gp_args = {'display': 'm',
@@ -386,8 +387,9 @@ if __name__ == '__main__':
                'menu': False}
 
     # Init and train the evolver
-    ev = Evolver('test_gp2', console_out=True, persist=True, gp_args=gp_args)
-    ev.train(trainfile, epochs=15, ttype='r', start_depth=5, verbose=True)
+    ev = Evolver('test_gp', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=15, ttype='r', start_depth=5, verbose=True)
+    # ev.validat(valfile)
 
     # Example inputs
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
@@ -483,15 +485,12 @@ if __name__ == '__main__':
     #              persist=True, gp_args=gp_args)
     # ev.train(trainfile, epochs=30, ttype='r', start_depth=3, verbose=True)
 
-
-
-    # gp_args = {'display': 's',
-    #             'kernel': 'r',
-    #             'tree_pop_max': 50,
-    #             'tree_depth_min': 20,
-    #             'tree_depth_max': 25,
-    #             'menu': False}
-
     # print('\n\n******* DEEP REGRESSION *******')
-    # ev = Evolver('test_gp_sd7g', console_out=True, persist=True, gp_args=gp_args)
-    # ev.train(trainfile, epochs=3, ttype='g', start_depth=7, verbose=True)
+    # gp_args = {'display': 's',
+    #            'kernel': 'r',
+    #            'tree_pop_max': 50,
+    #            'tree_depth_min': 20,
+    #            'tree_depth_max': 50,
+    #            'menu': False}
+    # ev = Evolver('test_gp_sum_rgdeep', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='g', start_depth=8, verbose=True)
