@@ -78,13 +78,13 @@ class ModelHandler(object):
                     'ERROR: Persistant mode set but missing attributes.')
 
             # Form filenames from kwargs
-            child_type = child.__class__.__name__
+            child_type = child.__class__.__name__.lower()
             output_path = OUT_PATH + '/' + child_type
             file_prefix = output_path + '/' + child.ID
             log_file = file_prefix + LOGFILE_EXT
             self._model_file = file_prefix + model_ext
 
-            # Replace 'MODEL_FILE' placeholder in load/save_func
+            # Replace the 'MODEL_FILE' placeholder in load/save_func
             self._save_func = save_func.replace('MODEL_FILE', self._model_file)
             self._load_func = load_func.replace('MODEL_FILE', self._model_file)
             
@@ -107,7 +107,7 @@ class ModelHandler(object):
                 filename=log_file,
                 level=LOG_LEVEL,
                 format='%(asctime)s - %(levelname)s: %(message)s')
-            self.log('*** Initialized ' + child_type + ' ***:\n' + str(child))
+            self.log('*** Initialized ' + child_type + ' ***: ' + str(child))
 
             # Denote model filename and, if it exists, load the model from it
             if os.path.isfile(self._model_file):
