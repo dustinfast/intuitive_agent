@@ -10,6 +10,7 @@
 #	Removed 'Are you sure you want to quit?' prompt
 #	Added "If filename passed in from other than cmd line" statment to Base_GP.fx_karoo_data()
 #	Changed (s)ilent mode to not output trees w/highest fitness
+#	Removed "Copy gp.population_b to gp.population_a" output
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -1312,9 +1313,6 @@ class Base_GP(object):
 		self.fx_evolve_tree_renum(self.population_b) # population renumber
 		self.fx_fitness_gym(self.population_b) # run 'fx_eval', 'fx_fitness', 'fx_fitness_store', and fitness record
 		self.fx_archive_tree_write(self.population_b, 'a') # archive current population as foundation for next generation
-		
-		if self.display != 's':
-			print('\n Copy gp.population_b to gp.population_a\n')
 			
 		return
 		
