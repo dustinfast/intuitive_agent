@@ -18,6 +18,8 @@
     # TODO: 
         Load/save model
         evolver.forward()
+        evolver.update()
+        remove run writes from karoo base class
 
     Author: Dustin Fast, 2018
 """
@@ -25,7 +27,7 @@ import sympy
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
-# from classlib import ModelHandler
+from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
 
@@ -33,11 +35,8 @@ class KarooEvolve(karoo_gp.Base_GP):
     """ A Karoo GP wrapper class.
         Based on https://github.com/kstaats/karoo_gp.py.
     """
-
-    def __init__(self,
-                 # (c)lassifier, (r)egression, or (m)atching
-                 kernel='r',
-                 # (i)nteractive, (g)eneration, (m)iminal, (s)ilent, or (d)e(b)ug
+    def __init__(self,        # (c)lassifier, (r)egression, or (m)atching
+                 kernel='r',  # (i)ntrctv, (g)nrtn, (m)in, (s)ilent, or (d)ebug
                  display='m',
                  tree_pop_max=10,       # Maximum population size
                  tree_depth_min=3,      # Min nodes of any tree
@@ -45,6 +44,7 @@ class KarooEvolve(karoo_gp.Base_GP):
                  generation_max=10,     # Max generations to evolve
                  tourn_size=10,         # Individuals in each "tournament"
                  precision=6,           # Float points for fx_fitness_eval
+                 write_runs=False,      # Denotes Karoo GP records run info
                  menu=True              # Denotes Karoo GP menu enabled
                  ):
         """"""
@@ -57,6 +57,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.generation_max = generation_max
         self.tourn_size = tourn_size
         self.precision = precision
+        self.write_runs = write_runs
         self.menu = menu
 
         # Init ratio of mutation types to be applied
@@ -119,11 +120,12 @@ class KarooEvolve(karoo_gp.Base_GP):
             self.fx_eval_generation()       # Eval all trees for fitness
 
             # Set curr population to the newly evolved population
-            self.population_a = self.fx_evolve_pop_copy(self.population_b, [])
+            self.population_a = self.fx_evolve_pop_copy(
+                self.population_b, 'Generation ' + str(self.generation_id))
 
     def new_pop(self):
-        """ Returns a new population bred from the current population. The
-            current population is left intact/unmodified.
+        """ Returns a new population bred from the current population, leaving
+            the current population intact/unmodified.
         """
         self._evolve()  # Evolve self.population_b
         return self.population_b
@@ -144,8 +146,16 @@ class Evolver(object):
         self.persist = persist
         self.operands = None        # Sympy expression variable labels
 
-        # The karoo_gp interface
+        # The karoo_gp interface. See the KarooEvolve class (above) for args
         self.gp = KarooEvolve(**gp_args)
+
+        # Init the load, save, log, and console output handler
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
+        self.model = ModelHandler(self, console_out, persist,
+                                  model_ext=MODEL_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -183,17 +193,17 @@ class Evolver(object):
                     else:
                         population += ch
 
-        # Init from params and population strings
+        # Init self from the params and population
         params = eval(params)
         self.operands = params['operands'] 
         self.gp.fx_karoo_load_raw(params, population)
 
-    def _iter_trees(self, f):
+    def _iter_pop(self, f):
         """ Does f(tree) for every tree in the current population and returns
             the results (if any) as a list.
+            Note: Tree IDs start at 1
         """
         results = []
-        # Iterate each tree in current population by ID (tree IDs start at 1)
         for treeID in range(1, len(self.gp.population_a)):
             results.append(f(self.gp.population_a[treeID]))
         return results
@@ -204,7 +214,16 @@ class Evolver(object):
         self.gp.fx_eval_poly(tree)
         return self.gp.algo_sym
 
-    def train(self, fname, epochs=10, ttype='r', start_depth=5, verbose=True):
+    def _expr_strs(self):
+        """ Returns the current population's sympy expressions in string form.
+        """
+        results = ''
+        trees = self._iter_pop(lambda x: str(self._get_sym_expr(x)))
+        for i, tree in enumerate(trees):
+            results += 'Tree ' + str(i) + ': ' + tree + '\n'
+        return results
+
+    def train(self, fname, epochs=10, ttype='r', start_depth=5, verbose=False):
         """ Evolves an initial population trained from the given file, where
             "fname" is a csv file with col headers "A, B, C, ..., s", where
             col 's' and denotes row "solution".
@@ -217,6 +236,7 @@ class Evolver(object):
                 verbose (bool)      : Denotes verbose output
         """
         info_str = 'population_sz=%d, ' % self.gp.tree_pop_max
+        info_str += 'treetype=%s, ' % ttype
         info_str += 'treedepth_max=%d, ' % self.gp.tree_depth_max
         info_str += 'treedepth_min=%d, ' % self.gp.tree_depth_min
         info_str += 'tree_start_depth=%d, ' % start_depth
@@ -232,20 +252,21 @@ class Evolver(object):
                                       tree_type=ttype,
                                       tree_depth_base=start_depth)
             else:
-                # Else generate successive generations
+                # Generate successive populations
                 self.gp._gen_next_pop(1)
             
-            # TODO: if verbose:
-                # self.model.log()
+            if verbose:
+                t = self._expr_strs()
+                self.model.log('Training epoch %d generated:\n%s' % (i, t))
 
         # Denote operands from csv col headers (excluding solutions)
         self.operands = [t for t in self.gp.terminals if t != 's']
 
-        print('Training complete. Final population:\n')
-        self._iter_trees(lambda x: print(str(self._get_sym_expr(x))))
-
+        t = self._expr_strs()
+        self.model.log('Training complete. Final population:\n %s' % t)
+       
         if self.persist:
-            self._save(self.ID + MODEL_EXT)
+            self.model.save()
 
     def forward(self, inputs):
         """ For each tree in the population, peforms that tree's expression on
@@ -254,16 +275,17 @@ class Evolver(object):
         """
         
         # debug - print the next 2 populations
-        for i in range(0, 2):
-            print('\n*** Next population: ' + str(i))
-            population = self.gp.new_pop()
-            for treeID in range(1, len(population)):
-                print(self._get_sym_expr(population[treeID]))
-                expr = str(self._get_sym_expr(population[treeID]))
-                if 'A + B + C + D + E' in expr:
-                    print('Found: ' + expr)
+        # for i in range(0, 2):
+        #     print('\n*** Next population: ' + str(i))
+        #     population = self.gp.new_pop()
+        #     for treeID in range(1, len(population)):
+        #         print(self._get_sym_expr(population[treeID]))
+        #         expr = str(self._get_sym_expr(population[treeID]))
+        #         if 'A + B + C + D + E' in expr:
+        #             print('Found: ' + expr)
+
         # print('ORIGINAL POP:')
-        # self._iter_trees(lambda x: print(str(self._get_sym_expr(x))))
+        # self._iter_pop(lambda x: print(str(self._get_sym_expr(x))))
 
         # results = []    # Results container
         # processed = []  # Contains evaluated expressions, to avoid duplicates
@@ -296,48 +318,51 @@ class Evolver(object):
 
 
 if __name__ == '__main__':
-    # Define KarooGP params
-    gp_args = {'display': 'm',
+    # Define the training file - see Evolver.train() for format info.
+    trainfile = 'static/datasets/nouns_sum.csv'
+
+    # Define KarooGP parameters - see KarooEvolver() for possible args.
+    gp_args = {'display': 's',
                'kernel': 'r',
                'tree_pop_max': 50,
                'tree_depth_min': 20,
-               'tree_depth_max': 40,
+               'tree_depth_max': 15,
                'menu': False}
 
     # Init and train the evolver
-    print('****** REGRESSION ******')
-    ev = Evolver('test_gp_r', True, True, gp_args)
-    ev.train('static/datasets/nouns_sum.csv', epochs=30, ttype='r')
+    ev = Evolver('test_gp', console_out=True, persist=True, gp_args=gp_args)
+    ev.train(trainfile, epochs=3, ttype='r', start_depth=5, verbose=True)
 
-    ev.forward(None)
+    # debug
+    # print('\n\n******* REGRESSION *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'r',
+    #            'tree_pop_max': 50,
+    #            'tree_depth_min': 15,
+    #            'tree_depth_max': 25,
+    #            'menu': False}
 
-    # Define KarooGP params
-    gp_args = {'display': 'm',
-               'kernel': 'm',
-               'tree_pop_max': 50,
-               'tree_depth_min': 20,
-               'tree_depth_max': 40,
-               'menu': False}
+    # ev = Evolver('test_gp_r', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=5, verbose=True)
 
-    # Init and train the evolver
-    print('****** MATCHIHNG ******')
-    ev = Evolver('test_gp_m', True, True, gp_args)
-    ev.train('static/datasets/nouns_sum.csv', epochs=30, ttype='r')
+    # print('\n\n******* MATCHING *******')
+    # gp_args = {'display': 'm',
+    #            'kernel': 'm',
+    #            'tree_pop_max': 50,
+    #            'tree_depth_min': 15,
+    #            'tree_depth_max': 25,
+    #            'menu': False}
 
-    ev.forward(None)
+    # ev = Evolver('test_gp_m', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=30, ttype='r', start_depth=5, verbose=True)
 
-    # Define KarooGP params
-    gp_args = {'display': 'm',
-               'kernel': 'c',
-               'tree_pop_max': 50,
-               'tree_depth_min': 20,
-               'tree_depth_max': 30,
-               'menu': False}
+    # gp_args = {'display': 's',
+    #             'kernel': 'r',
+    #             'tree_pop_max': 50,
+    #             'tree_depth_min': 20,
+    #             'tree_depth_max': 25,
+    #             'menu': False}
 
-    # Init and train the evolver
-    print('****** CLASSIFER ******')
-    ev = Evolver('test_gp_c', True, True, gp_args)
-    ev.train('static/datasets/nouns_sum.csv', epochs=30, ttype='r')
-
-    ev.forward(None)
-    # TODO: for i in range... do mass test, including changing ttype
+    # print('\n\n******* DEEP REGRESSION *******')
+    # ev = Evolver('test_gp_sd7g', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=3, ttype='g', start_depth=7, verbose=True)
