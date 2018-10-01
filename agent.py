@@ -24,8 +24,8 @@
 
     # TODO: 
         Auto-tuned training lr/epochs 
-        REPL (Do this last)
         Agent should write to var/models/agent folder
+        REPL (Do this last)
 
     Author: Dustin Fast, 2018
 """
@@ -36,9 +36,9 @@ from ann import ANN
 from evolver import Evolver
 from classlib import ModelHandler, DataFrom
 
-CON_OUT = False
+CON_OUT = True
 PERSIST = True
-MODEL_EXT = '.ag'
+MODEL_EXT = '.agent'
 
 
 class Agent(threading.Thread):
@@ -83,7 +83,7 @@ class Agent(threading.Thread):
 
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
-                id2 = prefix + 'vl2_node' + suffix
+                id2 = prefix + 'lv2_node' + suffix
                 id3 = prefix + 'lv3_node' + suffix
 
                 # Init Layer 2 node
@@ -148,23 +148,15 @@ class Agent(threading.Thread):
             inputs = data_row[i][0]
             self.model.log('Feeding L1, node ' + str(i) + ':\n' + str(inputs))
 
-            # Set output as node's "one-hot" result
-            # output = self.layer1['nodes'][i](inputs)
-            # _, max_idx = torch.max(output, 0)
-            # self.layer1['outputs'][i] = torch.zeros_like(output)
-            # self.layer1['outputs'][i][max_idx] = 1
-
             # Set output as node's classification
             self.layer1['outputs'][i] = self.layer1['nodes'][i].classify(inputs)
             
-            # print(self.layer1['outputs'][i])  # debug
-        
         # ----------------------- Layer 2 ----------------------------
         # Feed layer 1 outputs to layer 2 inputs
-        for i in range(self.depth):
-            self.model.log('Feeding L2:\n' + str(self.layer1['outputs'][i]))
-            # TODO: Evolve through layer 2
-            self.layer2['outputs'][i] = self.layer1['outputs'][i]
+        # Note: layer 2 inputs look like ['F', 'A', ..., 'T']
+        self.model.log('Feeding L2:\n' + str(self.layer1['outputs']))
+        self.layer2['outputs'] = self.layer2['node'].forward(
+            self.layer1['outputs'])
         
         # ----------------------- Layer 3 ----------------------------
         # Flatten layer 2 outputs to one large layer 3 input
@@ -269,7 +261,7 @@ if __name__ == '__main__':
     agent = Agent('agent1', in_data)
 
     # Train and validate the agent
-    agent.train(l1_train, l1_vald, l2_train)
+    # agent.train(l1_train, l1_vald, l2_train)
 
     # Start the agent thread with the in_data list
     agent.start(in_data, True)
