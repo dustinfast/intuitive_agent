@@ -13,6 +13,7 @@
 
 import os
 import logging
+
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
@@ -101,6 +102,7 @@ class ModelHandler(object):
                 os.mkdir(output_path)
 
             # Init logger and log the initialization of the child
+            # Note: Initing this way logs output to a single file, app-wide
             logging.basicConfig(
                 filename=log_file,
                 level=LOG_LEVEL,

@@ -26,7 +26,7 @@
         L2 training function and file
         Layer 2 pipe
         REPL (Do this last)
-        Fix: model.log outputs to single file for all sub-modules
+        Agent should write to var/models/agent folder
 
     Author: Dustin Fast, 2018
 """

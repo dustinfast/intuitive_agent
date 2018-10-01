@@ -200,7 +200,7 @@ class Evolver(object):
 
     def _iter_pop(self, f):
         """ Does f(tree) for every tree in the current population and returns
-            the results (if any) as a list.
+            the results as a list.
             Note: Tree IDs start at 1
         """
         results = []
@@ -242,7 +242,7 @@ class Evolver(object):
         info_str += 'tree_start_depth=%d, ' % start_depth
         info_str += 'epochs=%d, ' % epochs
         info_str += 'file=%s.' % fname
-        print('Training started: ' + info_str)
+        self.model.log('Training started: ' + info_str)
 
         for i in range(epochs):
             if i == 0:
@@ -263,7 +263,7 @@ class Evolver(object):
         self.operands = [t for t in self.gp.terminals if t != 's']
 
         t = self._expr_strs()
-        self.model.log('Training complete. Final population:\n %s' % t)
+        self.model.log('Training complete. Final population:\n%s' % t)
        
         if self.persist:
             self.model.save()
