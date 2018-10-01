@@ -107,7 +107,7 @@ class ModelHandler(object):
                 filename=log_file,
                 level=LOG_LEVEL,
                 format='%(asctime)s - %(levelname)s: %(message)s')
-            self.log('*** Initialized ' + child_type + ' ***: ' + str(child))
+            self.log('*** Initialized ' + child_type + ': ' + str(child))
 
             # Denote model filename and, if it exists, load the model from it
             if os.path.isfile(self._model_file):
