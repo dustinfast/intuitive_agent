@@ -2,7 +2,7 @@
 """ The top-level module for the intuitive agent application. 
     See README.md for description of the agent and the application as a whole.
         
-    If CONSOLE_OUT = True:
+    If CON_OUT = True:
         The Agent and its sub-modules print their output to stdout
 
     If PERSIST = True:
@@ -23,8 +23,7 @@
         Run from the terminal with './agent.py'.
 
     # TODO: 
-        L2 training function and file
-        Layer 2 pipe
+        Auto-tuned training lr/epochs 
         REPL (Do this last)
         Agent should write to var/models/agent folder
 
@@ -34,10 +33,10 @@ import logging
 import threading
 
 from ann import ANN
-# from evolve import Evolver
+from evolver import Evolver
 from classlib import ModelHandler, DataFrom
 
-CONSOLE_OUT = False
+CON_OUT = False
 PERSIST = True
 MODEL_EXT = '.ag'
 
@@ -59,20 +58,14 @@ class Agent(threading.Thread):
         self.depth = None
         self.model = None       # The ModelHandler, defined below
         self.running = False    # Denotes agent thread is running
-        self.out_labels = None  # Agent output labels
         self.data = input_data        
 
         # Determine, from input data, agent's dimensions & output labels
         dims = tuple(self._get_dimensions(input_data))
         self.depth = dims[0]
         l1_dims = dims[1]
-        l3_size = dims[2]
-        self.out_labels = dims[3]
 
-        # Define agent layers - each layer is defined as:
-        #   layer1 = { [ann0, ann1, ... ], [ann0_output, ann1_output, ...] }
-        #   layer2 = { evolver, [ann0_toggle, ann1_toggle, ... ] }
-        #   layer3 = { agent, agent_output }
+        # Define agent layers
         self.layer1 = {'nodes': [], 'outputs': []}
         self.layer2 = {'node': None, 'outputs': []}
         self.layer3 = {'node': None, 'output': None}
@@ -83,25 +76,32 @@ class Agent(threading.Thread):
             prefix = self.ID + '_'
             suffix = str(i)
 
-            # Init layer1 and 2 outputs at this depth
+            # Init layer 1 node and outputs for this depth
+            id1 = prefix + 'lv1_node' + suffix
+            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
             self.layer1['outputs'].append([None for i in range(self.depth)])
-            self.layer2['outputs'].append([None for i in range(self.depth)])
 
             # Init the layers with singular nodes (i.e. at depth 0 only)
             if i == 0:
                 id2 = prefix + 'vl2_node' + suffix
                 id3 = prefix + 'lv3_node' + suffix
-                # TODO: self.layer2['node'] = Evolver(id2, CONSOLE_OUT, PERSIST)
-                # TODO: self.layer3['node'] = ANN(id3, l3_dims, CONSOLE_OUT, PERSIST)  # Mode 2?
 
-            # Init layer 1 node at this depth
-            id1 = prefix + 'lv1_node' + suffix
-            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CONSOLE_OUT, PERSIST))
+                # Init Layer 2 node
+                gp_args = {'display': 's',
+                           'kernel': 'r',
+                           'tree_pop_max': 50,
+                           'tree_depth_min': 15,
+                           'tree_depth_max': 25,
+                           'menu': False}
+                self.layer2['node'] = Evolver(id2, CON_OUT, PERSIST, gp_args)
+
+                # TODO: Init Layer 3 node
+                # self.layer3['node'] = ANN(id3, l3_dims, CON_OUT, PERSIST)  # Mode 2?
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
         f_load = "self.load(MODEL_FILE')"
-        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+        self.model = ModelHandler(self, CON_OUT, PERSIST,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
                                   load_func=f_load)
@@ -109,18 +109,22 @@ class Agent(threading.Thread):
     def __str__(self):
         return 'ID = ' + self.ID
 
-    def train(self, train_data, val_data):
-        """ Trains the agent from the given DataFiles as follows -
+    def train(self, L1_train, L1_val, L2_train, L1_epochs=100, L2_epochs=30):
+        """ Trains the agent from the given data sets.
+            Accepts:
+                L1_train (DataFrom)    : L1 training data
+                L1_val (DataFrom)      : L1 validation data
+                L2_train (str)         : L2 training data filename
         """
-        # Train each layer1 node
+        # Train and validate the layer 1 node at each depth
         for i in range(self.depth):
             self.layer1['nodes'][i].train(
-                train_data[i], epochs=100, lr=.01, alpha=.9 , noise=None)
+                L1_train[i], epochs=L1_epochs, lr=.01, alpha=.9 , noise=None)
+            self.layer1['nodes'][i].validate(L1_val[i], verbose=True)
 
-        for i in range(self.depth):
-            self.layer1['nodes'][i].validate(val_data[i], verbose=True)
-
-        # TODO: Train layer2 from train data
+        # Train layer 2
+        self.layer2['node'].train(
+            L2_train, epochs=L2_epochs, ttype='r', start_depth=5, verbose=True)
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -170,21 +174,11 @@ class Agent(threading.Thread):
         # self.model.log('Feeding L3 w:\n' + str(l3_inputs))
         # output = self.layer3['node'](l3_inputs)
 
-        # self.layer3['output'] = ''
-        # for i, o in enumerate(self.layer2['outputs']):
-            # if o > .5:
-            #     self.layer3['output'] += self.out_labels[i]
-
-        for eachdimension in self.layer2['outputs']:
-            # TODO: Cycle through each dimension of the evolved tensor
+        for o in self.layer2['outputs']:
+            # TODO: Cycle through each dimension of the output
             pass 
 
-        # print(self.layer3['output'])  # debug
-        # exit()
-
-        # print(self.layer3['node'].classify(self.layer3['output']))
-            
-        # On new connection: Prompt for feedback, or search, to verify
+        # Search for feedback, to verify fitness of output
 
         # for out in self.layer3['outputs']:
         #     print(out)
@@ -202,7 +196,7 @@ class Agent(threading.Thread):
         min_rows = min([d.row_count for d in data])
         self.running = True
 
-        # Init layer1 class labels
+        # Init layer 1 class labels
         for i in range(self.depth):
             self.layer1['nodes'][i].set_labels(data[i].class_labels)
 
@@ -219,6 +213,7 @@ class Agent(threading.Thread):
             # Stop if at eof and stop at eof specified
             if stop_at_eof:
                 break
+
         self.stop()
 
     def stop(self):
@@ -230,10 +225,8 @@ class Agent(threading.Thread):
     @staticmethod
     def _get_dimensions(in_data):
         """ Helper function - determines agent's shape and output.
-            Returns the following 4-tuple: (depth = int,
-                                            l1_dims = [int, int, int],
-                                            l3_size = int,
-                                            l3_labels = [str, str, ... ])
+            Returns:
+                A 2-tuple: (int, [int, int, int]), i.e. depth and L1 dims.
             Assumes:
                 Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
             Accepts:
@@ -241,8 +234,6 @@ class Agent(threading.Thread):
         """
         depth = len(in_data)
         l1_dims = []
-        l3_size = 0
-        l3_labels = []
 
         for i in range(depth):
             l1_dims.append([])                              # New L1 dimension
@@ -251,10 +242,8 @@ class Agent(threading.Thread):
             l1_dims[i].append(in_data[i].class_count)       # y node count
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-            l3_size += l1_dims[i][2]                        # Num L3 outputs
-            l3_labels += in_data[i].class_labels            # L3 output labels
 
-        return depth, l1_dims, l3_size, l3_labels
+        return depth, l1_dims
 
     
 if __name__ == '__main__':
@@ -274,16 +263,13 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Layer 2 training data
-    l2_train = DataFrom('static/datasets/nouns_sum.csv', normalize=True)
-
-    # Layer 3 "Resource" data
-    l3_data = DataFrom('static/datasets/letters.csv', normalize=True)
+    l2_train = 'static/datasets/nouns_sum.csv'
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
     agent = Agent('agent1', in_data)
 
-    # Train the agent on the training and val sets
-    # agent.train(l1_train, l1_vald)
+    # Train and validate the agent
+    agent.train(l1_train, l1_vald, l2_train)
 
     # Start the agent thread with the in_data list
     agent.start(in_data, True)
