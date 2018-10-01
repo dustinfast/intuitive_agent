@@ -16,9 +16,9 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        analyze models (still need to build models with no '-' operator)
+        evolver.validate()
         evolver.update()
-        evovler.forward results should denote which inputs were in context?
+        evolver.forward results should denote which inputs were in context?
 
     Author: Dustin Fast, 2018
 """
@@ -100,11 +100,7 @@ class KarooEvolve(karoo_gp.Base_GP):
     def _evolve(self):
         """ Sets self.population_b to a newly evolved generation.
         """
-        self.population_b = []          # The evolving/next generation
-        self.fx_fitness_gene_pool()     # Init gene pool consttraints
-        self.fx_karoo_reproduce()       # Do reproduction
-        self.fx_karoo_point_mutate()    # Do point mutation
-        self.fx_karoo_branch_mutate()   # Do branch mutation
+        
         self.fx_karoo_crossover()       # Do crossover reproduction
 
     def _gen_next_pop(self, num_generations):
@@ -116,19 +112,16 @@ class KarooEvolve(karoo_gp.Base_GP):
         r_start = self.generation_id + 1
         r_end = self.generation_id + num_generations + 1
         for self.generation_id in range(r_start, r_end):
-            self._evolve()                  # Evolve self.population_b
+            self.population_b = []          # The evolving/next generation
+            self.fx_fitness_gene_pool()     # Init gene pool consttraints
+            self.fx_karoo_reproduce()       # Do reproduction
+            self.fx_karoo_point_mutate()    # Do point mutation
+            self.fx_karoo_branch_mutate()   # Do branch mutation
             self.fx_eval_generation()       # Eval all trees for fitness
 
             # Set curr population to the newly evolved population
             self.population_a = self.fx_evolve_pop_copy(
                 self.population_b, 'Generation ' + str(self.generation_id))
-
-    def new_pop(self):
-        """ Returns a new population bred from the current population, leaving
-            the current population intact/unmodified.
-        """
-        self._evolve()  # Evolve self.population_b
-        return self.population_b
 
     def trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -170,6 +163,8 @@ class Evolver(object):
         self.ID = ID
         self.persist = persist
         self.ops = None             # Expression operand labels
+        # TODO: self.train_tree = None       # Last training tree type, set on train()
+        # TODO: self.train_min_depth = None  # Last training min depth, set on train()
 
         # The karoo_gp interface. See class KarooEvolve (above) for args
         self.gp = KarooEvolve(**gp_args)
@@ -235,6 +230,11 @@ class Evolver(object):
                 epochs (int)        : Number of training iterations
                 verbose (bool)      : Denotes verbose output
         """
+        # TODO: Update "last trained" vars
+        # self.train_tree = ttype
+        # self.train_min_depth = start_depth
+
+        # Output log stmt
         info_str = 'kernel=%s, ' % self.gp.kernel
         info_str += 'population_sz=%d, ' % self.gp.tree_pop_max
         info_str += 'treetype=%s, ' % ttype
@@ -308,12 +308,10 @@ class Evolver(object):
             split_trees.append(rand_pool.pop(idx))
 
         # Perform each tree's expression on the given inputs
-        results = {}                # Results: { treeID: [result1, ... ] }
+        results = {}  # Results container { treeID: [result1, ... ] }
         for treeID in trees:
-            results[treeID] = []    # Tree's results
+            results[treeID] = []  # Tree-specific results container
             expr = str(self.gp.sym_expr(treeID))
-
-            # print('Processing tree ' + str(treeID) + ': ' + expr)  # debug
 
             # Reform the expr by mapping each operand to an input index - Ex:
             #   If expr = 'A + B + 2*D + F + E', then
@@ -326,39 +324,53 @@ class Evolver(object):
                     new_expr += ch
             expr = re.split("[+\-]+", expr)
 
+            # print('Processing tree ' + str(treeID) + ': ' + expr)  # debug
             # print(new_expr)  # debug
 
             # Eval reformed expr against each input, noting the source tree ID
             for row in inputs:
                 try:
-                    res = eval(new_expr)
+                    res = eval(new_expr)  # row var used inside eval()
                     # print(row)  # debug
                     # print(res)  # debug
                     results[treeID].append(res)
                 except IndexError:
                     pass  # The inputs are too short (may occur in debug)
 
-        # Remove trees w/no results from results
-        results = {k: v for k, v in results.items() if v}
+        # Filter out trees w/no results
+        results =  {k: v for k, v in results.items() if v}
+        # print(results)  # debug
+
         return results
 
-    def update(self, fit_trees):
-        """ Evolves a new population after favorably weighting fitness of the 
-            trees given by "fit_trees". Evolution occurs in a seperate thread
+    def update(self, fit_trees, online=False):
+        """ Evolves a new population after favorably weighting fitness of each 
+            tree denoted by "fit_trees". Evolution occurs in a seperate thread
             to avoid blocking, as it is computationally expensive.
             Accepts:
-                fit_trees (list)  : ID (int) of each tree to favor
+                fit_trees (list)    : ID (int) of each tree to favor
+                online (bool)       : Denotes if update causes learning
         """
+        max_fitness = {'min': 0, 'max': 9999999.0}.get(self.gp.fitness_type)
+
+        for treeID in fit_trees:
+            self.gp.population_a[treeID][12][1] = max_fitness
+
         for treeID in range(1, len(self.gp.population_a)):
+            print(str(self.gp.sym_expr(treeID)))
             print(self.gp.population_a[treeID][12][1])
 
-        print(self.gp.fittest_dict)
-        # if self.persist:
-        #     self.model.save()
-            
         # Advance the population # TODO: In a new thread
-        # population = self.gp.new_pop()
-        pass
+        # TODO: self.gp._gen_next_pop(1)
+
+        for treeID in range(1, len(self.gp.population_a)):
+            print(str(self.gp.sym_expr(treeID)))
+            print(self.gp.population_a[treeID][12][1])
+
+        # if online:
+        #     # TODO: learning params to model file
+        #     if self.persist:
+        #         self.model.save()
 
 
 if __name__ == '__main__':
@@ -374,21 +386,20 @@ if __name__ == '__main__':
                'menu': False}
 
     # Init and train the evolver
-    ev = Evolver('test_gp', console_out=True, persist=True, gp_args=gp_args)
-    # ev.train(trainfile, epochs=15, ttype='r', start_depth=3, verbose=True)
+    ev = Evolver('test_gp2', console_out=True, persist=True, gp_args=gp_args)
+    ev.train(trainfile, epochs=15, ttype='r', start_depth=5, verbose=True)
 
     # Example inputs
-    inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-              ['G', 'F', 'E', 'D', 'C', 'B', 'A']]
+    inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
+              ['L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A']]
 
     # Example forward and update
     results = ev.forward(inputs)
     print(results)
-    # fitness = [k for k in results.keys()]
-    # ev.update(None)
+    fitness = [k for k in results.keys()]
+    ev.update(fitness)
 
-
-    # debug
+    # debug - file builder
     # f_out = open('static/datasets/words.dat', 'w')
     # with open('static/datasets/words_1.txt', 'r') as f:
     #     for line in f:
@@ -397,9 +408,7 @@ if __name__ == '__main__':
     #             f_out.write(line)
     # f_out.close()
 
-
-    
-    # debug
+    # debug - test runs
     # trainfile = 'static/datasets/words_sum.csv'
     # print('\n\n******* REGRESSION *******')
     # gp_args = {'display': 'm',
