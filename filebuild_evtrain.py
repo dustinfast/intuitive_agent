@@ -17,9 +17,9 @@
 
 import classlib
 
-INFILE = 'static/datasets/test/nouns_4.dat'      # File w/single label per line
-OUTFILE = 'static/datasets/test/nouns_4sum.csv'  # Resulting file
-MAX_LEN = 4  # Max length of any label, must be < 26
+INFILE = 'static/datasets/nouns.dat'      # File w/single label per line
+OUTFILE = 'static/datasets/nouns_sumr.csv'  # Resulting file
+MAX_LEN = 7  # Max length of any label, must be < 26
 
 alpha = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
          'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
@@ -30,11 +30,11 @@ if __name__ == '__main__':
     # Open output file
     outfile = open(OUTFILE, 'w')
 
-    # Build and append its header
-    header = 's'
+    # Build and append file header
+    header = ''
     for i in range(MAX_LEN):
-        header += ',' + alpha[i].upper()
-    outfile.write(header + '\n')
+        header += alpha[i].upper() + ','
+    outfile.write(header + 's\n')
 
     # Get lines from INFILE as a list
     with open(INFILE, 'r') as f:
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         label = sum(features)
         features = [str(f) for f in features]
         features = classlib.easy_join(features, ',', ',')
-        outfile.write(str(label) + ',' + features + '\n')
+        outfile.write(features + ',' + str(label) + '\n')
 
     # Close output file
     outfile.close()
