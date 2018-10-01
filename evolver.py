@@ -16,7 +16,8 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        evolver.forward() should use some % top and some % random expressions
+        analyze models (still need to build models with no '-' operator)
+        evolver.forward() results_count and top/random split params
         evolver.update()
 
     Author: Dustin Fast, 2018
@@ -84,7 +85,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.population_a = ['Generation ' + str(self.generation_id)]
         self.fx_karoo_construct(tree_type, tree_depth_base)
 
-        # Setup fitness kernel and eval fitness of first population
+        # Setup kernel and eval first population's fitness
         self.fx_fitness_gym(self.population_a)
 
         # Generate successive populations as specified
@@ -105,8 +106,7 @@ class KarooEvolve(karoo_gp.Base_GP):
         self.fx_karoo_crossover()       # Do crossover reproduction
 
     def _gen_next_pop(self, num_generations):
-        """ Evolves the current population over "num_generations" successive 
-            evolved generations.
+        """ Evolves the current population over "num_generations" generations. 
             Accepts:
                 num_generations (int)   : Number of generations to evolve
         """
@@ -271,33 +271,26 @@ class Evolver(object):
             the given list of inputs and returns a list of lists, one for
             each expression result.
         """
-        
-        # debug - print the next 2 populations
-        # for i in range(0, 2):
-        #     print('\n*** Next population: ' + str(i))
-        #     population = self.gp.new_pop()
-        #     for treeID in range(1, len(population)):
-        #         print(self._get_sym_expr(population[treeID]))
-        #         expr = str(self._get_sym_expr(population[treeID]))
-        #         if 'A + B + C + D + E' in expr:
-        #             print('Found: ' + expr)
-
         results = {}    # Results container: { treeID: [result1, ... ] }
-        processed = []  # Contains evaluated expressions, to avoid duplicates
+        processed = []  # Container for evaluated exprs, to avoid duplicates
+
+        try:
+            population = self.gp.population_a
+        except AttributeError:
+            self.model.log('Forward attempted but model is not initialized.')
+            exit(-1)
 
         # Iterate each expression in the current population
-        population = self.gp.population_a
         for treeID in range(1, len(population)):
-            self.gp.fx_eval_poly(population[treeID])  # Update gp.algo_sym
-            results[treeID] = []                      # Tree results container
+            results[treeID] = []  # Tree's results container
 
             # Get current tree's expression string, ex: -C - B + 3*D + 2*E + F
-            expr = str(self.gp.algo_sym) 
+            expr = str(self._get_sym_expr(population[treeID])) 
 
             # Ensure unique expression w/no negs (neg ops nonsensical here)
             if expr in processed or '-' in expr:
                 continue
-            processed.append(self.gp.algo_sym)
+            processed.append(expr)
             
             # print('Processing tree ' + str(treeID) + ': ' + expr)  # debug
 
@@ -317,48 +310,59 @@ class Evolver(object):
             # Eval reformed expr against each input, noting the source tree ID
             for row in inputs:
                 try:
-                    results[treeID].append((row, eval(new_expr)))
+                    # print(row)  # debug
+                    results[treeID].append(eval(new_expr))
                 except IndexError:
+                    # print('err: ' + new_expr)  # debug
                     pass  # The inputs are too short (may occur in debug)
 
+        # Remove trees w/no results from results
         # print(results)  # debug
+        results = {k: v for k, v in results.items() if v}
+        return results
 
-    def update(self, fitness):
-        """ Evolves a new population based on the given fitness metrics.
-            New population evolution occurs in a seperate thread for perf.
+    def update(self, fit_trees):
+        """ Evolves a new population with fitness of the given trees set high.
+            New population evolution occurs in a seperate thread so no block.
             Accepts:
-                fitness (list)  : ID (int) of each tree confirmed fit
+                fit_trees (list)  : ID (int) of each tree confirmed fit
         """
-        # Set each tree's fitness param, then do gen_next_pop
+        for treeID in fit_trees:
+            print(treeID)
+
         if self.persist():
-            # do save..
+            self.model.save()
             
             # Advance the population # TODO: In a new thread
             population = self.gp.new_pop()
 
 
 if __name__ == '__main__':
-    # # Define the training file - see Evolver.train() for format info.
-    # trainfile = 'static/datasets/nouns_sum.csv'
+    # Define the training file - see Evolver.train() for format info.
+    trainfile = 'static/datasets/words_sum.csv'
 
-    # # Define KarooGP parameters - see KarooEvolver() for possible args.
-    # gp_args = {'display': 's',
-    #            'kernel': 'r',
-    #            'tree_pop_max': 50,
-    #            'tree_depth_min': 20,
-    #            'tree_depth_max': 15,
-    #            'menu': False}
+    # Define KarooGP parameters - see KarooEvolver() for possible args.
+    gp_args = {'display': 's',
+               'kernel': 'r',
+               'tree_pop_max': 10,
+               'tree_depth_min': 5,
+               'tree_depth_max': 30,
+               'menu': False}
 
-    # # Init and train the evolver
-    # ev = Evolver('test_gp_min', console_out=True, persist=True, gp_args=gp_args)
-    # # ev.train(trainfile, epochs=5, ttype='r', start_depth=5, verbose=True)
+    # Init and train the evolver
+    ev = Evolver('test_gp_min', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=3, ttype='r', start_depth=5, verbose=True)
 
-    # # Example inputs
-    # inputs = [[['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-    #           ['G', 'F', 'E', 'D', 'C', 'B', 'A']]]
+    # Example inputs
+    inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+              ['G', 'F', 'E', 'D', 'C', 'B', 'A']]
 
-    # # Example forward
-    # ev.forward(inputs) 
+    # Example forward and update
+    results = ev.forward(inputs) 
+    print(results)
+    fitness = results.keys()[0]
+
+    ev.update(fitness)
 
 
     # debug
