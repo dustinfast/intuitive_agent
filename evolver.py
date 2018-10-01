@@ -359,10 +359,10 @@ if __name__ == '__main__':
     # ev.forward(inputs) 
 
     # debug
-    # f_out = open('static/datasets/words_1.txt', 'a')
-    # with open('static/datasets/words_2.txt', 'r') as f:
+    # f_out = open('static/datasets/words.dat', 'w')
+    # with open('static/datasets/words_1.txt', 'r') as f:
     #     for line in f:
-    #         if '.' not in line and "'" not in line:
+    #         if len(line) > 1 and len(line) < 11 and '/' not in line and ord(line[1]) > 97 and ord(line[2]) > 97:
     #             # ev.forward([line])
     #             f_out.write(line)
     # f_out.close()
