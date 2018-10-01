@@ -7,11 +7,12 @@
 # Modified as follows by Dustin Fast, 2018:
 #   Removed unused imports (collections, operator)
 #   Removed print output of chars: '[36m', '[32m', '[3m', '[1m', '\033', '[0;0m'
-#	Removed 'Are you sure you want to quit?' prompt
-#	Added "If filename passed in from other than cmd line" statment to Base_GP.fx_karoo_data()
-#	Changed (s)ilent mode to not output trees w/highest fitness
-#	Removed "Copy gp.population_b to gp.population_a" output
+#   Removed 'Are you sure you want to quit?' prompt
+#   Added "If filename passed in from other than cmd line" statment to Base_GP.fx_karoo_data()
+#   Changed (s)ilent mode to not output trees w/highest fitness
+#   Removed "Copy gp.population_b to gp.population_a" output
 #   Added fx_karoo_load_raw()
+#   Added np print threshold = np.inf
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -66,8 +67,8 @@ operators = {ast.Add: tf.add, # e.g., a + b
             'atan': tf.atan, # e.g., atan(a)
             }
 
-np.set_printoptions(linewidth = 320) # set the terminal to print 320 characters before line-wrapping in order to view Trees
-
+np.set_printoptions(linewidth=320)  # set the terminal to print 320 characters before line-wrapping in order to view Trees
+np.set_printoptions(threshold=np.inf)  # do not truncate printed arrays
 
 class Base_GP(object):
 
@@ -166,7 +167,7 @@ class Base_GP(object):
 		self.fittest_dict = {} # temp store all Trees which share the best fitness score
 		self.gene_pool = [] # temp store all Tree IDs for use by Tournament
 		self.class_labels = 0 # temp set a variable which will be assigned the number of class labels (data_y)
-		
+		self.write_runs = True # Flag denoting to write run info to file
 		return
 		
 	
@@ -196,7 +197,8 @@ class Base_GP(object):
 		# evaluate first generation of Trees	
 		print('\n Evaluate the first generation of Trees ...')	
 		self.fx_fitness_gym(self.population_a) # generate expression, evaluate fitness, compare fitness
-		self.fx_archive_tree_write(self.population_a, 'a') # save the first generation of Trees to disk
+		if self.write_runs:
+			self.fx_archive_tree_write(self.population_a, 'a') # save the first generation of Trees to disk
 		
 		# evolve subsequent generations of Trees
 		for self.generation_id in range(2, self.generation_max + 1): # loop through 'generation_max'
@@ -215,9 +217,10 @@ class Base_GP(object):
 	
 		# "End of line, man!" --CLU
 		print('\n Karoo GP has an ellapsed time of %f' % (time.time() - start), '')
-		self.fx_archive_tree_write(self.population_b, 'f') # save the final generation of Trees to disk
-		self.fx_archive_params_write('Server') # save run-time parameters to disk
-		
+		if self.write_runs:		
+			self.fx_archive_tree_write(self.population_b, 'f') # save the final generation of Trees to disk
+			self.fx_archive_params_write('Server') # save run-time parameters to disk
+			
 		print('\n Congrats! Your multi-generational Karoo GP run is complete.\n')
 		sys.exit() # return Karoo GP to the command line to support bash and chron job execution
 		
@@ -334,6 +337,9 @@ class Base_GP(object):
 		
 		### 4) create a unique directory and initialise all .csv files ###
 		
+		if not self.write_runs:
+			return  # dont do this step if not in file write mode
+
 		# self.datetime = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 		self.datetime = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 		self.path = os.path.join(cwd, 'runs/', filename.split('.')[0] + '_' + self.datetime) # generate a unique directory name
@@ -407,7 +413,6 @@ class Base_GP(object):
 
 		population = population.replace('array', 'np.array')
 		self.population_a = eval(population)
-		print(self.kernel)
 
         # Updates self based on params
 		for k, v in params.items():
@@ -429,19 +434,11 @@ class Base_GP(object):
 		fitt_dict = fitt_dict = {'c': 'max', 'r': 'min', 'm': 'max', 'p': ''}
 		self.fitness_type = fitt_dict[self.kernel]
 
-
 		cwd = os.path.dirname(os.path.realpath(__file__))
 		func_dict = {'c':cwd + '/files/operators_CLASSIFY.csv', 'r':cwd + '/files/operators_REGRESS.csv', 'm':cwd + '/files/operators_MATCH.csv', 'p':cwd + '/files/operators_PLAY.csv'}
 		self.functions = np.loadtxt(func_dict[self.kernel], delimiter=',', skiprows=1, dtype = str) # load the user defined functions (operators)
 
 
-
-		print(self.kernel)
-			
-
-			
-		
-	
 	def fx_karoo_construct(self, tree_type, tree_depth_base):
 		
 		'''
@@ -860,7 +857,7 @@ class Base_GP(object):
 						
 				
 				elif pause == 'w': # write the evolving population_b to disk
-					if self.generation_id > 1:
+					if self.generation_id > 1 and self.write_runs:
 						self.fx_archive_tree_write(self.population_b, 'b')
 						print('\tAll current members of the evolving population_b saved to .csv')
 						
@@ -871,7 +868,8 @@ class Base_GP(object):
 					if eol == 0: # if the GP run is not at the final generation
 						query = input('\n\t The current population_b will be lost!\n\n\t Are you certain you want to quit? (y/n)')
 						if query == 'y':
-							self.fx_archive_params_write('Desktop') # save run-time parameters to disk
+							if self.write_runs:
+								self.fx_archive_params_write('Desktop') # save run-time parameters to disk
 							sys.exit() # quit the script without saving population_b
 						else: break
 						
@@ -880,7 +878,8 @@ class Base_GP(object):
 						query = 'y'
 						if query == 'y':
 							print('\n\t Your Trees and runtime parameters are archived in karoo_gp/runs/')
-							self.fx_archive_params_write('Desktop') # save run-time parameters to disk
+							if self.write_runs:
+								self.fx_archive_params_write('Desktop') # save run-time parameters to disk
 							sys.exit()
 						else: self.fx_karoo_pause(1)
 						
@@ -915,10 +914,11 @@ class Base_GP(object):
 			self.population_a = self.fx_evolve_pop_copy(self.population_b, ['Karoo GP by Kai Staats, Generation ' + str(self.generation_id)])
 			
 		# "End of line, man!" --CLU
-		target = open(self.filename['f'], 'w') # reset the .csv file for the final population
-		target.close()
+		if self.write_runs:
+			target = open(self.filename['f'], 'w') # reset the .csv file for the final population
+			target.close()
+			self.fx_archive_tree_write(self.population_b, 'f') # save the final generation of Trees to disk
 		
-		self.fx_archive_tree_write(self.population_b, 'f') # save the final generation of Trees to disk
 		self.fx_karoo_eol()
 		
 		return
@@ -1355,7 +1355,8 @@ class Base_GP(object):
 			
 		self.fx_evolve_tree_renum(self.population_b) # population renumber
 		self.fx_fitness_gym(self.population_b) # run 'fx_eval', 'fx_fitness', 'fx_fitness_store', and fitness record
-		self.fx_archive_tree_write(self.population_b, 'a') # archive current population as foundation for next generation
+		if self.write_runs:
+			self.fx_archive_tree_write(self.population_b, 'a') # archive current population as foundation for next generation
 			
 		return
 		
@@ -2686,7 +2687,6 @@ class Base_GP(object):
 		
 		Arguments required: none
 		'''
-		
 		file = open(fname + '.params', 'w')
 		file.write('Karoo GP ' + app)
 		file.write('\n launched: ' + str(self.datetime))
