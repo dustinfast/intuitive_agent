@@ -17,12 +17,14 @@
 
     # TODO: 
         analyze models (still need to build models with no '-' operator)
-        evolver.forward() results_count and top/random split params
         evolver.update()
+        evovler.forward results should denote which inputs were in context?
 
     Author: Dustin Fast, 2018
 """
-import sympy
+
+import re
+from random import randint
 import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
@@ -128,11 +130,36 @@ class KarooEvolve(karoo_gp.Base_GP):
         self._evolve()  # Evolve self.population_b
         return self.population_b
 
+    def trees_byfitness(self):
+        """ Returns a list of the current population's tree ID's, sorted by
+            fitness (L to R).
+        """
+        rev = {'min': False, 'max': True}.get(self.fitness_type)
+        trees = [t for t in range(1, len(self.population_a))]
+        trees = sorted(
+            trees, key=lambda x: self.population_a[x][12][1], reverse=rev)
+        return trees
+
+    def sym_expr(self, treeID):
+        """ Returns the sympified expression of the given population tree.
+        """
+        self.fx_eval_poly(self.population_a[treeID])  # Update self.algo_sym
+        return self.algo_sym
+
+    def expr_strings(self):
+        """ Returns the current population's sympy expressions in string form.
+        """
+        results = ''
+        for treeID in range(1, len(self.population_a)):
+            expr = str(self.sym_expr(treeID))
+            results += 'Tree ' + str(treeID) + ': ' + expr + '\n'
+        return results
+
 
 class Evolver(object):
     """ An evolving population of expression trees used by the intutitve 
-        agent's layer two to "mask" the input it receives before outputting
-        iy to the agent's layer three.
+        agent's layer-two to "mask" the input it receives before outputting
+        it to the agent's layer-three.
     """
     def __init__(self, ID, console_out, persist, gp_args):
         """ ID (str)                : This object's unique ID number
@@ -196,31 +223,6 @@ class Evolver(object):
         self.ops = params['operands'] 
         self.gp.fx_karoo_load_raw(params, population)
 
-    def _iter_pop(self, f):
-        """ Does f(tree) for every tree in the current population and returns
-            the results as a list.
-            Note: Tree IDs start at 1
-        """
-        results = []
-        for treeID in range(1, len(self.gp.population_a)):
-            results.append(f(self.gp.population_a[treeID]))
-        return results
-
-    def _get_sym_expr(self, tree):
-        """ Returns the sympified expression of the given population tree.
-        """
-        self.gp.fx_eval_poly(tree)  # Update the gp.algo_sym
-        return self.gp.algo_sym
-
-    def _expr_strs(self):
-        """ Returns the current population's sympy expressions in string form.
-        """
-        results = ''
-        trees = self._iter_pop(lambda x: str(self._get_sym_expr(x)))
-        for i, tree in enumerate(trees):
-            results += 'Tree ' + str(i) + ': ' + tree + '\n'
-        return results
-
     def train(self, fname, epochs=10, ttype='r', start_depth=5, verbose=False):
         """ Evolves an initial population trained from the given file, where
             "fname" is a csv file with col headers "A, B, C, ..., s", where
@@ -233,7 +235,8 @@ class Evolver(object):
                 epochs (int)        : Number of training iterations
                 verbose (bool)      : Denotes verbose output
         """
-        info_str = 'population_sz=%d, ' % self.gp.tree_pop_max
+        info_str = 'kernel=%s, ' % self.gp.kernel
+        info_str += 'population_sz=%d, ' % self.gp.tree_pop_max
         info_str += 'treetype=%s, ' % ttype
         info_str += 'treedepth_max=%d, ' % self.gp.tree_depth_max
         info_str += 'treedepth_min=%d, ' % self.gp.tree_depth_min
@@ -254,87 +257,108 @@ class Evolver(object):
                 self.gp._gen_next_pop(1)
             
             if verbose:
-                t = self._expr_strs()
+                t = self.gp.expr_strings()
                 self.model.log('Training epoch %d generated:\n%s' % (i, t))
 
         # Denote operands from csv col headers (excluding solutions)
         self.ops = [t for t in self.gp.terminals if t != 's']
 
-        t = self._expr_strs()
+        t = self.gp.expr_strings()
         self.model.log('Training complete. Final population:\n%s' % t)
        
         if self.persist:
             self.model.save()
 
-    def forward(self, inputs):
-        """ For each tree in the population, peforms that tree's expression on
-            the given list of inputs and returns a list of lists, one for
-            each expression result.
+    def forward(self, inputs, n_results=10, split=.8):
+        """ Peforms each tree's expression on the given inputs and returns 
+            the results as a dict denoting the source tree ID
+            Accepts:
+                inputs (list)   : A list of lists, one for each input "row"
+                n_results (int) : Max number of results to return
+                split (float)   : Ratio of fittest expression results to
+                                    randomly chosen expressions
+            Returns:
+                dict: { treeID: [result1, result2, ... ], ... }
         """
-        results = {}    # Results container: { treeID: [result1, ... ] }
-        processed = []  # Container for evaluated exprs, to avoid duplicates
-
         try:
-            population = self.gp.population_a
+            trees = self.gp.trees_byfitness()  # leftmost = most fit
         except AttributeError:
-            self.model.log('Forward attempted but model is not initialized.')
+            self.model.log('ERROR: Forward attempted on uninitialized model.')
             exit(-1)
 
-        # Iterate each expression in the current population
-        for treeID in range(1, len(population)):
-            results[treeID] = []  # Tree's results container
+        # If strings in input, rm exprs w/neg operators - they're nonsensical
+        for inp in inputs:
+            if not [i for i in inp if type(i) is str]: break
+        else:
+            trees = [t for t in trees if '-' not in str(self.gp.sym_expr(t))]
 
-            # Get current tree's expression string, ex: -C - B + 3*D + 2*E + F
-            expr = str(self._get_sym_expr(population[treeID])) 
+        # Filter trees having duplicate expressions
+        added = set()
+        trees = [t for t in trees 
+                 if str(self.gp.sym_expr(t)) not in added and
+                 (added.add(str(self.gp.sym_expr(t))) or True)]
 
-            # Ensure unique expression w/no negs (neg ops nonsensical here)
-            if expr in processed or '-' in expr:
-                continue
-            processed.append(expr)
-            
+        # At this point, every t in trees is useable, so do fit/random split
+        fit_count = int(n_results * split)
+        split_trees = trees[:fit_count]     
+        rand_pool = trees[fit_count:]
+
+        while len(split_trees) < n_results and rand_pool:
+            idx = randint(0, len(rand_pool))
+            split_trees.append(rand_pool.pop(idx))
+
+        # Perform each tree's expression on the given inputs
+        results = {}                # Results: { treeID: [result1, ... ] }
+        for treeID in trees:
+            results[treeID] = []    # Tree's results
+            expr = str(self.gp.sym_expr(treeID))
+
             # print('Processing tree ' + str(treeID) + ': ' + expr)  # debug
 
-            # Reform the expression by mapping each operand to an input index
-            #    Ex: If expr = 'A + B + 2*D + F + E', then
-            #    new_expr = 'row[0] + row[1] + 2*row[3] + row[5] + row[4]'
+            # Reform the expr by mapping each operand to an input index - Ex:
+            #   If expr = 'A + B + 2*D + F + E', then
+            #   new_expr = 'row[0] + row[1] + 2*row[3] + row[5] + row[4]'
             new_expr = ''
             for ch in expr:
                 if ch in self.ops:
                     new_expr += 'row[' + str(self.ops.index(ch)) + ']'
                 else:
                     new_expr += ch
-            expr = new_expr.split('+')
+            expr = re.split("[+\-]+", expr)
 
-            # print(new_expr) # debug
+            # print(new_expr)  # debug
 
             # Eval reformed expr against each input, noting the source tree ID
             for row in inputs:
                 try:
+                    res = eval(new_expr)
                     # print(row)  # debug
-                    results[treeID].append(eval(new_expr))
+                    # print(res)  # debug
+                    results[treeID].append(res)
                 except IndexError:
-                    # print('err: ' + new_expr)  # debug
                     pass  # The inputs are too short (may occur in debug)
 
         # Remove trees w/no results from results
-        # print(results)  # debug
         results = {k: v for k, v in results.items() if v}
         return results
 
     def update(self, fit_trees):
-        """ Evolves a new population with fitness of the given trees set high.
-            New population evolution occurs in a seperate thread so no block.
+        """ Evolves a new population after favorably weighting fitness of the 
+            trees given by "fit_trees". Evolution occurs in a seperate thread
+            to avoid blocking, as it is computationally expensive.
             Accepts:
-                fit_trees (list)  : ID (int) of each tree confirmed fit
+                fit_trees (list)  : ID (int) of each tree to favor
         """
-        for treeID in fit_trees:
-            print(treeID)
+        for treeID in range(1, len(self.gp.population_a)):
+            print(self.gp.population_a[treeID][12][1])
 
-        if self.persist():
-            self.model.save()
+        print(self.gp.fittest_dict)
+        # if self.persist:
+        #     self.model.save()
             
-            # Advance the population # TODO: In a new thread
-            population = self.gp.new_pop()
+        # Advance the population # TODO: In a new thread
+        # population = self.gp.new_pop()
+        pass
 
 
 if __name__ == '__main__':
@@ -342,27 +366,26 @@ if __name__ == '__main__':
     trainfile = 'static/datasets/words_sum.csv'
 
     # Define KarooGP parameters - see KarooEvolver() for possible args.
-    gp_args = {'display': 's',
+    gp_args = {'display': 'm',
                'kernel': 'r',
-               'tree_pop_max': 10,
+               'tree_pop_max': 50,
                'tree_depth_min': 5,
-               'tree_depth_max': 30,
+               'tree_depth_max': 20,
                'menu': False}
 
     # Init and train the evolver
-    ev = Evolver('test_gp_min', console_out=True, persist=True, gp_args=gp_args)
-    # ev.train(trainfile, epochs=3, ttype='r', start_depth=5, verbose=True)
+    ev = Evolver('test_gp', console_out=True, persist=True, gp_args=gp_args)
+    # ev.train(trainfile, epochs=15, ttype='r', start_depth=3, verbose=True)
 
     # Example inputs
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G'],
               ['G', 'F', 'E', 'D', 'C', 'B', 'A']]
 
     # Example forward and update
-    results = ev.forward(inputs) 
+    results = ev.forward(inputs)
     print(results)
-    fitness = results.keys()[0]
-
-    ev.update(fitness)
+    # fitness = [k for k in results.keys()]
+    # ev.update(None)
 
 
     # debug
