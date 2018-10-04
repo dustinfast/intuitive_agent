@@ -18,7 +18,7 @@ The agent will be developed in Python using readily available machine learning a
 
 ## The Agent
 
-The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *Attentive*. They are described below and given by `Diagram 1` (See docs/diagram1.png). Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *Attentive*. They are described below and given by `Diagram 1` (see docs/diagram1.png). Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
 
 ## The Conceptual, Intuitive, and Attentive Layers
 
