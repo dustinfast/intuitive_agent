@@ -38,6 +38,9 @@ class Connective(object):
         else:
             raise Exception("Unhandled data type encountered.")
 
+    #TODO: def is_valid_python():
+        # eval. If success, add to KB, by domain label = python
+
     @staticmethod
     def is_noun(word, lang='en'):
         """ Returns True iff the given word is a noun in the english language.
