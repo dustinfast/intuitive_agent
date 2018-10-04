@@ -1,10 +1,8 @@
 # Intuitive Agency
 
-Author: Dustin Fast
-
 ## Inspiration
 
-`To explain the integration of information, we need only exhibit mechanisms by which information is brought together and exploited by later processes.`  
+`"To explain the integration of information, we need only exhibit mechanisms by which information is brought together and exploited by later processes."`  
 
 -David Chalmers, *Facing Up to The Problem of Consciousness*
 
@@ -20,7 +18,7 @@ The agent will be developed in Python using readily available machine learning a
 
 ## The Agent
 
-The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *Attentive*. They are described below and given by `Diagram 1` (attached). Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *Attentive*. They are described below and given by `Diagram 1` (See docs/diagram1.png). Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
 
 ## The Conceptual, Intuitive, and Attentive Layers
 
@@ -60,4 +58,6 @@ Upon completion of development, proof of concept will be attempted in the follow
 
 ## #TODO:
     Allow comment lines in all data files
-    Allow larger inputs to L3, so conceptual els can stack
+    Move datafile label columns from leftmost cols to rightmost cols, where applicable.
+
+__Author__: Dustin Fast, 2018
