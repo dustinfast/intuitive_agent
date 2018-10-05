@@ -1,13 +1,10 @@
 #!/usr/bin/env python
-""" An object that takes a number of inputs and determines if there exists
-    some logical or conceptual association between them, and if so persorms
-    the specified actions
-
-    Ex: Given a string such as "ball" and the function is_noun, determines if
-        the string represents a noun.
+""" A module for determining logical/conceptual associatitivy. See object def
+    for more info.
 
     Module Structure:
-        Persistence and output is handled by classlib.ModelHandler().
+        Class Logical is the main interface. Console and log output is handled
+        by classlib.ModelHandler().
 
     Dependencies:
         Requests
@@ -15,21 +12,25 @@
     Usage: 
         See "__main__" for example usage.
 
-    # TODO: 
-        
+    TODO:
+        Add log handler
+
 
     Author: Dustin Fast, 2018
 """
 
 import requests
-import multiprocessing
-
-MODEL_EXT = '.log'
 
 class Logical(object):
+    """ A module for determining logical/conceptual associatitivy, calling
+        the user-supplied success and fail functions as appropriate.
+        Ex: Given a string such as "ball", the function Logical.is_noun,
+            and a list of success and fail functions, determines if the 
+            string represents a noun. If so, calls every function in success
+            list. Else, calls every function in the fail list. 
+    """
     def __init__(self, ID):
-        """ Accepts:
-                ID (str): The objects unique identifier
+        """ Accepts: ID (str) denoting the object instances unique identifier.
         """
         self.ID = ID
     
@@ -38,15 +39,16 @@ class Logical(object):
             Additionally, calls f(data['args']) for every f in succ_funcs if
             the try_func call returns True, else calls f(data['args']) for 
             every f in fail_funcs.
-            f in try_funcs
             Accepts:
                 data (dict)       : Must contain at least two keys - 'string'
                                     and 'args', where 'string' is the
                                     string to be evaluated and 'args'
                                     are the arguments (of any type) passed
                                     to f's in succ_funcs and fail_funcs.
-                try_func (func)   : Function for evaluating each 
+                try_func (func)   : A function for evaluating each 
                                     data['string'] (ex: Logical.is_python).
+                                    May be any function returning True or 
+                                    False (or any other falsey value).
                 succ_funcs(list)  : Optional. Functions to call when try_func 
                                     returns True. Each must accept the args 
                                     given by data['args'].
@@ -100,7 +102,7 @@ class Logical(object):
 
 
 if __name__ == '__main__':
-    # Define data
+    # Define data to be evaluated
     data_valid_python1 = {'string': 'print("test")',
                           'args': 'string = "print("test")"'}
     data_valid_python2 = {'string': 'a = 3',
@@ -110,10 +112,11 @@ if __name__ == '__main__':
 
     data = [data_valid_python1, data_valid_python2, data_invalid_python]
 
-    # Define success/fail funcs
+    # Define try, success, and fail functions
+    try_func = Logical.is_python
     success_funcs = [lambda x: print('Valid: ' + str(x))]
     fail_funcs =  [lambda x: print('Invalid: ' + str(x))]
 
     # Init object and evaluate data
     logical = Logical('demo')
-    logical.is_valid(data, Logical.is_python, success_funcs, fail_funcs)
+    logical.is_valid(data, try_func, success_funcs, fail_funcs)
