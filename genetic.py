@@ -90,7 +90,11 @@ class GPMask(karoo_gp.Base_GP):
                 self.population_a[treeID][12][1] = 0
     
     def __str__(self):
-        return 'ID = ' + self.ID
+        str_out = 'ID = ' + self.ID + '\nSize = (\n  '
+        str_out += 'max_depth = ' + str(self.tree_depth_max) + '\n  '
+        str_out += 'max_pop = ' + str(self.tree_pop_max) + '\n  '
+        str_out += 'inputs = ' + str(self.input_sz) + '\n)'
+        return str_out
 
     def _save(self, filename):
         """ Saves a model of the current population. For use by ModelHandler.
