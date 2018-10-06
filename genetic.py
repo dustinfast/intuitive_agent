@@ -91,9 +91,9 @@ class GPMask(karoo_gp.Base_GP):
     
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\nSize = (\n  '
-        str_out += 'max_depth = ' + str(self.tree_depth_max) + '\n  '
-        str_out += 'max_pop = ' + str(self.tree_pop_max) + '\n  '
-        str_out += 'inputs = ' + str(self.input_sz) + '\n)'
+        str_out += 'max_depth: ' + str(self.tree_depth_max) + '\n  '
+        str_out += 'max_pop: ' + str(self.tree_pop_max) + '\n  '
+        str_out += 'inputs: ' + str(self.input_sz) + '\n)'
         return str_out
 
     def _save(self, filename):
