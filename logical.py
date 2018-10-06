@@ -11,10 +11,7 @@
 
     Usage: 
         See "__main__" for example usage.
-
-    TODO:
-        Add log handler
-
+        
 
     Author: Dustin Fast, 2018
 """
