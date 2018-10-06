@@ -144,8 +144,6 @@ class Agent(threading.Thread):
             Accepts:
                 data_row (list)      : [(inputs, targets)]
         """
-        print('\nSTEP')  # debug
-
         # Ensure well formed data_row
         if len(data_row) != self.l1_depth:
             err_str = 'Bad data_row size - expected sz ' + str(self.l1_depth)
@@ -153,31 +151,24 @@ class Agent(threading.Thread):
             self.model.log(err_str, logging.error)
             return
 
-        # ----------------------- Layer 1 ----------------------------
-        # Feed inputs to layer 1
+        # --------------------- Update  Layer 1 ---------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
             self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
 
-            # Set output as node's classification
+            # Output is node's classification
             self.layer1.output[i] = self.layer1.node[i].classify(inputs)
             
-        # ----------------------- Layer 2 ----------------------------
-        # Feed layer 1 outputs to layer 2 inputs
-        # Note: layer 2 inputs look like ['F', 'A', ..., 'T']
+        # --------------------- Update Layer 2 ------------------------
         self.model.log('Feeding L2 w:\n' + str(self.layer1.output))
         self.layer2.output = self.layer2.node.forward(
             list(self.layer1.output), self.seq_inputs)
         
-        # ----------------------- Layer 3 ----------------------------
+        # --------------------- UpdateLayer 3 --------------------------
         self.model.log('Feeding L3 w:\n' + str(self.layer2.output))
 
-        # print(self.layer2.node._expr_strings(symp_expr=self.seq_inputs))
-        # print(results)
-
+        # Check fitness of each l2 result
         fitness = {k: 0 for k in self.layer2.output.keys()}
-
-        # Update fitness of each expression, depending on results
         for k, v in self.layer2.output.items():
             for j in v:
                 print('L3: ' + j)
@@ -185,14 +176,10 @@ class Agent(threading.Thread):
                     print('TRUE!')
                     fitness[k] += .3
 
-        # Evolve a new population with the new fitness values
+        # Signal fitness back to layer 2
         self.layer2.node.update(fitness)
 
-        print(self.layer3.output)
-
-        # Send fitness feedback to layer 2
-
-        # Send feedback / noise param / "in context" to level 1
+        # TODO: Send feedback / noise param / "in context" to level 1
 
     def start(self, stop_at_eof=False):
         """ Starts the agent thread, stepping the agent forward until stopped 
