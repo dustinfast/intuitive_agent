@@ -116,22 +116,18 @@ class Agent(threading.Thread):
     def __str__(self):
         return 'ID = ' + self.ID
 
-    def train(self, L1_train, L1_val, L2_train, L1_epochs=100, L2_epochs=30):
-        """ Trains the agent from the given data sets.
+    def train_layer1(self, L1_train, L1_val, epochs=100, lr=.01, alpha=.9):
+        """ Trains the agent's layer 1 from the given data sets.
             Accepts:
                 L1_train (DataFrom)    : L1 training data
                 L1_val (DataFrom)      : L1 validation data
                 L2_train (str)         : L2 training data filename
         """
-        # Train and validate the layer 1 node at each depth
+        # Train and validate each layer 1 node (one node at each depth)
         for i in range(self.depth):
             self.layer1['nodes'][i].train(
-                L1_train[i], epochs=L1_epochs, lr=.01, alpha=.9 , noise=None)
+                L1_train[i], epochs=epochs, lr=lr, alpha=alpha , noise=None)
             self.layer1['nodes'][i].validate(L1_val[i], verbose=True)
-
-        # Train layer 2
-        self.layer2['node'].train(
-            L2_train, epochs=L2_epochs, ttype='r', start_depth=5, verbose=True)
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -251,26 +247,23 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    # Layer 1 training data. Length must match len(in_data) 
+    # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
                 DataFrom('static/datasets/letters.csv', normalize=True),
                 DataFrom('static/datasets/letters.csv', normalize=True)]
 
-    # Layer 1 validation data - Length must match len(in_data)
+    # Layer 1 validation data (one per node) - length must match len(in_data)
     l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
-
-    # Layer 2 training data
-    l2_train = 'static/datasets/nouns_sum.csv'
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
     agent = Agent('agent1', in_data)
 
     # Train and validate the agent
-    # agent.train(l1_train, l1_vald, l2_train)
+    # agent.train_layer1(l1_train, l1_vald)
 
-    # Start the agent thread with the in_data list
+    # Start the agent thread in_data as input data
     agent.start(in_data, True)
 
     # Generate run number.
