@@ -32,6 +32,7 @@
     # TODO: 
         Auto-tuned training lr/epochs 
         Agent should write to var/models/agent folder
+        L2 train/validate function
         REPL (Do this last)
 
     Author: Dustin Fast, 2018
@@ -40,7 +41,8 @@ import logging
 import threading
 
 from ann import ANN
-from evolver import Evolver
+from genetic import GPMask
+from logical import Logical
 from classlib import ModelHandler, DataFrom
 
 CON_OUT = True
@@ -48,62 +50,63 @@ PERSIST = True
 MODEL_EXT = '.agent'
 
 
+class Layer(object):
+    """ An abstraction of an agent layer, with node(s) and output(s).
+    """
+    def __init__(self, node, output):
+        self.node = node
+        self.output = output
+
+
 class Agent(threading.Thread):
     """ The intutive agent.
         The constructor accepts the agent's "sensory input" data, from which
         the layer dimensions are derived. After init, start the agent from 
         the terminal with 'agent start', which runs the agent as a seperate
-        process - running this way allows the user to still interact with the
-        agent while it's running via the terminal.
+        thread (running this does not cause the agent to block, so the user
+        can stop it from the command line, etc.
     """
-    def __init__(self, ID, input_data):
+    def __init__(self, ID, input_data, is_seq):
         """ Accepts the following parameters:
-            ID (str)                : The agent's unique ID
+            ID (str)           : The agent's unique ID
+            input_data (list)  : List of agent input data, one for each L1 ANN
+            is_seq (bool)      : Denotes input data is sequential in nature,
+                                 i.e., the layer 2 mask will use only ordered
+                                 expressions, such as 'A + C + E', as opposed
+                                 to something like 'C + E + A'
         """
         threading.Thread.__init__(self)
         self.ID = ID
-        self.depth = None
-        self.model = None       # The ModelHandler, defined below
-        self.running = False    # Denotes agent thread is running
-        self.data = input_data        
+        self.l1_depth = None        # Layer 1 node count
+        self.model = None           # The model handler
+        self.running = False        # Agent thread running flag (set on start)
+        self.inputs = input_data    # The agent's "sensory input" data
+        self.seq_inputs = is_seq    # Denote input_data is sequential in nature
 
-        # Determine, from input data, agent's dimensions & output labels
+        # Determine agent shape from input_data
         dims = tuple(self._get_dimensions(input_data))
-        self.depth = dims[0]
+        self.l1_depth = dims[0]
         l1_dims = dims[1]
 
-        # Define agent layers
-        self.layer1 = {'nodes': [], 'outputs': []}
-        self.layer2 = {'node': None, 'outputs': []}
-        self.layer3 = {'node': None, 'output': None}
+        # Declare layers
+        self.layer1 = Layer(node=[], output=[])
+        self.layer2 = Layer(node=None, output=[])
+        self.layer3 = Layer(node=None, output=[])
 
-        # Init the agent layers. They will each auto-load, if able, on init.
-        for i in range(self.depth):
-            # Build node ID prefixes & suffixes, denoting the agent and depth
-            prefix = self.ID + '_'
-            suffix = str(i)
+        # Init layer 1 nodes (each node loads prev state from file, if exists)
+        id_prefix = self.ID + '_'
+        for i in range(self.l1_depth):
+            id1 = id_prefix + 'lv1_node_' + str(i)
+            self.layer1.node.append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
+            self.layer1.output.append([None for i in range(self.l1_depth)])
+            self.layer1.node[i].set_labels(self.inputs[i].class_labels)
 
-            # Init layer 1 node and outputs for this depth
-            id1 = prefix + 'lv1_node' + suffix
-            self.layer1['nodes'].append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
-            self.layer1['outputs'].append([None for i in range(self.depth)])
+        # Init layers 2 & 3 (each will load prev state from file, if exists)
+        id2 = id_prefix + 'lv2_node'
+        id3 = id_prefix + 'lv3_node'
 
-            # Init the layers with singular nodes (i.e. at depth 0 only)
-            if i == 0:
-                id2 = prefix + 'lv2_node' + suffix
-                id3 = prefix + 'lv3_node' + suffix
-
-                # Init Layer 2 node
-                gp_args = {'display': 's',
-                           'kernel': 'r',
-                           'tree_pop_max': 50,
-                           'tree_depth_min': 15,
-                           'tree_depth_max': 25,
-                           'menu': False}
-                self.layer2['node'] = Evolver(id2, CON_OUT, PERSIST, gp_args)
-
-                # TODO: Init Layer 3 node
-                # self.layer3['node'] = ANN(id3, l3_dims, CON_OUT, PERSIST)  # Mode 2?
+        self.layer2.node = GPMask(id2, 5, 15, dims[0], CON_OUT, PERSIST)
+        self.layer3.node = Logical(id3)
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -114,20 +117,24 @@ class Agent(threading.Thread):
                                   load_func=f_load)
 
     def __str__(self):
-        return 'ID = ' + self.ID
+        str_out = 'ID = ' + self.ID + '\nShape = (\n  '
+        str_out += 'l1_depth: ' + str(self.l1_depth) + '\n)'
+        return str_out
 
     def train_layer1(self, L1_train, L1_val, epochs=100, lr=.01, alpha=.9):
-        """ Trains the agent's layer 1 from the given data sets.
+        """ Trains the agent's layer one from the given data sets.
             Accepts:
-                L1_train (DataFrom)    : L1 training data
-                L1_val (DataFrom)      : L1 validation data
-                L2_train (str)         : L2 training data filename
+                L1_train (DataFrom)     : L1 training data
+                L1_val (DataFrom)       : L1 validation data
+                epochs (int)            : Number of training iterations
+                lr (float)              : Learning rate
+                alpha (float)           : Learning gain/momentum
         """
-        # Train and validate each layer 1 node (one node at each depth)
-        for i in range(self.depth):
-            self.layer1['nodes'][i].train(
+        # Train and validate each layer 1 node
+        for i in range(self.l1_depth):
+            self.layer1.node[i].train(
                 L1_train[i], epochs=epochs, lr=lr, alpha=alpha , noise=None)
-            self.layer1['nodes'][i].validate(L1_val[i], verbose=True)
+            self.layer1.node[i].validate(L1_val[i], verbose=True)
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -135,87 +142,85 @@ class Agent(threading.Thread):
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
             Note: At this time, the 'targets' in the data row are not used.
             Accepts:
-                data_row (list)      : [(inputs, targets), ... ]
+                data_row (list)      : [(inputs, targets)]
         """
         print('\nSTEP')  # debug
 
         # Ensure well formed data_row
-        if len(data_row) != self.depth:
-            err_str = 'Mismatched data_row size - expected ' + str(self.depth)
-            err_str += ', recieved ' + str(len(data_row))
+        if len(data_row) != self.l1_depth:
+            err_str = 'Bad data_row size - expected sz ' + str(self.l1_depth)
+            err_str += ', recieved sz' + str(len(data_row))
             self.model.log(err_str, logging.error)
+            return
 
         # ----------------------- Layer 1 ----------------------------
         # Feed inputs to layer 1
-        for i in range(self.depth):
+        for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            self.model.log('Feeding L1, node ' + str(i) + ':\n' + str(inputs))
+            self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
 
             # Set output as node's classification
-            self.layer1['outputs'][i] = self.layer1['nodes'][i].classify(inputs)
+            self.layer1.output[i] = self.layer1.node[i].classify(inputs)
             
         # ----------------------- Layer 2 ----------------------------
         # Feed layer 1 outputs to layer 2 inputs
         # Note: layer 2 inputs look like ['F', 'A', ..., 'T']
-        self.model.log('Feeding L2:\n' + str(self.layer1['outputs']))
-        self.layer2['outputs'] = self.layer2['node'].forward(
-            self.layer1['outputs'])
+        self.model.log('Feeding L2 w:\n' + str(self.layer1.output))
+        self.layer2.output = self.layer2.node.forward(
+            list(self.layer1.output), self.seq_inputs)
         
         # ----------------------- Layer 3 ----------------------------
-        # Flatten layer 2 outputs to one large layer 3 input
-        # l3_inputs = torch.cat(
-        #     [self.layer2['outputs'][i] for i in range(self.depth)], 0)
+        self.model.log('Feeding L3 w:\n' + str(self.layer2.output))
 
-        # self.model.log('Feeding L3 w:\n' + str(l3_inputs))
-        # output = self.layer3['node'](l3_inputs)
+        # print(self.layer2.node._expr_strings(symp_expr=self.seq_inputs))
+        # print(results)
 
-        for o in self.layer2['outputs']:
-            # TODO: Cycle through each dimension of the output
-            pass 
+        fitness = {k: 0 for k in self.layer2.output.keys()}
 
-        # Search for feedback, to verify fitness of output
+        # Update fitness of each expression, depending on results
+        for k, v in self.layer2.output.items():
+            for j in v:
+                print('L3: ' + j)
+                if Logical.is_python(j):
+                    print('TRUE!')
+                    fitness[k] += .3
 
-        # for out in self.layer3['outputs']:
-        #     print(out)
+        # Evolve a new population with the new fitness values
+        self.layer2.node.update(fitness)
 
-        # Update noise ann noise param / signal "in context".
+        print(self.layer3.output)
 
-    def start(self, data, stop_at_eof=False):
+        # Send fitness feedback to layer 2
+
+        # Send feedback / noise param / "in context" to level 1
+
+    def start(self, stop_at_eof=False):
         """ Starts the agent thread, stepping the agent forward until stopped 
             externally with self.stop() or (eof reached AND stop_at_eof)
             Accepts:
-                data (list)         : A list of classlib.DataFrom objects
-                stop_at_eof (bool)  : Denotes run til end of data
+                stop_at_eof (bool)  : Denotes run til end of self.inputs
         """
         self.model.log('Agent thread started.')
-        min_rows = min([d.row_count for d in data])
+        min_rows = min([data.row_count for data in self.inputs])
         self.running = True
 
-        # Init layer 1 class labels
-        for i in range(self.depth):
-            self.layer1['nodes'][i].set_labels(data[i].class_labels)
-
         while self.running:
-            # Iterate each row of each dataset
+            # Step the agent foreward with each row of each dataset
             for i in range(min_rows):
                 row = []
-                for j in range(self.depth):
-                    row.append([d for d in iter(data[j][i])])
-                
-                # Step agent forward one step
+                for j in range(self.l1_depth):
+                    row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
 
-            # Stop if at eof and stop at eof specified
             if stop_at_eof:
-                break
+                self.stop('Stopped due to end of data.')
 
-        self.stop()
-
-    def stop(self):
+    def stop(self, output_str='Stopped.'):
         """ Stops the thread. May be called from the REPL, for example.
         """
-        self.model.log('Stopped.')
         self.running = False
+        self.join()
+        self.model.log(output_str)
 
     @staticmethod
     def _get_dimensions(in_data):
@@ -258,13 +263,13 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
-    agent = Agent('agent1', in_data)
+    agent = Agent('agent1', in_data, is_seq=False)
 
     # Train and validate the agent
     # agent.train_layer1(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(in_data, True)
+    agent.start(stop_at_eof=True)
 
     # Generate run number.
 
