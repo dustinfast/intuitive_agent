@@ -48,6 +48,7 @@ class MaskEvolver(karoo_gp.Base_GP):
         self.persist = persist
         self.tree_pop_max = max_pop
         self.tree_depth_max = max_depth
+        self.input_sz = input_sz
 
         # Application specific KarooGP params
         self.display = 's'                      # Silence KarooGP output
@@ -138,19 +139,33 @@ class MaskEvolver(karoo_gp.Base_GP):
             trees, key=lambda x: self.population_a[x][12][1], reverse=rev)
         return trees
 
-    def _sym_expr(self, treeID):
+    def _symp_expr(self, treeID):
         """ Returns the sympified expression of the tree with the given ID
         """
         self.fx_eval_poly(self.population_a[treeID])  # Updates self.algo_sym
         return self.algo_sym
 
-    def _expr_strings(self, w_fit=False):
-        """ Returns the current population's sympy expressions as one newline
-            delimited string. If w_fit, also includes that tree's fitness.
+    def _raw_expr(self, treeID):
+        """ Returns the raw expression of the tree with the given ID
         """
+        self.fx_eval_poly(self.population_a[treeID])  # Updates self.algo_raw
+        return self.algo_raw
+
+    def _expr_strings(self, symp_expr=False, w_fit=False):
+        """ Returns the current population's sympy expressions as one newline
+            delimited string. 
+            Accepts:
+                w_fit (bool)    : Also includes each tree's fitness in string
+                symp_expr (bool) : Uses sympyfied expression, vs raw expr
+        """
+        if symp_expr:
+            f_expr = self._symp_expr
+        else:
+            f_expr = self._raw_expr
+
         results = ''
         for treeID in range(1, len(self.population_a)):
-            expr = str(self._sym_expr(treeID))
+            expr = str(f_expr(treeID))
             results += 'Tree ' + str(treeID) + ': ' + expr + '\n'
 
             if w_fit:
@@ -192,14 +207,15 @@ class MaskEvolver(karoo_gp.Base_GP):
     #     if self.persist:
     #         self.model.save()
 
-    def forward(self, inputs, n_results=10, split=.8):
+    def forward(self, inputs, max_results=0, split=.8, ordered=False):
         """ Peforms each tree's expression on the given inputs and returns 
             the results as a dict denoting the source tree ID
             Accepts:
-                inputs (list)   : A list of lists, one for each input "row"
-                n_results (int) : Max number of results to return
-                split (float)   : Ratio of fittest expression results to
-                                    randomly chosen expressions
+                inputs (list)     : A list of lists, one for each input "row"
+                max_results (int) : Max results to return (0=population size)
+                split (float)     : Ratio of fittest expressions used to
+                                      randomly chosen expressions used
+                ordered (bool)    : Denotes if the inputs considered sequential
             Returns:
                 dict: { treeID: [result1, result2, ... ], ... }
         """
@@ -208,25 +224,35 @@ class MaskEvolver(karoo_gp.Base_GP):
         except AttributeError:
             raise Exception('Forward attempted on an uninitialized model.')
 
+        # If ordered specified, use raw expression, else use sympified
+        if ordered:
+            f_expr = self._symp_expr
+        else:
+            f_expr = self._raw_expr
+
+        # Determine max results
+        if not max_results:
+            max_results = self.tree_pop_max
+
         # If strings in input, rm exprs w/neg operators - they're nonsensical
         for inp in inputs:
             if not [i for i in inp if type(i) is str]: 
                 break
         else:
-            trees = [t for t in trees if '-' not in str(self._sym_expr(t))]
+            trees = [t for t in trees if '-' not in str(f_expr(t))]
 
         # Filter trees having duplicate expressions
         added = set()
         trees = [t for t in trees
-                 if str(self._sym_expr(t)) not in added and
-                 (added.add(str(self._sym_expr(t))) or True)]
+                 if str(f_expr(t)) not in added and
+                 (added.add(str(f_expr(t))) or True)]
 
         # At this point, every t in trees is useable, so do fit/random split
-        fit_count = int(n_results * split)
+        fit_count = int(max_results * split)
         split_trees = trees[:fit_count]
         rand_pool = trees[fit_count:]
 
-        while len(split_trees) < n_results and rand_pool:
+        while len(split_trees) < max_results and rand_pool:
             idx = randint(0, len(rand_pool) - 1)
             split_trees.append(rand_pool.pop(idx))
 
@@ -234,7 +260,7 @@ class MaskEvolver(karoo_gp.Base_GP):
         results = {}
         for treeID in trees:
             results[treeID] = []
-            expr = str(self._sym_expr(treeID))
+            expr = str(f_expr(treeID))
 
             # Reform the expr by mapping each operand to an input index
             #   Ex: expr 'A + 2*D + B' -> 'row[0] + 2*row[3] + row[1]'
@@ -278,11 +304,11 @@ class MaskEvolver(karoo_gp.Base_GP):
         for k, v in fitness.items():
             self.population_a[k][12][1] = v
 
-        print(ev._expr_strings(w_fit=True))  # debug
+        # print(self._expr_strings(w_fit=True))  # debug
 
         # Build the new gene pool
         self.gene_pool = [t for t in range(1, len(self.population_a))
-                          if self._sym_expr(t)]
+                          if self._symp_expr(t)]
 
         # Evolve a new population
         self.population_b = []
@@ -312,14 +338,15 @@ if __name__ == '__main__':
               ['D', 'A', 'B', 'C']]
 
     # Example forward and update
+    ordered = True
     for z in range(0, 20):
-        results = ev.forward(inputs)
+        results = ev.forward(inputs, ordered=ordered)
         fitness = {k: 0 for k in results.keys()}
         for k, v in results.items():
             for j in v:
-                first = j[0]
-                if len([i for i in j if i == first]) == len(j):
+                if j[0] == 'D' and j[1] == 'C':
                     fitness[k] += 1
+        print(ev._expr_strings(w_fit=True, symp_expr=ordered))  # debug
         print(results)
         ev.update(fitness)
 
