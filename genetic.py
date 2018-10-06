@@ -3,7 +3,7 @@
     the Karoo GP library.
 
     Module Structure:
-        MaskEvolver is the main interface.
+        GPMask is the main interface.
         Persistence and output handled by classlib.ModelHandler.
         
     Karoo GP Version Info: 
@@ -32,7 +32,7 @@ from classlib import ModelHandler
 MODEL_EXT = '.ev'
 
 
-class MaskEvolver(karoo_gp.Base_GP):
+class GPMask(karoo_gp.Base_GP):
     """ An evolving population of expressions used by the intutitve agent
         to "mask" data between layers two and three. Learns in an online, or
         can be pre-trained.
@@ -45,7 +45,7 @@ class MaskEvolver(karoo_gp.Base_GP):
             console_out (bool)      : Output log stmts to console flag
             persist (bool)          : Persit mode flag
         """
-        super(MaskEvolver, self).__init__()
+        super(GPMask, self).__init__()
         self.ID = ID
         self.persist = persist
         self.tree_pop_max = max_pop
@@ -324,7 +324,7 @@ if __name__ == '__main__':
     # valfile = 'static/datasets/words.dat'
 
     # Init the genetically evolving expression trees
-    ev = MaskEvolver('test_gp', 25, 15, 4, console_out=True, persist=False)
+    ev = GPMask('test_gp', 25, 15, 4, console_out=True, persist=False)
 
     # Example inputs
     inputs = [['A', 'B', 'C', 'D'],
