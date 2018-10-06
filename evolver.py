@@ -13,8 +13,9 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        evolver.update()
-        evolver.forward results should denote which inputs were in context?
+        forward() results should denote which inputs were in prev context?
+        train(trainfile, epochs=5, verbose=True)
+        validate(valfile)
 
     Author: Dustin Fast, 2018
 """
@@ -32,8 +33,9 @@ MODEL_EXT = '.ev'
 
 
 class MaskEvolver(karoo_gp.Base_GP):
-    """ An evolving population of expression trees used by the intutitve 
-        agent to "mask" data between layers two and three.
+    """ An evolving population of expressions used by the intutitve agent
+        to "mask" data between layers two and three. Learns in an online, or
+        can be pre-trained.
     """
     def __init__(self, ID, max_pop, max_depth, input_sz, console_out, persist):
         """ ID (str)                : This object's unique ID number
@@ -91,10 +93,10 @@ class MaskEvolver(karoo_gp.Base_GP):
         return 'ID = ' + self.ID
 
     def _save(self, filename):
-        """ Saves a model of the expression trees. For use by ModelHandler.
+        """ Saves a model of the current population. For use by ModelHandler.
         """
         with open(filename, 'w') as f:
-            # Write model params in dict form to file
+            # Write model params to file in dict form
             f.write("{'operands': " + str(self.terminals))
             f.write(", 'tree_depth_max': " + str(self.tree_depth_max))
             f.write(", 'tourn_size': " + str(self.tourn_size))
@@ -106,7 +108,7 @@ class MaskEvolver(karoo_gp.Base_GP):
             f.write(str(self.population_a))
             
     def _load(self, filename):
-        """ Loads the expression trees from file. For use by ModelHandler.
+        """ Loads model & population from from file. For use by ModelHandler.
         """
         # Build params and population strings from the given file
         params = ''
@@ -121,13 +123,15 @@ class MaskEvolver(karoo_gp.Base_GP):
                     else:
                         population += ch
 
-        # Init self from params and population
+        # Restore population
+        self.population_a = eval(population)
+
+        # Restore params (note: not all params written need restored)
         for k, v in eval(params).items():
             if k == 'operands':
                 self.terminals = v
             elif k == 'generation_id':
                 self.generation_id = v
-        self.population_a = eval(population)
 
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -152,10 +156,9 @@ class MaskEvolver(karoo_gp.Base_GP):
         return self.algo_raw
 
     def _expr_strings(self, symp_expr=False, w_fit=False):
-        """ Returns the current population's sympy expressions as one newline
-            delimited string. 
+        """ Returns the current population's expressions as one string. 
             Accepts:
-                w_fit (bool)    : Also includes each tree's fitness in string
+                w_fit (bool)     : Also includes each tree's fitness in string
                 symp_expr (bool) : Uses sympyfied expression, vs raw expr
         """
         if symp_expr:
@@ -230,11 +233,7 @@ class MaskEvolver(karoo_gp.Base_GP):
         else:
             f_expr = self._raw_expr
 
-        # Determine max results
-        if not max_results:
-            max_results = self.tree_pop_max
-
-        # If strings in input, rm exprs w/neg operators - they're nonsensical
+        # If strings in "input", rm exprs w/neg operators - they're nonsensical
         for inp in inputs:
             if not [i for i in inp if type(i) is str]: 
                 break
@@ -243,11 +242,12 @@ class MaskEvolver(karoo_gp.Base_GP):
 
         # Filter trees having duplicate expressions
         added = set()
-        trees = [t for t in trees
-                 if str(f_expr(t)) not in added and
+        trees = [t for t in trees if str(f_expr(t)) not in added and
                  (added.add(str(f_expr(t))) or True)]
 
         # At this point, every t in trees is useable, so do fit/random split
+        # Determine max results
+        if not max_results: max_results = self.tree_pop_max
         fit_count = int(max_results * split)
         split_trees = trees[:fit_count]
         rand_pool = trees[fit_count:]
@@ -256,7 +256,7 @@ class MaskEvolver(karoo_gp.Base_GP):
             idx = randint(0, len(rand_pool) - 1)
             split_trees.append(rand_pool.pop(idx))
 
-        # Perform each tree's expression on the given inputs
+        # Iterate every tree that hasn't been filtered out
         results = {}
         for treeID in trees:
             results[treeID] = []
@@ -279,12 +279,6 @@ class MaskEvolver(karoo_gp.Base_GP):
             # Eval reformed expr against each input, noting the source tree ID
             for row in inputs:
                 results[treeID].append(eval(new_expr))
-
-                # try:
-                    # results[treeID].append(eval(new_expr))
-                # except IndexError:
-                #     print('ERROR - Input too short')
-                #     pass  # (may occur in debug)
 
         # Filter out trees w/no results and return
         return {k: v for k, v in results.items() if v}
@@ -326,35 +320,36 @@ class MaskEvolver(karoo_gp.Base_GP):
 
 if __name__ == '__main__':
     # Define the training/validation files
-    trainfile = 'static/datasets/words_sum.csv'
-    valfile = 'static/datasets/words.dat'
+    # trainfile = 'static/datasets/words_sum.csv'
+    # valfile = 'static/datasets/words.dat'
 
-    # Init and train the genetically evolving expression trees
-    ev = MaskEvolver('test_gp', 20, 15, 4, console_out=True, persist=True)
-    # # TODO: ev.train(trainfile, epochs=5, verbose=True)
+    # Init the genetically evolving expression trees
+    ev = MaskEvolver('test_gp', 25, 15, 4, console_out=True, persist=False)
 
     # Example inputs
     inputs = [['A', 'B', 'C', 'D'],
-              ['D', 'A', 'B', 'C']]
+              ['D', 'A', 'C', 'B']]
 
-    # Example forward and update
-    ordered = True
-    for z in range(0, 20):
+    ordered = False     # Denote inputs should not be considered sequential
+    epochs = 30         # Learning epochs
+
+    # Example "online" learning - forward(), update fitness, and update()
+    for z in range(0, epochs):
+        print('*** Epoch %d ***' % z)
+        # Get results, according to current population
         results = ev.forward(inputs, ordered=ordered)
+
+        # Output resulting trees and results to console
+        print(ev._expr_strings(symp_expr=ordered))
+        print(results)
+
+        # Update fitness of each expression, depending on results
         fitness = {k: 0 for k in results.keys()}
         for k, v in results.items():
             for j in v:
-                if j[0] == 'D' and j[1] == 'C':
+                # If first two chars are 'DC' and len < 5, note as desirable
+                if j[0] == 'D' and j[1] == 'C' and len(j) < 5:
                     fitness[k] += 1
-        print(ev._expr_strings(w_fit=True, symp_expr=ordered))  # debug
-        print(results)
-        ev.update(fitness)
 
-    # debug - file builder
-    # f_out = open('static/datasets/words.dat', 'w')
-    # with open('static/datasets/words_1.txt', 'r') as f:
-    #     for line in f:
-    #         if len(line) > 1 and len(line) < 11 and '/' not in line and ord(line[1]) > 97 and ord(line[2]) > 97:
-    #             # ev.forward([line])
-    #             f_out.write(line)
-    # f_out.close()
+        # Evolve a new population with the new fitness values
+        ev.update(fitness)
