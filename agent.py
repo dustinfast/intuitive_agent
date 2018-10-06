@@ -16,8 +16,15 @@
         Agent persistence and output is handled by classlib.ModelHandler().
 
     Dependencies:
-        PyTorch (see https://pytorch.org)
-        Requests (pip instal requests)
+        PyTorch
+        Requests
+        Scikit-learn
+        Matplotlib
+        TensorFlow
+        Sympy
+        Numpy
+        Scipy
+        Pandas
 
     Usage: 
         Run from the terminal with './agent.py'.
