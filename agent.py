@@ -194,7 +194,7 @@ class Agent(threading.Thread):
                 #     fitness[k] += .3
                 # else:
                 #     print('False')
-                if len(j) >= 2 and len(j) <= 3:
+                if len(j) >= 4 and len(j) <= 6:
                     fitness[k] += .5
 
         # Signal fitness back to layer 2
