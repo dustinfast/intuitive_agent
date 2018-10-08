@@ -20,7 +20,6 @@
     Author: Dustin Fast, 2018
 """
 
-import re
 from random import randint
 import sys; sys.path.append('lib')
 
@@ -87,7 +86,7 @@ class GPMask(karoo_gp.Base_GP):
             self.population_a = ['Generation 1']
             self.fx_karoo_construct(self.tree_type, 3)
             for treeID in range(1, len(self.population_a)):
-                self.population_a[treeID][12][1] = 0
+                self.population_a[treeID][12][1] = 0.0
     
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\nSize = (\n  '
@@ -214,7 +213,7 @@ class GPMask(karoo_gp.Base_GP):
     #     if self.persist:
     #         self.model.save()
 
-    def forward(self, inputs, max_results=0, split=.8, ordered=False):
+    def forward(self, inputs, ordered, max_results=0, split=.8, verbose=False):
         """ Peforms each tree's expression on the given inputs and returns 
             the results as a dict denoting the source tree ID
             Accepts:
@@ -236,6 +235,8 @@ class GPMask(karoo_gp.Base_GP):
             f_expr = self._symp_expr
         else:
             f_expr = self._raw_expr
+
+        # print('Trees: ' + self._expr_strings(symp_expr=ordered))  # debug
 
         # If strings in "input", rm exprs w/neg operators - they're nonsensical
         for inp in inputs:
@@ -264,21 +265,20 @@ class GPMask(karoo_gp.Base_GP):
         results = {}
         for treeID in trees:
             results[treeID] = []
-            expr = str(f_expr(treeID))
+            orig_expr = str(f_expr(treeID))
 
             # Reform the expr by mapping each operand to an input index
             #   Ex: expr 'A + 2*D + B' -> 'row[0] + 2*row[3] + row[1]'
             new_expr = ''
-            for ch in expr:
+            for ch in orig_expr:
                 if ch in self.terminals:
                     new_expr += 'row[' + str(self.terminals.index(ch)) + ']'
                 else:
                     new_expr += ch
-            expr = re.split("[+\-]+", expr)
 
-            # debug
-            # print('Processing tree ' + str(treeID) + ': ' + str(expr))
-            # print(new_expr)
+            if verbose:
+                self.model.log('Mask ' + str(treeID) + ': ' + str(orig_expr))
+                # print(new_expr)  # debug
 
             # Eval reformed expr against each input, noting the source tree ID
             for row in inputs:
@@ -296,7 +296,7 @@ class GPMask(karoo_gp.Base_GP):
         """
         # Give each tree a baseline fitness score
         for treeID in range(1, len(self.population_a)):
-                self.population_a[treeID][12][1] = 0
+                self.population_a[treeID][12][1] = 0.0
                 
         # Update tree's fitness as given by "fitness" arg
         for k, v in fitness.items():
@@ -323,36 +323,33 @@ class GPMask(karoo_gp.Base_GP):
 
 
 if __name__ == '__main__':
-    # Define the training/validation files
-    # trainfile = 'static/datasets/words_sum.csv'
-    # valfile = 'static/datasets/words.dat'
+    # Import for pretty-printing results dict - unneeded except for demo below
+    from pprint import pprint
+
+    # Example input row
+    row = [['A', 'B', 'C', 'D', 'E', 'F']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('test_gp', 25, 15, 4, console_out=True, persist=False)
+    ev = GPMask('treegp', 25, 15, len(row[0]), console_out=True, persist=False)
 
-    # Example inputs
-    inputs = [['A', 'B', 'C', 'D'],
-              ['D', 'A', 'C', 'B']]
+    sequential = False  # Denote inputs should not be considered sequential
+    epochs = 50         # Learning epochs
 
-    ordered = False     # Denote inputs should not be considered sequential
-    epochs = 30         # Learning epochs
-
-    # Example "online" learning - forward(), update fitness, and update()
+    # Example learning - 
+    # forward() gets results, we set fitness based on them, then call update()
     for z in range(0, epochs):
-        print('*** Epoch %d ***' % z)
-        # Get results, according to current population
-        results = ev.forward(inputs, ordered=ordered)
+        print('\n*** Epoch %d ***' % z)
 
-        # Output resulting trees and results to console
-        print(ev._expr_strings(symp_expr=ordered))
-        print(results)
+        # Get results using current population
+        results = ev.forward(row, ordered=sequential, verbose=True)
+        print('Results:'); pprint(results)
 
-        # Update fitness of each expression, depending on results
-        fitness = {k: 0 for k in results.keys()}
+        # Update fitness of each tree - 
+        # Our desired result has 'DF' as first 2 chars and a len < 5
+        fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
             for j in v:
-                # If first two chars are 'DC' and len < 5, note as desirable
-                if j[0] == 'D' and j[1] == 'C' and len(j) < 5:
+                if j[0] == 'D' and j[1] == 'F' and len(j) < 5:
                     fitness[k] += 1
 
         # Evolve a new population with the new fitness values
