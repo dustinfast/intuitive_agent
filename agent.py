@@ -62,6 +62,23 @@ class Layer(object):
         self.output = output
 
 
+class Layer2(object):
+    def __init__(self):
+        self.node = {}  # { ID: node }
+        self.output = None
+
+    def get_node(self, ID):
+        """ If self.node[ID] exists, returns that node. Else, creates a new
+            node with that ID and returns that node.
+        """
+        if not self.node.get(ID):
+            print('Creating l2 node: ' + ID)
+            sz = len(ID)
+            max_trees = sz * 10
+            self.node[ID] = GPMask(ID, max_trees, 15, sz, CON_OUT, False)
+       
+        return self.node[ID]
+
 class Agent(threading.Thread):
     """ The intutive agent.
         The constructor accepts the agent's "sensory input" data, from which
@@ -86,43 +103,25 @@ class Agent(threading.Thread):
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = input_data    # The agent's "sensory input" data
         self.seq_inputs = is_seq    # Denote input_data is sequential in nature
+        id_prefix = self.ID + '_'
 
         # Determine agent shape from input_data
         dims = tuple(self._shape_fromdata(input_data))
         self.l1_depth = dims[0]
-        self.l2_depth = dims[2]
-        l1_dims = dims[1]
-
-        # Declare layers
-        self.l1 = Layer(node=[], output=[])
-        self.l2 = Layer(node={}, output=[])
-        self.l3 = Layer(node=None, output=[])
 
         # Init layer 1 nodes (each node loads prev state from file, if exists)
-        id_prefix = self.ID + '_'
+        self.l1 = Layer(node=[], output=[])
         for i in range(self.l1_depth):
             id1 = id_prefix + 'lv1_node_' + str(i)
-            self.l1.node.append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
+            self.l1.node.append(ANN(id1, dims[1][i], CON_OUT, PERSIST))
             self.l1.output.append([None for i in range(self.l1_depth)])
             self.l1.node[i].set_labels(self.inputs[i].class_labels)
         
-        # Init layer 2 nodes (each node loads prev state from file, if exists)
-        # TODO: Describe indexing
-        import time
-        print('doing L2....')
-        time.sleep(5)
-        for i in range(self.l2_depth):
-            id2 = id_prefix + 'lv2_node_' + str(i)
-            self.l2.node = GPMask(id2, 15, 15, self.l1_depth, CON_OUT, False)
-        print('done w/ L2')
-        time.sleep(10)
-        exit()
+        # Init layer 2 (L2 nodes are not created until needed, in self._step())
+        self.l2 = Layer2()
 
-
-        # Init layers 2 & 3 (each will load prev state from file, if exists)
-        id3 = id_prefix + 'lv3_node'
-
-        self.l3.node = Logical
+        # Init layer 3 node (no persistence or logging for L3)
+        self.l3 = Layer(node=Logical, output=None)
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -177,11 +176,13 @@ class Agent(threading.Thread):
             
         # --------------------- Update Layer 2 ------------------------
         # self.model.log('Feeding L2 w:\n' + str(self.l1.output))
-        self.l2.output = self.l2.node.forward(
+        l2_node_addr = ''.join(self.l1.output)
+        l2_node = self.l2.get_node(l2_node_addr)
+        self.l2.output = l2_node.forward(
             list([self.l1.output]), self.seq_inputs, verbose=True)
         
         # --------------------- UpdateLayer 3 --------------------------
-        # self.model.log('Feeding L3 w:\n' + str(self.l2.output))
+        self.model.log('Feeding L3 w:\n' + str(self.l2.output))
 
         # Check fitness of each l2 result
         fitness = {k: 0 for k in self.l2.output.keys()}
@@ -193,11 +194,13 @@ class Agent(threading.Thread):
                 #     fitness[k] += .3
                 # else:
                 #     print('False')
-                if len(j) >= 4 and len(j) <= 6:
-                    fitness[k] += .5
+                if len(j) == 3:
+                    fitness[k] += 1
+                    if j == 'AAA':
+                        fitness[k] += 1
 
         # Signal fitness back to layer 2
-        self.l2.node.update(fitness)
+        l2_node.update(fitness)
 
         # TODO: Send feedback / noise param / "in context" to level 1
 
@@ -210,7 +213,8 @@ class Agent(threading.Thread):
         self.model.log('Agent thread started.')
         min_rows = min([data.row_count for data in self.inputs])
         self.running = True
-
+        
+        z = 0  # debug
         while self.running:
             # Step the agent foreward with each row of each dataset
             for i in range(min_rows):
@@ -219,7 +223,8 @@ class Agent(threading.Thread):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
 
-            if stop_at_eof:
+            z += 1  # debug
+            if stop_at_eof and z >= 100:
                 self.stop('Stopped due to end of data.')
 
     def stop(self, output_str='Stopped.'):
@@ -233,8 +238,8 @@ class Agent(threading.Thread):
     def _shape_fromdata(in_data):
         """ Determines agent's shape from the given list of data sets
             Returns:
-                A 2-tuple representing L1 depth, L1 dims, and l2 depth
-                    as (int, [int, int, int], int) 
+                A 2-tuple representing L1 depth and L1 dims as:
+                    (int, [int, int, int]) 
             Assumes:
                 Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
                 For each 
@@ -243,7 +248,6 @@ class Agent(threading.Thread):
         """
         l1_depth = len(in_data)
         l1_dims = []
-        l2_depth = 1
 
         for i in range(l1_depth):
             l1_dims.append([])                              # New L1 dimension
@@ -252,53 +256,31 @@ class Agent(threading.Thread):
             l1_dims[i].append(in_data[i].class_count)       # y node count
             l1_dims[i][1] = int(     
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-            l2_depth *= len(in_data[i].class_labels)        # Num possible L1
-                                                            #     permutations
-        return l1_depth, l1_dims, l2_depth
+            
+        return l1_depth, l1_dims
 
     
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
+               DataFrom('static/datasets/test/test3_2.dat', normalize=True),
+               DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
-    l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
-                DataFrom('static/datasets/letters.csv', normalize=True),
-                DataFrom('static/datasets/letters.csv', normalize=True)]
+    l1_train = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
+                DataFrom('static/datasets/test/test3_2.dat', normalize=True),
+                DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
-    l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
+    l1_vald = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
+               DataFrom('static/datasets/test/test3_2.dat', normalize=True),
+               DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
-    agent = Agent('agent1', in_data, is_seq=False)
+    agent = Agent('agentD3T2', in_data, is_seq=False)
 
     # Train and validate the agent
     # agent.train_layer1(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
     agent.start(stop_at_eof=True)
-
-    # Generate run number.
-
-    # Change log dir accordingly
-
-    # Suppose data sets A, B, C
-
-    # Train sub-ann[0] on A, sub-ann[1] on B, sub_ann[2] on C, etc...
-
-    # Train genetic sub-layer on training set A U B U C with classifier kernel
-
-    # Train attentive layer on same training set A U B U C
-
-    # Override genetic sub-layer fitness function
-
-    # Run agent
-
-    # On intutive layer discover new connection in validation set A U B U C ->
-    # signal good fitness to genetic sub-layer. This represents feedback from env.
-
-    # On genetic sublayer recv good fitness?
