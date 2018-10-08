@@ -30,9 +30,8 @@
         Run from the terminal with './agent.py'.
 
     # TODO: 
-        Auto-tuned training lr/epochs 
+        Auto-tuned training lr/epochs based on data files
         Agent should write to var/models/agent folder
-        L2 train/validate function
         Agent model: trained, labels, 
         L2.nodes[].weight (logarithmic decay over time/frequency)
         L2 Persistence
@@ -67,11 +66,11 @@ class ConceptualLayer(object):
         """ Accepts:
             id_prefix (str)     : Each nodes ID prefix. Ex: 'Agent1_'
             depth (int)         : How many nodes this layer contains
-            dims (list)         : 3 ints - in/hidden/output layer sizes
+            dims (list)         : 3 ints - ANN in/hidden/output layer sizes
         """
         self.node = []      # A list of nodes, one for each layer 1 depth
         self.output = []    # A list of outputs, one for each node
-        self.depth = depth
+        self.depth = depth  # This layers depth. I.e. it's node count
 
         for i in range(depth):
             ID = id_prefix + 'L1_node_' + str(i)
@@ -99,8 +98,7 @@ class IntuitiveLayer(object):
         A node is created dynamically for each unique layer-one output 
         via self.set_node(). On init, each node will load itself from file, 
         if exists.
-        Note: This layer is trained "online" by the operation of the agent.
-              It may also be trained offline via self.train().
+        Note: This layer is trained in an "online" fashion as the agent runs.
               
     """ 
     def __init__(self, id_prefix):
@@ -119,14 +117,11 @@ class IntuitiveLayer(object):
         if not self.nodes.get(nodeID):
             sz = len(nodeID)
             max_trees = sz * 10
-            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, False)
+            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, PERSIST)
             self.nodes[nodeID] = node
         else:
             node = self.nodes[nodeID]
         self.node = node
-
-    def train(self):
-        raise NotImplementedError
 
 
 class LogicalLayer(object):
@@ -143,7 +138,7 @@ class LogicalLayer(object):
 
     def check_fitness(self, results):
         """ Checks each result in results and returns a dict of fitness scores
-            corresponding to each based on self.mode.
+            corresponding to each, as determon based on self.mode.
             Accepts:
                 results (dict)  : { ID: result }
             Returns:
@@ -184,7 +179,7 @@ class Agent(threading.Thread):
         """
         threading.Thread.__init__(self)
         self.ID = ID
-        self.l1_depth = None        # Layer 1 depth
+        self.l1_depth = None        # Layer 1 depth/node count
         self.model = None           # The model handler
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = input_data    # The agent's "sensory input" data
@@ -192,6 +187,14 @@ class Agent(threading.Thread):
         self.max_iters = None       # Num input_data iters, set on self.start
         self.verbose = False        # Denotes verbose output, set on self.start
         id_prefix = self.ID + '_'   # Sets up the ID prefix for the sub-layers
+
+        # Init the load, save, log, and console output handler
+        f_save = "self.save('MODEL_FILE')"
+        f_load = "self.load('MODEL_FILE')"
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+                                  model_ext=MODEL_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
 
         # Determine agent shape from input_data
         dims = tuple(self._shape_fromdata(input_data))
@@ -202,19 +205,8 @@ class Agent(threading.Thread):
         self.l2 = IntuitiveLayer(id_prefix)
         self.l3 = LogicalLayer(FITNESS_MODE)
 
-        # Init the load, save, log, and console output handler
-        f_save = "self.save('MODEL_FILE')"
-        f_load = "self.load('MODEL_FILE')"
-        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
-                                  model_ext=MODEL_EXT,
-                                  save_func=f_save,
-                                  load_func=f_load)
-
     def __str__(self):
-        str_out = 'ID = ' + self.ID + '\nShape = (\n  '
-        str_out += 'l1_depth: ' + str(self.l1_depth) + '\n  '
-        str_out += 'l2_nodes: ' + str(len(self.l2.nodes.keys())) + '\n)'
-        return str_out
+        return 'ID = ' + self.ID
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list

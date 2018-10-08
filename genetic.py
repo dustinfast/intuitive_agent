@@ -14,8 +14,6 @@
 
     # TODO: 
         forward() results should denote which inputs were in prev context?
-        train(trainfile, epochs=5, verbose=True)
-        validate(valfile)
 
     Author: Dustin Fast, 2018
 """
@@ -179,39 +177,6 @@ class GPMask(karoo_gp.Base_GP):
                 results += ' (fitness: ' + fit + ')\n'
 
         return results
-
-    # def train(self, fname, epochs=10, verbose=False):
-    #     """ Evolves an initial population trained from the given file, where
-    #         "fname" is a csv file with col headers "A, B, C, ..., s", where
-    #         col 's' and denotes row "solution".
-    #         Accepts:
-    #             fname (str)         : The datafile path/fname
-    #             type (str)          : Tree type - (g)grow, (f)ull, or (r)amp
-    #             start_depth (int)   : Each tree's initial depth
-    #             epochs (int)        : Number of training iterations
-    #             verbose (bool)      : Denotes verbose output
-    #     """
-    #     # Output log stmt
-    #     info_str = 'population_sz=%d, ' % self.tree_pop_max
-    #     info_str += 'treetype=%s, ' % self.tree_type
-    #     info_str += 'treedepth_max=%d, ' % self.tree_depth_max
-    #     info_str += 'treedepth_min=%d, ' % self.tree_depth_min
-    #     info_str += 'epochs=%d, ' % epochs
-    #     info_str += 'file=%s.' % fname
-    #     self.model.log('Training started: ' + info_str)
-
-    #     for i in range(epochs):
-    #         # TODO train from file
-            
-    #         if verbose:
-    #             t = self._expr_strings()
-    #             self.model.log('Training epoch %d generated:\n%s' % (i, t))
-
-    #     t = self._expr_strings()
-    #     self.model.log('Training complete. Final population:\n%s' % t)
-       
-    #     if self.persist:
-    #         self.model.save()
 
     def forward(self, inputs, ordered, max_results=0, split=.8, verbose=False):
         """ Peforms each tree's expression on the given inputs and returns 

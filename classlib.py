@@ -20,13 +20,15 @@ from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 import pandas as pd
 
-OUT_PATH = 'var/models'
+OUT_PATH = 'var/models/'
 
 LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
 LOG_SIZE = 10 * 1048576  # x * bytes in a mb
 LOG_FILES = 2
 
+# Global logger
+g_logger = None
 
 class ModelHandler(object):
     """ The ModelHandler, used by many of the inutive agent's classes for
@@ -103,12 +105,11 @@ class ModelHandler(object):
             if not os.path.exists(output_path):
                 os.mkdir(output_path)
 
-            # Init logger and log the initialization of the child
-            # Note: Initing this way logs output to a single file, app-wide
-            logging.basicConfig(
-                filename=log_file,
-                level=LOG_LEVEL,
-                format='%(asctime)s - %(levelname)s: %(message)s')
+            # Init global logger (if not already) - it gets first callers ID
+            global g_logger
+            if not g_logger:
+                g_logger = Logger(child.ID, log_file, False)
+            
             self.log('*** Initialized ' + child_type + ': ' + str(child))
 
             # Denote model filename and, if it exists, load the model from it
@@ -120,7 +121,7 @@ class ModelHandler(object):
             Also outputs the string to the console, iff console_out enabled.
         """
         if self._persist:
-            level(log_str)
+            g_logger.info(log_str)
 
         if self._console_out:
             print(log_str)
@@ -229,36 +230,33 @@ class Logger(logging.Logger):
     """ An extension of Python's logging.Logger. Implements log file rotation
         and optional console output.
     """
-
     def __init__(self,
                  name,
+                 fname,
                  console_output=False,
                  level=LOG_LEVEL,
                  num_files=LOG_FILES,
                  max_filesize=LOG_SIZE):
-        """
-        """
+        """"""
         logging.Logger.__init__(self, name, level)
 
         # Define output formats
-        log_fmt = '%(asctime)s - %(levelname)s @ %(module)s: %(message)s'
+        log_fmt = '%(asctime)s - %(levelname)s: %(message)s'
         log_fmt = logging.Formatter(log_fmt + '')
 
         # Init log file rotation
-        fname = 'logs/' + name + '.log'
-        rotate_handler = logging.handlers.RotatingFileHandler(fname,
-                                                              max_filesize,
-                                                              num_files)
+        rotate_handler = logging.handlers.RotatingFileHandler(
+            fname, max_filesize, num_files)
         rotate_handler.setLevel(level)
         rotate_handler.setFormatter(log_fmt)
         self.addHandler(rotate_handler)
 
         if console_output:
-            console_fmt = '%(asctime)s - %(levelname)s @ %(module)s:'
+            console_fmt = '%(asctime)s - %(levelname)s:'
             console_fmt += '\n%(message)s'
             console_fmt = logging.Formatter(console_fmt)
             console_handler = logging.StreamHandler()
-            console_handler.setLevel(level + 10)
+            console_handler.setLevel(level)
             console_handler.setFormatter(console_fmt)
             self.addHandler(console_handler)
 
