@@ -119,7 +119,7 @@ class IntuitiveLayer(object):
         if not self.nodes.get(nodeID):
             sz = len(nodeID)
             max_trees = sz * 10
-            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, PERSIST)
+            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, False)
             self.nodes[nodeID] = node
         else:
             node = self.nodes[nodeID]
@@ -189,6 +189,8 @@ class Agent(threading.Thread):
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = input_data    # The agent's "sensory input" data
         self.seq_inputs = is_seq    # Denote input_data is sequential in nature
+        self.max_iters = None       # Num input_data iters, set on self.start
+        self.verbose = False        # Denotes verbose output, set on self.start
         id_prefix = self.ID + '_'   # Sets up the ID prefix for the sub-layers
 
         # Determine agent shape from input_data
@@ -214,7 +216,7 @@ class Agent(threading.Thread):
         str_out += 'l2_nodes: ' + str(len(self.l2.nodes.keys())) + '\n)'
         return str_out
 
-    def _step(self, data_row, verbose=True):
+    def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
             of tuples (one for each depth) of inputs and targets. Each tuple,
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
@@ -233,7 +235,7 @@ class Agent(threading.Thread):
         # --------------------- Update Layer 1 ----------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            if verbose:
+            if self.verbose:
                 self.model.log('L1 node[%d] input:\n%s' % (i, str(inputs)))
 
             # Output[i] is node[i]'s classification
@@ -241,43 +243,38 @@ class Agent(threading.Thread):
             
         # --------------------- Update Layer 2 ------------------------
         l2_nodeID = ''.join(self.l1.output)
-        if verbose:
+        if self.verbose:
             self.model.log(
                 'L2 node[%s] input:\n%s' % (l2_nodeID, self.l1.output))
         self.l2.set_node(l2_nodeID)
         self.l2.output = self.l2.node.forward(
-            list([self.l1.output]), self.seq_inputs, verbose=verbose)
+            list([self.l1.output]), self.seq_inputs, verbose=self.verbose)
         
         # --------------------- UpdateLayer 3 --------------------------
-        if verbose:
+        if self.verbose:
             self.model.log('Feeding L3 w:\n%s' % str(self.l2.output))
 
         # Check fitness of each l2 result
         fitness = self.l3.check_fitness(self.l2.output)
-        # fitness = {k: 0 for k in self.l2.output.keys()}
-        # for k, v in self.l2.output.items():
-        #     for j in v:
-        #         print('L3: ' + j, sep=': ')
-        #         # if Logical.is_python(j):
-        #         #     print('TRUE')
-        #         #     fitness[k] += .3
-        #         # else:
-        #         #     print('False')
-        #         if len(j) == 3:
-        #             fitness[k] += 1
-        #             if j == 'AAA':
-        #                 fitness[k] += 1
-
+        
         # Signal fitness back to layer 2
         self.l2.node.update(fitness)
 
-        # TODO: Send feedback / noise param / "in context" to level 1
+        # TODO: Send feedback / noise / "in context" to level 1
 
-    def start(self, max_iters=10):
-        """ Starts the agent thread, stepping the agent forward until stopped 
-            externally with self.stop() or (eof reached AND stop_at_eof)
+    def start(self, max_iters=10, verbose=False):
+        """ Starts the agent thread.
             Accepts:
                 max_iters (int)     : Max times to iterate data set (0=inf)
+                verbose (bool)      : Denotes verbose output
+        """
+        self.max_iters = max_iters
+        self.verbose = verbose
+        threading.Thread.start(self)
+
+    def run(self):
+        """ Starts the agent thread, stepping the agent forward until stopped 
+            externally with self.stop() or (eof reached AND stop_at_eof)
         """
         self.model.log('Agent thread started.')
         min_rows = min([data.row_count for data in self.inputs])
@@ -292,7 +289,7 @@ class Agent(threading.Thread):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
 
-            if max_iters and iters >= max_iters:
+            if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1
 
@@ -300,7 +297,6 @@ class Agent(threading.Thread):
         """ Stops the thread. May be called from the REPL, for example.
         """
         self.running = False
-        # TODO: self.join()
         self.model.log(output_str)
 
     @staticmethod
@@ -349,4 +345,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start()
+    agent.start(max_iters=1, verbose=True)
