@@ -34,7 +34,10 @@
         Agent should write to var/models/agent folder
         L2 train/validate function
         Agent model: trained, labels, 
-        logarithmic increase to fitness[k]
+        L2.nodes[].weight (logarithmic decay over time/frequency)
+        L2 Persistence
+        L2 logger
+        L3 logger
         Add branching after some accuracy threshold
         REPL (Do this last)
 
@@ -52,32 +55,91 @@ from classlib import ModelHandler, DataFrom
 CON_OUT = True
 PERSIST = True
 MODEL_EXT = '.agent'
+FITNESS_MODE = Logical.is_python
 
 
-class Layer(object):
-    """ An abstraction of an agent layer, with node(s) and output(s).
-    """
-    def __init__(self, node, output):
-        self.node = node
-        self.output = output
-
-
-class Layer2(object):
-    def __init__(self):
-        self.node = {}  # { ID: node }
-        self.output = None
-
-    def get_node(self, ID):
-        """ If self.node[ID] exists, returns that node. Else, creates a new
-            node with that ID and returns that node.
+class ConceptualLayer(object):
+    """ An abstraction of the agent's conceptual layer (i.e. layer one). 
+        Each node loads it's previous state from file, if exists, on init.
+        Note: This layer must be trained offline via self.train().
         """
-        if not self.node.get(ID):
-            print('Creating l2 node: ' + ID)
-            sz = len(ID)
+    def __init__(self, id_prefix, depth, dims, inputs):
+        """ Accepts:
+            id_prefix (str)     : Each nodes ID prefix. Ex: 'Agent1_'
+            depth (int)         : How many nodes this layer contains
+            dims (list)         : 3 ints - in/hidden/output layer sizes
+        """
+        self.node = []      # A list of nodes, one for each layer 1 depth
+        self.output = []    # A list of outputs, one for each node
+        self.depth = depth
+
+        for i in range(depth):
+            ID = id_prefix + 'L1_node_' + str(i)
+            self.node.append(ANN(ID, dims[i], CON_OUT, PERSIST))
+            self.output.append([None for i in range(depth)])
+            self.node[i].set_labels(inputs[i].class_labels)
+    
+    def train(self, train_data, val_data, epochs=500, lr=.01, alpha=.9):
+        """ Trains each node from the given training/validation data.
+            Accepts:
+                train_data (list)       : A list of DataFrom objects
+                val_data (list)         : A list of DataFrom objects
+                epochs (int)            : Number of training iterations
+                lr (float)              : Learning rate
+                alpha (float)           : Learning gain/momentum
+        """
+        for i in range(self.depth):
+            self.node[i].train(
+                train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
+            self.node[i].validate(val_data[i], verbose=True)
+
+
+class IntuitiveLayer(object):
+    """ An abstration of the agent's Intuitive layer (i.e. layer two). 
+        A node is created dynamically for each unique layer-one output 
+        via self.set_node(). On init, each node will load itself from file, 
+        if exists.
+        Note: This layer is trained "online" by the operation of the agent.
+              It may also be trained offline via self.train().
+              
+    """ 
+    def __init__(self, id_prefix):
+        self.ID = id_prefix + 'L2_nodes'
+        self.nodes = {}     # All L2 nodes: { ID: node }
+        self.node = None    # Currently active node
+        self.output = None  # Placholder for output
+
+    def set_node(self, nodeID):
+        """ If self.node[ID] exists, sets self.node to that node. Else, creates
+            a new node at that ID before setting self.node to it. In this way
+            each unqiue output gets it's own intutive "attention" mask.
+            Accepts:
+                nodeID (str)  : A string (generally some layer one output)
+        """
+        if not self.nodes.get(nodeID):
+            sz = len(nodeID)
             max_trees = sz * 10
-            self.node[ID] = GPMask(ID, max_trees, 15, sz, CON_OUT, False)
-       
-        return self.node[ID]
+            node = GPMask(nodeID, max_trees, 15, sz, CON_OUT, False)
+            self.nodes[nodeID] = node
+        else:
+            node = self.nodes[nodeID]
+        self.node = node
+
+    def train(self):
+        raise NotImplementedError
+
+
+class LogicalLayer(object):
+    """ An abstraction of the agent's Logical layer (i.e. layer three).
+        This layer does no persistence or logging at this time.
+    """
+    def __init__(self, mode):
+        """ Accepts:
+                mode (function)  : Any func returning True or false when given
+                a layer-two output, denoting if that output is fit/productive
+        """
+        self.node = mode
+
 
 class Agent(threading.Thread):
     """ The intutive agent.
@@ -98,34 +160,25 @@ class Agent(threading.Thread):
         """
         threading.Thread.__init__(self)
         self.ID = ID
-        self.l1_depth = None        # Layer 1 node count
+        self.l1_depth = None        # Layer 1 depth
         self.model = None           # The model handler
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = input_data    # The agent's "sensory input" data
         self.seq_inputs = is_seq    # Denote input_data is sequential in nature
-        id_prefix = self.ID + '_'
+        id_prefix = self.ID + '_'   # Sets up the ID prefix for the sub-layers
 
         # Determine agent shape from input_data
         dims = tuple(self._shape_fromdata(input_data))
         self.l1_depth = dims[0]
 
-        # Init layer 1 nodes (each node loads prev state from file, if exists)
-        self.l1 = Layer(node=[], output=[])
-        for i in range(self.l1_depth):
-            id1 = id_prefix + 'lv1_node_' + str(i)
-            self.l1.node.append(ANN(id1, dims[1][i], CON_OUT, PERSIST))
-            self.l1.output.append([None for i in range(self.l1_depth)])
-            self.l1.node[i].set_labels(self.inputs[i].class_labels)
-        
-        # Init layer 2 (L2 nodes are not created until needed, in self._step())
-        self.l2 = Layer2()
-
-        # Init layer 3 node (no persistence or logging for L3)
-        self.l3 = Layer(node=Logical, output=None)
+        # Init layers
+        self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
+        self.l2 = IntuitiveLayer(id_prefix)
+        self.l3 = LogicalLayer(FITNESS_MODE)
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
-        f_load = "self.load(MODEL_FILE')"
+        f_load = "self.load('MODEL_FILE')"
         self.model = ModelHandler(self, CON_OUT, PERSIST,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
@@ -133,23 +186,9 @@ class Agent(threading.Thread):
 
     def __str__(self):
         str_out = 'ID = ' + self.ID + '\nShape = (\n  '
-        str_out += 'l1_depth: ' + str(self.l1_depth) + '\n)'
+        str_out += 'l1_depth: ' + str(self.l1_depth) + '\n  '
+        str_out += 'l2_nodes: ' + str(len(self.l2.nodes.keys())) + '\n)'
         return str_out
-
-    def train_layer1(self, L1_train, L1_val, epochs=500, lr=.01, alpha=.9):
-        """ Trains the agent's layer one from the given data sets.
-            Accepts:
-                L1_train (DataFrom)     : L1 training data
-                L1_val (DataFrom)       : L1 validation data
-                epochs (int)            : Number of training iterations
-                lr (float)              : Learning rate
-                alpha (float)           : Learning gain/momentum
-        """
-        # Train and validate each layer 1 node
-        for i in range(self.l1_depth):
-            self.l1.node[i].train(
-                L1_train[i], epochs=epochs, lr=lr, alpha=alpha , noise=None)
-            self.l1.node[i].validate(L1_val[i], verbose=True)
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -157,7 +196,7 @@ class Agent(threading.Thread):
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
             Note: At this time, the 'targets' in the data row are not used.
             Accepts:
-                data_row (list)      : [(inputs, targets)]
+                data_row (list)      : [inputs, ... ]
         """
         # Ensure well formed data_row
         if len(data_row) != self.l1_depth:
@@ -166,7 +205,7 @@ class Agent(threading.Thread):
             self.model.log(err_str, logging.error)
             return
 
-        # --------------------- Update  Layer 1 ---------------------
+        # --------------------- Update Layer 1 ----------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
             # self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
@@ -176,9 +215,8 @@ class Agent(threading.Thread):
             
         # --------------------- Update Layer 2 ------------------------
         # self.model.log('Feeding L2 w:\n' + str(self.l1.output))
-        l2_node_addr = ''.join(self.l1.output)
-        l2_node = self.l2.get_node(l2_node_addr)
-        self.l2.output = l2_node.forward(
+        self.l2.set_node(''.join(self.l1.output))
+        self.l2.output = self.l2.node.forward(
             list([self.l1.output]), self.seq_inputs, verbose=True)
         
         # --------------------- UpdateLayer 3 --------------------------
@@ -200,34 +238,34 @@ class Agent(threading.Thread):
                         fitness[k] += 1
 
         # Signal fitness back to layer 2
-        l2_node.update(fitness)
+        self.l2.node.update(fitness)
 
         # TODO: Send feedback / noise param / "in context" to level 1
 
-    def start(self, stop_at_eof=False):
+    def start(self, max_iters=10):
         """ Starts the agent thread, stepping the agent forward until stopped 
             externally with self.stop() or (eof reached AND stop_at_eof)
             Accepts:
-                stop_at_eof (bool)  : Denotes run til end of self.inputs
+                max_iters (int)     : Max times to iterate data set (0=inf)
         """
         self.model.log('Agent thread started.')
         min_rows = min([data.row_count for data in self.inputs])
         self.running = True
-        
-        z = 0  # debug
+        iters = 0
+
+        # Step the agent foreward with each row of each dataset
         while self.running:
-            # Step the agent foreward with each row of each dataset
             for i in range(min_rows):
                 row = []
                 for j in range(self.l1_depth):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
 
-            z += 1  # debug
-            if stop_at_eof and z >= 100:
-                self.stop('Stopped due to end of data.')
+            if max_iters and iters >= max_iters:
+                self.stop('Agent stopped: max_iters reached.')
+            iters += 1
 
-    def stop(self, output_str='Stopped.'):
+    def stop(self, output_str='Agent stopped.'):
         """ Stops the thread. May be called from the REPL, for example.
         """
         self.running = False
@@ -236,15 +274,12 @@ class Agent(threading.Thread):
 
     @staticmethod
     def _shape_fromdata(in_data):
-        """ Determines agent's shape from the given list of data sets
-            Returns:
-                A 2-tuple representing L1 depth and L1 dims as:
-                    (int, [int, int, int]) 
-            Assumes:
-                Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
-                For each 
+        """ Determines agent's shape from the given list of data sets.
+            Assumes each layer 1 node has 3 layers (x, h, and y).
             Accepts:
                 in_data (list)     : A list of DataFrom objects
+            Returns:
+                2-tuple: L1 depth and L1 dims, as (int, [int, int, int]) 
         """
         l1_depth = len(in_data)
         l1_dims = []
@@ -283,4 +318,4 @@ if __name__ == '__main__':
     # agent.train_layer1(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(stop_at_eof=True)
+    agent.start()
