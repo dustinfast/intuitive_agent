@@ -138,7 +138,31 @@ class LogicalLayer(object):
                 mode (function)  : Any func returning True or false when given
                 a layer-two output, denoting if that output is fit/productive
         """
-        self.node = mode
+        self.mode = mode
+        self.node = self.check_fitness
+
+    def check_fitness(self, results):
+        """ Checks each result in results and returns a dict of fitness scores
+            corresponding to each based on self.mode.
+            Accepts:
+                results (dict)  : { ID: result }
+            Returns:
+                fitness (dict)  : { ID: fitness score (float)}
+        """
+        fitness = {k: 0 for k in results.keys()}
+        for k, v in results.items():
+            for j in v:
+                print('L3: ' + j, sep=': ')
+                # if Logical.is_python(j):
+                #     print('TRUE')
+                #     fitness[k] += .3
+                # else:
+                #     print('False')
+                if len(j) == 3:
+                    fitness[k] += 1
+                    if j == 'AAA':
+                        fitness[k] += 1
+        return fitness
 
 
 class Agent(threading.Thread):
@@ -190,13 +214,14 @@ class Agent(threading.Thread):
         str_out += 'l2_nodes: ' + str(len(self.l2.nodes.keys())) + '\n)'
         return str_out
 
-    def _step(self, data_row):
+    def _step(self, data_row, verbose=True):
         """ Steps the agent forward one step with the given data row: A list
             of tuples (one for each depth) of inputs and targets. Each tuple,
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
             Note: At this time, the 'targets' in the data row are not used.
             Accepts:
-                data_row (list)      : [inputs, ... ]
+                data_row (list)     : [inputs, ... ]
+                verbose (bool)      : Denotes verbose output
         """
         # Ensure well formed data_row
         if len(data_row) != self.l1_depth:
@@ -208,34 +233,40 @@ class Agent(threading.Thread):
         # --------------------- Update Layer 1 ----------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            # self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
+            if verbose:
+                self.model.log('L1 node[%d] input:\n%s' % (i, str(inputs)))
 
-            # Output is node's classification
+            # Output[i] is node[i]'s classification
             self.l1.output[i] = self.l1.node[i].classify(inputs)
             
         # --------------------- Update Layer 2 ------------------------
-        # self.model.log('Feeding L2 w:\n' + str(self.l1.output))
-        self.l2.set_node(''.join(self.l1.output))
+        l2_nodeID = ''.join(self.l1.output)
+        if verbose:
+            self.model.log(
+                'L2 node[%s] input:\n%s' % (l2_nodeID, self.l1.output))
+        self.l2.set_node(l2_nodeID)
         self.l2.output = self.l2.node.forward(
-            list([self.l1.output]), self.seq_inputs, verbose=True)
+            list([self.l1.output]), self.seq_inputs, verbose=verbose)
         
         # --------------------- UpdateLayer 3 --------------------------
-        self.model.log('Feeding L3 w:\n' + str(self.l2.output))
+        if verbose:
+            self.model.log('Feeding L3 w:\n%s' % str(self.l2.output))
 
         # Check fitness of each l2 result
-        fitness = {k: 0 for k in self.l2.output.keys()}
-        for k, v in self.l2.output.items():
-            for j in v:
-                print('L3: ' + j, sep=': ')
-                # if Logical.is_python(j):
-                #     print('TRUE')
-                #     fitness[k] += .3
-                # else:
-                #     print('False')
-                if len(j) == 3:
-                    fitness[k] += 1
-                    if j == 'AAA':
-                        fitness[k] += 1
+        fitness = self.l3.check_fitness(self.l2.output)
+        # fitness = {k: 0 for k in self.l2.output.keys()}
+        # for k, v in self.l2.output.items():
+        #     for j in v:
+        #         print('L3: ' + j, sep=': ')
+        #         # if Logical.is_python(j):
+        #         #     print('TRUE')
+        #         #     fitness[k] += .3
+        #         # else:
+        #         #     print('False')
+        #         if len(j) == 3:
+        #             fitness[k] += 1
+        #             if j == 'AAA':
+        #                 fitness[k] += 1
 
         # Signal fitness back to layer 2
         self.l2.node.update(fitness)
@@ -315,7 +346,7 @@ if __name__ == '__main__':
     agent = Agent('agentD3T2', in_data, is_seq=False)
 
     # Train and validate the agent
-    # agent.train_layer1(l1_train, l1_vald)
+    # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
     agent.start()
