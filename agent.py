@@ -108,17 +108,16 @@ class Agent(threading.Thread):
         
         # Init layer 2 nodes (each node loads prev state from file, if exists)
         # TODO: Describe indexing
-        # import time
-        # print('doing L2....')
-        # time.sleep(5)
-        # for i in range(self.l2_depth):
-        #     id2 = id_prefix + 'lv2_node_' + str(i)
-        # print('done w/ L2')
-        # time.sleep(10)
-        # exit()
-        id2 = id_prefix + 'lv2_node'
+        import time
+        print('doing L2....')
+        time.sleep(5)
+        for i in range(self.l2_depth):
+            id2 = id_prefix + 'lv2_node_' + str(i)
+            self.l2.node = GPMask(id2, 15, 15, self.l1_depth, CON_OUT, False)
+        print('done w/ L2')
+        time.sleep(10)
+        exit()
 
-        self.l2.node = GPMask(id2, 15, 15, self.l1_depth, CON_OUT, False)
 
         # Init layers 2 & 3 (each will load prev state from file, if exists)
         id3 = id_prefix + 'lv3_node'
