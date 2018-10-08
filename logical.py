@@ -3,8 +3,8 @@
     for more info.
 
     Module Structure:
-        Class Logical is the main interface. Console and log output is handled
-        by classlib.ModelHandler().
+        Class Logical contains static methods for determining various kinds
+        of logical associations.
 
     Dependencies:
         Requests
@@ -13,63 +13,41 @@
         See "__main__" for example usage.
 
     TODO:
-        Add log handler
+        Ensure string passed to is_python won't break anything
 
 
     Author: Dustin Fast, 2018
 """
-
+import os
+import sys
+import queue
 import requests
+import multiprocessing
 
 class Logical(object):
-    """ A module for determining logical/conceptual associatitivy, calling
-        the user-supplied success and fail functions as appropriate.
-        Ex: Given a string such as "ball", the function Logical.is_noun,
-            and a list of success and fail functions, determines if the 
-            string represents a noun. If so, calls every function in success
-            list. Else, calls every function in the fail list. 
+    """ Static methods for determining logical/conceptual associativity. Ex:
+        Logical.is_noun("ball") returns True, where Logical.is_noun("kick")
+        returns False.
     """
-    def __init__(self, ID):
-        """ Accepts: ID (str) denoting the object instances unique identifier.
-        """
-        self.ID = ID
-    
-    def is_valid(self, data, try_func, succ_funcs=[], fail_funcs=[]):
-        """ Returns True iff try_func(data['string']) returns True.
-            Additionally, calls f(data['args']) for every f in succ_funcs if
-            the try_func call returns True, else calls f(data['args']) for 
-            every f in fail_funcs.
-            Accepts:
-                data (dict)       : Must contain at least two keys - 'string'
-                                    and 'args', where 'string' is the
-                                    string to be evaluated and 'args'
-                                    are the arguments (of any type) passed
-                                    to f's in succ_funcs and fail_funcs.
-                try_func (func)   : A function for evaluating each 
-                                    data['string'] (ex: Logical.is_python).
-                                    May be any function returning True or 
-                                    False (or any other falsey value).
-                succ_funcs(list)  : Optional. Functions to call when try_func 
-                                    returns True. Each must accept the args 
-                                    given by data['args'].
-                succ_funcs(list)  : Optional. Functions to call when try_func 
-                                    returns False. Each must accept the args 
-                                    given by data['args'].
-        """
-        for d in data:
-            args = d['args']
-            [[succ_f(args) for succ_f in succ_funcs] if try_func(d['string'])
-             else [fail_f(args) for fail_f in fail_funcs]]
-        
     @staticmethod
-    def is_python(string):
+    def is_python(string, timeout=5):
         """ Returns true iff the given string is a valid python string, as
-            determined by attempting to compile the string into byte code.
+            determined by an eval/exec of the given string - this occurs in
+            a seperate process, so the current applicaton is not affected.
+            Accepts:
+                string (str)    : The string to be checked
+                timeout (int)   : Give up after "timeout" seconds (0=never).
+                                  On timeout, False is returned.
         """
+        # return_queue = multiprocessing.Queue()  # Subproc results queue
+        subproc = _ExecProc()
+        subproc.start()
         try:
-            compile(string, '<string>', 'exec')
-            return True
-        except:
+            subproc.in_queue.put_nowait(string)
+            results = subproc.out_queue.get(timeout=timeout)
+            return results
+        except queue.Empty:
+            subproc.terminate()
             return False
         
     @staticmethod
@@ -101,22 +79,46 @@ class Logical(object):
             print("ERROR: HTTP GET failed for is_noun - Connection error.")
 
 
+class _ExecProc(multiprocessing.Process):
+    """ A processes for performing an exec in a seperate memory space, with
+        STDOUT redirected to null, so we don't see exec's output (if any).
+        Accepts (passed in via self.in_queue): 
+            A string to be exec'd.
+        Returns (via self.out_queue):
+            "True" if the given string can be succesfully exec'd, else "False".
+    """
+    def __init__(self):
+        super(_ExecProc, self).__init__()
+        self.in_queue = multiprocessing.Queue()
+        self.out_queue = multiprocessing.Queue()
+
+    def run(self):
+        string = self.in_queue.get()  # Wait for input string
+
+        # "exec" the string with stdout to null so we don't see its output
+        with open(os.devnull, 'w') as sys.stdout:
+            try:
+                exec(string)
+                self.out_queue.put_nowait(True)
+            except:
+                self.out_queue.put_nowait(False)
+
+
 if __name__ == '__main__':
-    # Define data to be evaluated
-    data_valid_python1 = {'string': 'print("test")',
-                          'args': 'string = "print("test")"'}
-    data_valid_python2 = {'string': 'a = 3',
-                          'args': 'string = "a = 3'}
-    data_invalid_python = {'string': 'a++',
-                           'args': 'string = "a++"'}
+    # Determine if 4 seperate strings are valid python
+    test_str = "print('test')"                              # valid
+    result = Logical.is_python(test_str)
+    print('"%s" is valid python? %s' % (test_str, result))
 
-    data = [data_valid_python1, data_valid_python2, data_invalid_python]
+    test_str = "a = 3; b = a"                               # valid
+    result = Logical.is_python(test_str)
+    print('"%s" is valid python? %s' % (test_str, result))
 
-    # Define try, success, and fail functions
-    try_func = Logical.is_python
-    success_funcs = [lambda x: print('Valid: ' + str(x))]
-    fail_funcs =  [lambda x: print('Invalid: ' + str(x))]
+    test_str = "a = b"                                      # b is not defined
+    result = Logical.is_python(test_str)
+    print('"%s" is valid python? %s' % (test_str, result))
 
-    # Init object and evaluate data
-    logical = Logical('demo')
-    logical.is_valid(data, try_func, success_funcs, fail_funcs)
+    test_str = "a = 3; a++"                                 # a++ is not python
+    result = Logical.is_python(test_str)
+    print('"%s" is valid python? %s' % (test_str, result))
+    
