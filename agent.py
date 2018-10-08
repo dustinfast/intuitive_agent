@@ -62,7 +62,7 @@ class ConceptualLayer(object):
     """ An abstraction of the agent's conceptual layer (i.e. layer one). 
         Each node loads it's previous state from file, if exists, on init.
         Note: This layer must be trained offline via self.train(). After 
-        training, the model will save itself iff PERSIST.
+        training, each node saves its model to file iff PERSIST.
         """
     def __init__(self, id_prefix, depth, dims, inputs):
         """ Accepts:
@@ -104,8 +104,8 @@ class IntuitiveLayer(object):
         chars. The mapping of ID's to ADDR's is saved in the agents model file
         On init, each node will load itself from file, if exists.
         Note: This layer is trained in an "online" fashion. As the agent runs,
-        each node in this layer updates its model file iff PERSIST.
-              
+        each node in this layer updates its model file with a call to
+        node.update() iff PERSIST.
     """ 
     def __init__(self, id_prefix, load_map):
         """ Accepts:
