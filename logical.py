@@ -14,6 +14,7 @@
 
     TODO:
         Ensure string passed to is_python won't break anything
+        Imprive is_python perf by using a presistent process
 
 
     Author: Dustin Fast, 2018
@@ -47,6 +48,7 @@ class Logical(object):
             results = subproc.out_queue.get(timeout=timeout)
             return results
         except queue.Empty:
+            print('TIMEOUT OCCURRED!')
             subproc.terminate()
             return False
         
