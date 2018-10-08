@@ -2,7 +2,7 @@
 """ The top-level module for the intuitive agent application. 
     See README.md for description of the agent and the application as a whole.
         
-    If CON_OUT = True:
+    If CONSOLE_OUT = True:
         The Agent and its sub-modules print their output to stdout
 
     If PERSIST = True:
@@ -52,7 +52,7 @@ from genetic import GPMask
 from logical import Logical
 from classlib import ModelHandler, DataFrom
 
-CON_OUT = True
+CONSOLE_OUT = True
 PERSIST = True
 MODEL_EXT = '.agent'
 FITNESS_MODE = Logical.is_python
@@ -75,7 +75,7 @@ class ConceptualLayer(object):
 
         for i in range(depth):
             ID = id_prefix + 'L1_node_' + str(i)
-            self.node.append(ANN(ID, dims[i], CON_OUT, PERSIST))
+            self.node.append(ANN(ID, dims[i], CONSOLE_OUT, PERSIST))
             self.output.append([None for i in range(depth)])
             self.node[i].set_labels(inputs[i].class_labels)
     
@@ -119,7 +119,7 @@ class IntuitiveLayer(object):
         if not self.nodes.get(nodeID):
             sz = len(nodeID)
             max_trees = sz * 10
-            node = GPMask(nodeID, max_trees, 15, sz, CON_OUT, False)
+            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, PERSIST)
             self.nodes[nodeID] = node
         else:
             node = self.nodes[nodeID]
@@ -203,7 +203,7 @@ class Agent(threading.Thread):
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
         f_load = "self.load('MODEL_FILE')"
-        self.model = ModelHandler(self, CON_OUT, PERSIST,
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
                                   load_func=f_load)
@@ -325,7 +325,7 @@ class Agent(threading.Thread):
             
         return l1_depth, l1_dims
 
-    
+
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
     in_data = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
