@@ -54,13 +54,15 @@ from classlib import ModelHandler, DataFrom
 CONSOLE_OUT = True
 PERSIST = True
 MODEL_EXT = '.agent'
-FITNESS_MODE = Logical.is_python
+MAX_L2_DEPTH = 15                   # Has big perf effect
+FITNESS_MODE = Logical.is_python    # The agent's "goal" in life
 
 
 class ConceptualLayer(object):
     """ An abstraction of the agent's conceptual layer (i.e. layer one). 
         Each node loads it's previous state from file, if exists, on init.
-        Note: This layer must be trained offline via self.train().
+        Note: This layer must be trained offline via self.train(). After 
+        training, the model will save itself iff PERSIST.
         """
     def __init__(self, id_prefix, depth, dims, inputs):
         """ Accepts:
@@ -96,31 +98,39 @@ class ConceptualLayer(object):
 class IntuitiveLayer(object):
     """ An abstration of the agent's Intuitive layer (i.e. layer two). 
         A node is created dynamically for each unique layer-one output 
-        via self.set_node(). On init, each node will load itself from file, 
-        if exists.
-        Note: This layer is trained in an "online" fashion as the agent runs.
+        via self.set_node(). Each node has an ID and an ADDR. The ID is used
+        for saving the model, where ADDR is the string passed to set_node when
+        the node was created. This keeps filenames simple and free of special
+        chars. The mapping of ID's to ADDR's is saved in the agents model file
+        On init, each node will load itself from file, if exists.
+        Note: This layer is trained in an "online" fashion. As the agent runs,
+        each node in this layer updates its model file iff PERSIST.
               
     """ 
     def __init__(self, id_prefix):
-        self.ID = id_prefix + 'L2_nodes'
-        self.nodes = {}     # All L2 nodes: { ID: node }
+        self.id_prefix = id_prefix + 'L2_node_'
+        self.nodes = {}     # All L2 nodes: { ADDR: node }
+        self.ID_map = {}    # A mapping of node IDs to address
         self.node = None    # Currently active node
         self.output = None  # Placholder for output
 
-    def set_node(self, nodeID):
+    def set_node(self, node_addr):
         """ If self.node[ID] exists, sets self.node to that node. Else, creates
             a new node at that ID before setting self.node to it. In this way
-            each unqiue output gets it's own intutive "attention" mask.
+            each unique output gets it's own intutive "attention" mask.
             Accepts:
-                nodeID (str)  : A string (generally some layer one output)
+                node_addr (str)  : A string (usually some layer-one output)
         """
-        if not self.nodes.get(nodeID):
-            sz = len(nodeID)
-            max_trees = sz * 10
-            node = GPMask(nodeID, max_trees, 15, sz, CONSOLE_OUT, PERSIST)
-            self.nodes[nodeID] = node
+        if not self.nodes.get(node_addr):
+            ID = self.id_prefix + str(len(self.ID_map.keys()))  # new node ID
+            sz = len(node_addr)                                 # inputs size
+            trees = sz * 10                                     # max trees
+            node = GPMask(ID, trees, MAX_L2_DEPTH, sz, CONSOLE_OUT, PERSIST)
+
+            self.ID_map[ID] = node_addr
+            self.nodes[node_addr] = node
         else:
-            node = self.nodes[nodeID]
+            node = self.nodes[node_addr]
         self.node = node
 
 
@@ -234,11 +244,11 @@ class Agent(threading.Thread):
             self.l1.output[i] = self.l1.node[i].classify(inputs)
             
         # --------------------- Update Layer 2 ------------------------
-        l2_nodeID = ''.join(self.l1.output)
+        l2_node_addr = ''.join(self.l1.output)
         if self.verbose:
             self.model.log(
-                'L2 node[%s] input:\n%s' % (l2_nodeID, self.l1.output))
-        self.l2.set_node(l2_nodeID)
+                'L2 node[%s] input:\n%s' % (l2_node_addr, self.l1.output))
+        self.l2.set_node(l2_node_addr)
         self.l2.output = self.l2.node.forward(
             list([self.l1.output]), self.seq_inputs, verbose=self.verbose)
         
@@ -316,25 +326,25 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
-               DataFrom('static/datasets/test/test3_2.dat', normalize=True),
-               DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
+    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
-    l1_train = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
-                DataFrom('static/datasets/test/test3_2.dat', normalize=True),
-                DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
+    l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
+                DataFrom('static/datasets/letters.csv', normalize=True),
+                DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
-    l1_vald = [DataFrom('static/datasets/test/test3_1.dat', normalize=True),
-               DataFrom('static/datasets/test/test3_2.dat', normalize=True),
-               DataFrom('static/datasets/test/test3_3.dat', normalize=True)]
+    l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
-    agent = Agent('agentD3T2', in_data, is_seq=False)
+    agent = Agent('agent1', in_data, is_seq=False)
 
     # Train and validate the agent
-    # agent.l1.train(l1_train, l1_vald)
+    agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
     agent.start(max_iters=1, verbose=True)

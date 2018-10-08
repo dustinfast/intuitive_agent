@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 import pandas as pd
 
-OUT_PATH = 'var/models/'
+OUT_PATH = 'var/models'
 
 LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
