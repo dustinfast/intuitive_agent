@@ -13,6 +13,7 @@
 
 import os
 import logging
+import logging.handlers
 
 import torch
 from torch.utils.data import Dataset
@@ -20,11 +21,12 @@ from torch.autograd import Variable as V
 import pandas as pd
 
 OUT_PATH = 'var/models'
+
 LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
+LOG_SIZE = 10 * 1048576  # x * bytes in a mb
+LOG_FILES = 2
 
-
-# Begin Classes ----------------------------------------------------------- #
 
 class ModelHandler(object):
     """ The ModelHandler, used by many of the inutive agent's classes for
@@ -223,21 +225,42 @@ class DataFrom(Dataset):
         return (t - self.norm_min) / (self.norm_max - self.norm_min)
 
 
-# End Classes ----------------------------------------------------------- #
-# Begin Functions ------------------------------------------------------- #
-
-def easy_join(lst, seperator, last_seperator):
-    """ Given a list, seperator (str), and last element seperator (str),
-        returns a string of the list items in joined as specified. Example:
-            Given lst = ['one', 'two', 'three'],
-                  seperator = ', '
-                  last_sep = ', and'
-            Returns "one, two, and three"
+class Logger(logging.Logger):
+    """ An extension of Python's logging.Logger. Implements log file rotation
+        and optional console output.
     """
-    listlen = len(lst)
-    if listlen > 1:
-        return seperator.join(lst[:-1]) + last_seperator + lst[-1]
-    elif listlen == 1:
-        return lst[0]
-    elif listlen == 0:
-        return ''
+
+    def __init__(self,
+                 name,
+                 console_output=False,
+                 level=LOG_LEVEL,
+                 num_files=LOG_FILES,
+                 max_filesize=LOG_SIZE):
+        """
+        """
+        logging.Logger.__init__(self, name, level)
+
+        # Define output formats
+        log_fmt = '%(asctime)s - %(levelname)s @ %(module)s: %(message)s'
+        log_fmt = logging.Formatter(log_fmt + '')
+
+        # Init log file rotation
+        fname = 'logs/' + name + '.log'
+        rotate_handler = logging.handlers.RotatingFileHandler(fname,
+                                                              max_filesize,
+                                                              num_files)
+        rotate_handler.setLevel(level)
+        rotate_handler.setFormatter(log_fmt)
+        self.addHandler(rotate_handler)
+
+        if console_output:
+            console_fmt = '%(asctime)s - %(levelname)s @ %(module)s:'
+            console_fmt += '\n%(message)s'
+            console_fmt = logging.Formatter(console_fmt)
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(level + 10)
+            console_handler.setFormatter(console_fmt)
+            self.addHandler(console_handler)
+
+
+
