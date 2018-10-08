@@ -33,7 +33,11 @@
         Auto-tuned training lr/epochs 
         Agent should write to var/models/agent folder
         L2 train/validate function
+        Agent model: trained, labels, 
+        logarithmic increase to fitness[k]
+        Add branching after some accuracy threshold
         REPL (Do this last)
+
 
     Author: Dustin Fast, 2018
 """
@@ -84,29 +88,42 @@ class Agent(threading.Thread):
         self.seq_inputs = is_seq    # Denote input_data is sequential in nature
 
         # Determine agent shape from input_data
-        dims = tuple(self._get_dimensions(input_data))
+        dims = tuple(self._shape_fromdata(input_data))
         self.l1_depth = dims[0]
+        self.l2_depth = dims[2]
         l1_dims = dims[1]
 
         # Declare layers
-        self.layer1 = Layer(node=[], output=[])
-        self.layer2 = Layer(node=None, output=[])
-        self.layer3 = Layer(node=None, output=[])
+        self.l1 = Layer(node=[], output=[])
+        self.l2 = Layer(node={}, output=[])
+        self.l3 = Layer(node=None, output=[])
 
         # Init layer 1 nodes (each node loads prev state from file, if exists)
         id_prefix = self.ID + '_'
         for i in range(self.l1_depth):
             id1 = id_prefix + 'lv1_node_' + str(i)
-            self.layer1.node.append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
-            self.layer1.output.append([None for i in range(self.l1_depth)])
-            self.layer1.node[i].set_labels(self.inputs[i].class_labels)
+            self.l1.node.append(ANN(id1, l1_dims[i], CON_OUT, PERSIST))
+            self.l1.output.append([None for i in range(self.l1_depth)])
+            self.l1.node[i].set_labels(self.inputs[i].class_labels)
+        
+        # Init layer 2 nodes (each node loads prev state from file, if exists)
+        # TODO: Describe indexing
+        # import time
+        # print('doing L2....')
+        # time.sleep(5)
+        # for i in range(self.l2_depth):
+        #     id2 = id_prefix + 'lv2_node_' + str(i)
+        # print('done w/ L2')
+        # time.sleep(10)
+        # exit()
+        id2 = id_prefix + 'lv2_node'
+
+        self.l2.node = GPMask(id2, 15, 15, self.l1_depth, CON_OUT, False)
 
         # Init layers 2 & 3 (each will load prev state from file, if exists)
-        id2 = id_prefix + 'lv2_node'
         id3 = id_prefix + 'lv3_node'
 
-        self.layer2.node = GPMask(id2, 5, 15, dims[0], CON_OUT, PERSIST)
-        self.layer3.node = Logical(id3)
+        self.l3.node = Logical
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -121,7 +138,7 @@ class Agent(threading.Thread):
         str_out += 'l1_depth: ' + str(self.l1_depth) + '\n)'
         return str_out
 
-    def train_layer1(self, L1_train, L1_val, epochs=100, lr=.01, alpha=.9):
+    def train_layer1(self, L1_train, L1_val, epochs=500, lr=.01, alpha=.9):
         """ Trains the agent's layer one from the given data sets.
             Accepts:
                 L1_train (DataFrom)     : L1 training data
@@ -132,9 +149,9 @@ class Agent(threading.Thread):
         """
         # Train and validate each layer 1 node
         for i in range(self.l1_depth):
-            self.layer1.node[i].train(
+            self.l1.node[i].train(
                 L1_train[i], epochs=epochs, lr=lr, alpha=alpha , noise=None)
-            self.layer1.node[i].validate(L1_val[i], verbose=True)
+            self.l1.node[i].validate(L1_val[i], verbose=True)
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -154,30 +171,34 @@ class Agent(threading.Thread):
         # --------------------- Update  Layer 1 ---------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
+            # self.model.log('Feeding L1, node ' + str(i) + ' w:\n' + str(inputs))
 
             # Output is node's classification
-            self.layer1.output[i] = self.layer1.node[i].classify(inputs)
+            self.l1.output[i] = self.l1.node[i].classify(inputs)
             
         # --------------------- Update Layer 2 ------------------------
-        self.model.log('Feeding L2 w:\n' + str(self.layer1.output))
-        self.layer2.output = self.layer2.node.forward(
-            list(self.layer1.output), self.seq_inputs)
+        # self.model.log('Feeding L2 w:\n' + str(self.l1.output))
+        self.l2.output = self.l2.node.forward(
+            list([self.l1.output]), self.seq_inputs, verbose=True)
         
         # --------------------- UpdateLayer 3 --------------------------
-        self.model.log('Feeding L3 w:\n' + str(self.layer2.output))
+        # self.model.log('Feeding L3 w:\n' + str(self.l2.output))
 
         # Check fitness of each l2 result
-        fitness = {k: 0 for k in self.layer2.output.keys()}
-        for k, v in self.layer2.output.items():
+        fitness = {k: 0 for k in self.l2.output.keys()}
+        for k, v in self.l2.output.items():
             for j in v:
-                print('L3: ' + j)
-                if Logical.is_python(j):
-                    print('TRUE!')
-                    fitness[k] += .3
+                print('L3: ' + j, sep=': ')
+                # if Logical.is_python(j):
+                #     print('TRUE')
+                #     fitness[k] += .3
+                # else:
+                #     print('False')
+                if len(j) >= 2 and len(j) <= 3:
+                    fitness[k] += .5
 
         # Signal fitness back to layer 2
-        self.layer2.node.update(fitness)
+        self.l2.node.update(fitness)
 
         # TODO: Send feedback / noise param / "in context" to level 1
 
@@ -206,31 +227,35 @@ class Agent(threading.Thread):
         """ Stops the thread. May be called from the REPL, for example.
         """
         self.running = False
-        self.join()
+        # TODO: self.join()
         self.model.log(output_str)
 
     @staticmethod
-    def _get_dimensions(in_data):
-        """ Helper function - determines agent's shape and output.
+    def _shape_fromdata(in_data):
+        """ Determines agent's shape from the given list of data sets
             Returns:
-                A 2-tuple: (int, [int, int, int]), i.e. depth and L1 dims.
+                A 2-tuple representing L1 depth, L1 dims, and l2 depth
+                    as (int, [int, int, int], int) 
             Assumes:
                 Agent layer 1 is composed of ANN's with 3 layers (x, h, and y)
+                For each 
             Accepts:
                 in_data (list)     : A list of DataFrom objects
         """
-        depth = len(in_data)
+        l1_depth = len(in_data)
         l1_dims = []
+        l2_depth = 1
 
-        for i in range(depth):
+        for i in range(l1_depth):
             l1_dims.append([])                              # New L1 dimension
             l1_dims[i].append(in_data[i].feature_count)     # x node count
             l1_dims[i].append(0)                            # h sz placeholder
             l1_dims[i].append(in_data[i].class_count)       # y node count
-            l1_dims[i][1] = int(
+            l1_dims[i][1] = int(     
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-
-        return depth, l1_dims
+            l2_depth *= len(in_data[i].class_labels)        # Num possible L1
+                                                            #     permutations
+        return l1_depth, l1_dims, l2_depth
 
     
 if __name__ == '__main__':
