@@ -107,7 +107,11 @@ class IntuitiveLayer(object):
         each node in this layer updates its model file iff PERSIST.
               
     """ 
-    def __init__(self, id_prefix):
+    def __init__(self, id_prefix, load_map):
+        """ Accepts:
+            id_prefix (str)     : Each nodes ID prefix. Ex: 'Agent1_'
+            load_map (dict)     : A mapping of node IDs to ADDR's
+        """
         self.id_prefix = id_prefix + 'L2_node_'
         self.nodes = {}     # All L2 nodes: { ADDR: node }
         self.ID_map = {}    # A mapping of node IDs to address
