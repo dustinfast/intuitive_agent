@@ -32,7 +32,6 @@
     # TODO: 
         Auto-tuned training lr/epochs based on data files
         Agent should write to var/models/agent folder
-        Agent model: trained, labels, 
         L2.nodes[].weight (logarithmic decay over time/frequency)
         L2 Persistence
         L2 logger
@@ -200,11 +199,12 @@ class Agent(threading.Thread):
         self.seq_inputs = is_seq    # Denote input_data is sequential in nature
         self.max_iters = None       # Num input_data iters, set on self.start
         self.verbose = False        # Denotes verbose output, set on self.start
+        self.L2_nodemap = None      # Pop via ModelHandler, for loading L2
         id_prefix = self.ID + '_'   # Sets up the ID prefix for the sub-layers
 
         # Init the load, save, log, and console output handler
-        f_save = "self.save('MODEL_FILE')"
-        f_load = "self.load('MODEL_FILE')"
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
@@ -216,11 +216,28 @@ class Agent(threading.Thread):
 
         # Init layers
         self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
-        self.l2 = IntuitiveLayer(id_prefix)
+        self.l2 = IntuitiveLayer(id_prefix, self.L2_nodemap)
         self.l3 = LogicalLayer(FITNESS_MODE)
 
     def __str__(self):
         return 'ID = ' + self.ID
+
+    def _save(self, filename):
+        """ Saves a model of the agent. For use by ModelHandler.
+        """
+        with open(filename, 'w') as f:
+            # Write model params to file in dict form
+            f.write("{'L2_node_map': " + str(self.l2.ID_map))
+            f.write("}\n")
+
+    def _load(self, filename):
+        """ Loads a the agent model from file. For use by ModelHandler.
+        """
+        # Restore params from the given file
+        with open(filename, 'r') as f:
+            for k, v in eval(''.join(f.readlines())).items():
+                if k == 'L2_node_map':
+                    self.l2_nodemap = v
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -267,6 +284,9 @@ class Agent(threading.Thread):
         self.l2.node.update(fitness)
 
         # TODO: Send feedback / noise / "in context" to level 1
+
+        if PERSIST:
+            self.model.save()
 
     def start(self, max_iters=10, verbose=False):
         """ Starts the agent thread.
@@ -348,7 +368,7 @@ if __name__ == '__main__':
     agent = Agent('agent1', in_data, is_seq=False)
 
     # Train and validate the agent
-    agent.l1.train(l1_train, l1_vald)
+    # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
     agent.start(max_iters=1, verbose=True)
