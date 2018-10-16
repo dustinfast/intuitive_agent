@@ -31,14 +31,12 @@
 
     # TODO: 
         Auto-tuned training lr/epochs based on data files
-        Agent should write to var/models/agent folder
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
-        L2 Persistence
-        L2 logger
-        L3 logger
+        L3 logger?
         Add branching after some accuracy threshold
         REPL (Do this last)
+        Refactor layer classes to their indiv files?
 
 
     Author: Dustin Fast, 2018
@@ -100,8 +98,6 @@ class ConceptualLayer(object):
             self.node[i].train(
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self.node[i].validate(val_data[i], verbose=True)
-
-    # TODO def forward(object):
 
 
 class IntuitiveLayer(object):
@@ -320,13 +316,11 @@ class Agent(threading.Thread):
         self.l2.output = self.l2.forward(l2_input, self.is_seq)
         
         # --------------------- Step Layer 3 -------------------------------
-        # Layer 3 evaluates the fitness of it's input from L2
+        # L3 evals fitness of it's input from L2 and backpropagates signals
         # ------------------------------------------------------------------
         self.model.log('-- Feeding L3 w/\n%s' % str(self.l2.output))
-        # Check L2's result for fitness and signal that info back to it.
         fitness = self.l3.check_fitness(self.l2.output)
 
-        # -------------------- Backpropogate signals -----------------------
         self.model.log('-- L2 Backprop w/\n%s' % str(fitness))
         self.l2.update(fitness)
         # TODO: Send feedback /noise/"in context" to level 1
