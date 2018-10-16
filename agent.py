@@ -350,14 +350,14 @@ class Agent(threading.Thread):
         self.running = True
         iters = 0
 
-        # Step the agent foreward with each row of each dataset
+        # Step the agent forward with each row of each dataset
         while self.running:
             for i in range(min_rows):
                 row = []
                 for j in range(self.l1_depth):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
-
+                
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1

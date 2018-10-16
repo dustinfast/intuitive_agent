@@ -61,11 +61,11 @@ class GPMask(karoo_gp.Base_GP):
         self.terminals = [chr(i) for i in range(65, min(91, 65 + input_sz))]
         self.terminals += ['s']
         
-        # Mutation ratios
-        self.evolve_repro = int(0.1 * self.tree_pop_max)
-        self.evolve_point = int(0.1 * self.tree_pop_max)
-        self.evolve_branch = int(0.1 * self.tree_pop_max)
-        self.evolve_cross = int(0.7 * self.tree_pop_max)
+        # Update gp mutation ratios based on max pop given
+        self.evolve_repro = int(0.1 * max_pop)
+        self.evolve_point = int(0.1 * max_pop)
+        self.evolve_branch = int(0.1 * max_pop)
+        self.evolve_cross = int(0.7 * max_pop)
 
         # Init the load, save, log, and console output handler
         f_save = "self.save('MODEL_FILE')"
@@ -93,6 +93,14 @@ class GPMask(karoo_gp.Base_GP):
         str_out += 'inputs: ' + str(self.input_sz) + '\n)'
         return str_out
 
+    def _set_mratio(self, max_pop):
+        """ Sets the mutation ratios, based on the given max population metric.
+        """
+        self.evolve_repro = int(0.1 * max_pop)
+        self.evolve_point = int(0.1 * max_pop)
+        self.evolve_branch = int(0.1 * max_pop)
+        self.evolve_cross = int(0.7 * max_pop)
+
     def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
             Iff no filename given, does not save to file but instead returns
@@ -105,6 +113,7 @@ class GPMask(karoo_gp.Base_GP):
         writestr += ", 'tourn_size': " + str(self.tourn_size)
         writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
         writestr += ", 'generation_id': " + str(self.generation_id)
+        writestr += ", 'pop_tree_type': '" + str(self.pop_tree_type) + "'"
         writestr += ", 'population': \"" + str(self.population_a) + "\""
         writestr += "}"
 
@@ -131,7 +140,9 @@ class GPMask(karoo_gp.Base_GP):
         self.tree_depth_max = data['tree_depth_max']
         self.tourn_size = data['tourn_size']
         self.tree_pop_max = data['tree_pop_max']
+        self._set_mratio(self.tree_pop_max)
         self.generation_id = data['generation_id']
+        self.pop_tree_type = data['pop_tree_type']
         self.population_a = eval(data['population'])
 
     def _trees_byfitness(self):
