@@ -68,8 +68,8 @@ class GPMask(karoo_gp.Base_GP):
         self.evolve_cross = int(0.7 * self.tree_pop_max)
 
         # Init the load, save, log, and console output handler
-        f_save = "self._save('MODEL_FILE')"
-        f_load = "self._load('MODEL_FILE')"
+        f_save = "self.save('MODEL_FILE')"
+        f_load = "self.load('MODEL_FILE')"
         self.model = ModelHandler(self, console_out, persist,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
@@ -93,41 +93,55 @@ class GPMask(karoo_gp.Base_GP):
         str_out += 'inputs: ' + str(self.input_sz) + '\n)'
         return str_out
 
-    def _save(self, filename):
+    def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
+            If no filename given, does not save to file but instead returns 
+            the string that would otherwise have been written.
         """
+        # Build model params in dict form
+        writestr = "{'operands': " + str(self.terminals)
+        writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
+        writestr += ", 'tourn_size': " + str(self.tourn_size)
+        writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
+        writestr += ", 'generation_id': " + str(self.generation_id)
+        writestr += "}\n"
+        writestr += str(self.population_a)
+
+        if not filename:
+            return writestr
+
         with open(filename, 'w') as f:
-            # Write model params to file in dict form
-            f.write("{'operands': " + str(self.terminals))
-            f.write(", 'tree_depth_max': " + str(self.tree_depth_max))
-            f.write(", 'tourn_size': " + str(self.tourn_size))
-            f.write(", 'tree_pop_max': " + str(self.tree_pop_max))
-            f.write(", 'generation_id': " + str(self.generation_id))
-            f.write("}\n")
+            f.write(writestr)
             
-            # Write current population to file
-            f.write(str(self.population_a))
-            
-    def _load(self, filename):
+    def load(self, filename, from_str=None):
         """ Loads model & population from from file. For use by ModelHandler.
+            Iff from_str, does not load from file but instead loads from the
+            given string as if it were file contents.
         """
         # Build params and population strings from the given file
+
+        if from_str:
+            loadfrom = nofile
+        else:
+            with open(filename, 'r') as f:
+                loadfrom = f
+
+        # Extract params and population from the data
         params = ''
         population = ''
         param_flag = True
-        with open(filename, 'r') as f:
-            for line in f:
-                for ch in line:
-                    if param_flag:
-                        params += ch
-                        if ch == '}': param_flag = False
-                    else:
-                        population += ch
+        for line in loadfrom:
+            for ch in line:
+                if param_flag:
+                    params += ch
+                    if ch == '}': param_flag = False
+                else:
+                    population += ch
 
         # Restore population
         self.population_a = eval(population)
 
-        # Restore params (note: not all params written need restored)
+        # Restore params (note: not all theparams written need to be restored)
         for k, v in eval(params).items():
             if k == 'operands':
                 self.terminals = v
@@ -288,7 +302,7 @@ class GPMask(karoo_gp.Base_GP):
 
 
 if __name__ == '__main__':
-    # Import for pretty-printing results dict - unneeded except for demo below
+    # Import for pretty-printing of demo data
     from pprint import pprint
 
     # Example input row
