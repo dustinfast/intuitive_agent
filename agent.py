@@ -6,9 +6,9 @@
         The Agent and its sub-modules print their output to stdout
 
     If PERSIST = True:
-        Agent and its sub-module states persist between executions via files
-        PERSIST_PATH/ID.MODEL_EXT, and their output is logged to 
-        PERSIST_PATH/ID.LOG_EXT.
+        Agent and its sub-module states persist between executions via file
+        PERSIST_PATH/ID.MODEL_EXT (saved each time the agent thread stops).
+        Output is also logged to PERSIST_PATH/ID.LOG_EXT. 
 
     Module Structure:
         Agent() is the main interface. It expects training/validation data as
@@ -32,7 +32,8 @@
     # TODO: 
         Auto-tuned training lr/epochs based on data files
         Agent should write to var/models/agent folder
-        L2.nodes[].weight (logarithmic decay over time/frequency)
+        L2.node_map[].weight (logarithmic decay over time/frequency)
+        L2.node_map[].kb/correct/solution strings
         L2 Persistence
         L2 logger
         L3 logger
@@ -52,14 +53,21 @@ from classlib import ModelHandler, DataFrom
 
 CONSOLE_OUT = True
 PERSIST = True
-MODEL_EXT = '.agent'
+MODEL_EXT = '.agnt'
+L2_EXT = '.intu'
 MAX_L2_DEPTH = 15                   # Has big perf effect
 FITNESS_MODE = Logical.is_python    # The agent's "goal" in life
 
 
 class ConceptualLayer(object):
-    """ An abstraction of the agent's conceptual layer (i.e. layer one). 
-        Each node loads it's previous state from file, if exists, on init.
+    """ An abstraction of the agent's conceptual layer (i.e. layer one), which
+        represents its "sensory input". 
+        Provides interfaces to each layer-node and a its current output.
+        Nodes at this level are ANN's representing a single sensory 
+        input processing channel, where the input to each channel is a sample
+        of some subset of the agent's environment. Its output is then its
+        "classification" of  what that input represents.
+        On init, each node is loaded by the ANN object from file iff PERSIST.
         Note: This layer must be trained offline via self.train(). After 
         training, each node saves its model to file iff PERSIST.
         """
@@ -69,7 +77,7 @@ class ConceptualLayer(object):
             depth (int)         : How many nodes this layer contains
             dims (list)         : 3 ints - ANN in/hidden/output layer sizes
         """
-        self.node = []      # A list of nodes, one for each layer 1 depth
+        self.node = []  # A list of nodes, one for each layer 1 depth
         self.output = []    # A list of outputs, one for each node
         self.depth = depth  # This layers depth. I.e. it's node count
 
@@ -93,52 +101,96 @@ class ConceptualLayer(object):
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self.node[i].validate(val_data[i], verbose=True)
 
+    # TODO def forward(object):
+
 
 class IntuitiveLayer(object):
-    """ An abstration of the agent's Intuitive layer (i.e. layer two). 
-        A node is created dynamically for each unique layer-one output 
-        via self.set_node(). Each node has an ID and an ADDR. The ID is used
-        for saving the model, where ADDR is the string passed to set_node when
-        the node was created. This keeps filenames simple and free of special
-        chars. The mapping of ID's to ADDR's is saved in the agents model file
-        On init, each node will load itself from file, if exists.
-        Note: This layer is trained in an "online" fashion. As the agent runs,
-        each node in this layer updates its model file with a call to
-        node.update() iff PERSIST.
+    """ An abstration of the agent's Intuitive layer (i.e. layer two), which 
+        represents the intutive "bubbling up" of "pertinent" information to 
+        layers above it.
+        Nodes at this level represent a single genetically evolving population
+        of expressions. They are created dynamically, one for each unique 
+        input the layer receives (from layer-one), with each node's ID then 
+        being that unique input (as a string).
+        A population's expressions represent a "mask" applied to the layer's 
+        input as it passes through it.
+        On init, each previously existing node is loaded from file iff PERSIST.
+        Note: This layer is trained in an "online" fashion - as the agent runs,
+        its model file is updated for every call to node.update() iff PERSIST.
     """ 
-    def __init__(self, id_prefix, load_map):
+    def __init__(self, ID, id_prefix):
         """ Accepts:
-            id_prefix (str)     : Each nodes ID prefix. Ex: 'Agent1_'
-            load_map (dict)     : A mapping of node IDs to ADDR's
+            ID (str)            : This layer's unique ID
+            id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_L2_'
         """
-        self.id_prefix = id_prefix + 'L2_node_'
-        self.nodes = {}     # All L2 nodes: { ADDR: node }
-        self.ID_map = {}    # A mapping of node IDs to address
-        self.node = None    # Currently active node
-        self.output = None  # Placholder for output
+        self.ID = ID
+        self.output = None      # Placeholder for current output
+        self._curr_node = None  # The node for the current unique input
+        self._nodes = {}        # Nodes, as: { nodeID: (obj_instance, output) }
+        self.id_prefix = id_prefix + ID + '_node_'
+        
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+                                  model_ext=L2_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
 
-    def set_node(self, node_addr):
-        """ If self.node[ID] exists, sets self.node to that node. Else, creates
-            a new node at that ID before setting self.node to it. In this way
-            each unique output gets it's own intutive "attention" mask.
-            Accepts:
-                node_addr (str)  : A string (usually some layer-one output)
+    def forward(self, data, is_seq, verbose=False):
+        """ Returns the layer's output after moving the given input_data 
+            through it and setting the currently active node according to it
+            (the node is created first, if it doesn't already exist).
+            Note: We leave it to the caller to set self.output, if desired.
         """
-        if not self.nodes.get(node_addr):
-            ID = self.id_prefix + str(len(self.ID_map.keys()))  # new node ID
-            sz = len(node_addr)                                 # inputs size
-            trees = sz * 10                                     # max trees
-            node = GPMask(ID, trees, MAX_L2_DEPTH, sz, CONSOLE_OUT, PERSIST)
-
-            self.ID_map[ID] = node_addr
-            self.nodes[node_addr] = node
+        if not self._nodes.get(data):
+            # Init new node ("False", because we'll handle its persistence)
+            sz = len(data)
+            pop_sz = sz * 10
+            node = GPMask(data, pop_sz, MAX_L2_DEPTH, sz, CONSOLE_OUT, False)
+            self._nodes[data] = (node, None)
         else:
-            node = self.nodes[node_addr]
-        self.node = node
+            node = self._nodes[data][0]
+
+        self._curr_node = node
+        return node.forward(list([data]), is_seq, verbose)
+
+    def update(self, data):
+        """ Updates the currently active node with the given fitness data dict.
+        """
+        self._curr_node.update(data)
+
+    def _save(self, filename):
+        """ Saves the layer to file. For use by ModelHandler.
+        """
+        # Write each node ID and asociated data as { "ID": ("save_string") }
+        with open(filename, 'w') as f:
+            f.write('{')
+            for k, v in self._nodes.items():
+                savestr = v[0].save()
+                f.write('"' + k + '": """' + savestr + '""", ')
+            f.write('}')
+
+    def _load(self, filename):
+        """ Loads the layer from file. For use by ModelHandler.
+        """
+        # Restore the layer nodes, one at a time
+        self._nodes = {}
+        i = 0
+
+        with open(filename, 'r') as f:
+            data = f.read()
+            
+        for k, v in eval(data).items():
+            ID = self.id_prefix + str(i)
+            node = GPMask(ID, 0, 0, 0, CONSOLE_OUT, False)
+            node.load(v, not_file=True)
+            self._nodes[k] = (node, None)
+            i += 1
 
 
 class LogicalLayer(object):
-    """ An abstraction of the agent's Logical layer (i.e. layer three).
+    """ An abstraction of the agent's Logical layer (i.e. layer three), which
+        evaluates the fitness of it's input according to the given mode.
         This layer does no persistence or logging at this time.
     """
     def __init__(self, mode):
@@ -151,7 +203,7 @@ class LogicalLayer(object):
 
     def check_fitness(self, results):
         """ Checks each result in results and returns a dict of fitness scores
-            corresponding to each, as determon based on self.mode.
+            corresponding to each, as determined by self.mode.
             Accepts:
                 results (dict)  : { ID: result }
             Returns:
@@ -160,7 +212,7 @@ class LogicalLayer(object):
         fitness = {k: 0 for k in results.keys()}
         for k, v in results.items():
             for j in v:
-                print('L3: ' + j, sep=': ')
+                # print('L3: ' + j, sep=': ')
                 # if Logical.is_python(j):
                 #     print('TRUE')
                 #     fitness[k] += .3
@@ -168,8 +220,6 @@ class LogicalLayer(object):
                 #     print('False')
                 if len(j) == 3:
                     fitness[k] += 1
-                    if j == 'AAA':
-                        fitness[k] += 1
         return fitness
 
 
@@ -180,6 +230,8 @@ class Agent(threading.Thread):
         the terminal with 'agent start', which runs the agent as a seperate
         thread (running this does not cause the agent to block, so the user
         can stop it from the command line, etc.
+        Persistence: On each iteration of the input data, the agent is saved 
+        to a file.
     """
     def __init__(self, ID, input_data, is_seq):
         """ Accepts the following parameters:
@@ -196,11 +248,9 @@ class Agent(threading.Thread):
         self.model = None           # The model handler
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = input_data    # The agent's "sensory input" data
-        self.seq_inputs = is_seq    # Denote input_data is sequential in nature
+        self.is_seq = is_seq        # Denote input_data is sequential in nature
         self.max_iters = None       # Num input_data iters, set on self.start
-        self.verbose = False        # Denotes verbose output, set on self.start
         self.L2_nodemap = None      # Pop via ModelHandler, for loading L2
-        id_prefix = self.ID + '_'   # Sets up the ID prefix for the sub-layers
 
         # Init the load, save, log, and console output handler
         f_save = "self._save('MODEL_FILE')"
@@ -215,8 +265,9 @@ class Agent(threading.Thread):
         self.l1_depth = dims[0]
 
         # Init layers
+        id_prefix = self.ID + '_'   # Sub-layer node-ID prefix
         self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
-        self.l2 = IntuitiveLayer(id_prefix, self.L2_nodemap)
+        self.l2 = IntuitiveLayer(id_prefix + 'L2', id_prefix)
         self.l3 = LogicalLayer(FITNESS_MODE)
 
     def __str__(self):
@@ -224,22 +275,19 @@ class Agent(threading.Thread):
 
     def _save(self, filename):
         """ Saves a model of the agent. For use by ModelHandler.
+            Also causes saves to occur for each agent layer (and associated
+            nodes) that perform online learning.
         """
-        with open(filename, 'w') as f:
-            # Write model params to file in dict form
-            f.write("{'L2_node_map': " + str(self.l2.ID_map))
-            f.write("}\n")
+        self.l2.model.save()
 
     def _load(self, filename):
-        """ Loads a the agent model from file. For use by ModelHandler.
+        """ Loads the agent model from file. For use by ModelHandler.
+            Also causes loads to occur for each agent layer (and associated
+            nodes) that perform online learning.
         """
-        # Restore params from the given file
-        with open(filename, 'r') as f:
-            for k, v in eval(''.join(f.readlines())).items():
-                if k == 'L2_node_map':
-                    self.l2_nodemap = v
+        self.l2.model.load()
 
-    def _step(self, data_row):
+    def _step(self, data_row, verbose=True):
         """ Steps the agent forward one step with the given data row: A list
             of tuples (one for each depth) of inputs and targets. Each tuple,
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
@@ -248,6 +296,8 @@ class Agent(threading.Thread):
                 data_row (list)     : [inputs, ... ]
                 verbose (bool)      : Denotes verbose output
         """
+        self.model.log('\n****** AGENT STEP ******')
+
         # Ensure well formed data_row
         if len(data_row) != self.l1_depth:
             err_str = 'Bad data_row size - expected sz ' + str(self.l1_depth)
@@ -255,47 +305,40 @@ class Agent(threading.Thread):
             self.model.log(err_str, logging.error)
             return
 
-        # --------------------- Update Layer 1 ----------------------
+        # --------------------- Step Layer 1 -------------------------------
+        # L1.output[i] becomes L1.node[i]'s classification of self.inputs[i]
+        # ------------------------------------------------------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            if self.verbose:
-                self.model.log('L1 node[%d] input:\n%s' % (i, str(inputs)))
-
-            # Output[i] is node[i]'s classification
-            self.l1.output[i] = self.l1.node[i].classify(inputs)
+            self.model.log('-- Feeding L1 node[%d] w/\n%s' % (i, str(inputs)))
+            self.l1.output[i] = self.l1.node[i].classify(data_row[i][0])
             
-        # --------------------- Update Layer 2 ------------------------
-        l2_node_addr = ''.join(self.l1.output)
-        if self.verbose:
-            self.model.log(
-                'L2 node[%s] input:\n%s' % (l2_node_addr, self.l1.output))
-        self.l2.set_node(l2_node_addr)
-        self.l2.output = self.l2.node.forward(
-            list([self.l1.output]), self.seq_inputs, verbose=self.verbose)
+        # --------------------- Step Layer 2 -------------------------------
+        # L2.output becomes the "masked" versions of all L1.outputs
+        # ------------------------------------------------------------------
+        l2_input = ''.join(self.l1.output)  # stringify L1's output
+        self.model.log('-- Feeding L2 node[%s] w/\n: %s' % (l2_input, self.l1.output))
+        self.l2.output = self.l2.forward(l2_input, self.is_seq)
         
-        # --------------------- UpdateLayer 3 --------------------------
-        if self.verbose:
-            self.model.log('Feeding L3 w:\n%s' % str(self.l2.output))
-
-        # Check fitness of each l2 result
+        # --------------------- Step Layer 3 -------------------------------
+        # Layer 3 evaluates the fitness of it's input from L2
+        # ------------------------------------------------------------------
+        self.model.log('-- Feeding L3 w/\n%s' % str(self.l2.output))
+        # Check L2's result for fitness and signal that info back to it.
         fitness = self.l3.check_fitness(self.l2.output)
-        
-        # Signal fitness back to layer 2
-        self.l2.node.update(fitness)
 
-        # TODO: Send feedback / noise / "in context" to level 1
+        # -------------------- Backpropogate signals -----------------------
+        self.model.log('-- L2 Backprop w/\n%s' % str(fitness))
+        self.l2.update(fitness)
+        # TODO: Send feedback /noise/"in context" to level 1
 
-        if PERSIST:
-            self.model.save()
-
-    def start(self, max_iters=10, verbose=False):
+    def start(self, max_iters=10):
         """ Starts the agent thread.
             Accepts:
                 max_iters (int)     : Max times to iterate data set (0=inf)
                 verbose (bool)      : Denotes verbose output
         """
         self.max_iters = max_iters
-        self.verbose = verbose
         threading.Thread.start(self)
 
     def run(self):
@@ -321,9 +364,14 @@ class Agent(threading.Thread):
 
     def stop(self, output_str='Agent stopped.'):
         """ Stops the thread. May be called from the REPL, for example.
+            Also logs the given output string (if any) and saves the agent to
+            file (iff PERSIST).
         """
         self.running = False
         self.model.log(output_str)
+
+        if PERSIST:
+            self.model.save()
 
     @staticmethod
     def _shape_fromdata(in_data):
@@ -371,4 +419,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=1, verbose=True)
+    agent.start(max_iters=1)

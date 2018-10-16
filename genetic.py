@@ -243,7 +243,6 @@ class GPMask(karoo_gp.Base_GP):
 
             if verbose:
                 self.model.log(str(treeID) + ' - Mask: ' + str(orig_expr))
-                # self.model.log(str(treeID) + ' - Expr: ' + str(new_expr))
 
             # Eval new expr against each input & associate it with its tree
             for row in inputs:

@@ -140,13 +140,13 @@ class ModelHandler(object):
     def load(self):
         """ Loads the model from the file given by self._model_file.
         """
-        try:
-            eval(self._load_func)
-            self.log('Loaded model from: ' + self._model_file)
-        except Exception as e:
-            err_str = 'Error loading model: ' + str(e)
-            self.log(err_str, level=logging.error)
-            raise Exception(err_str)
+        # try:
+        eval(self._load_func)
+        self.log('Loaded model from: ' + self._model_file)
+        # except Exception as e:
+        #     err_str = 'Error loading model: ' + str(e)
+        #     self.log(err_str, level=logging.error)
+        #     raise Exception(err_str)
 
 
 class DataFrom(Dataset):
