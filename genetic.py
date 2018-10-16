@@ -95,17 +95,18 @@ class GPMask(karoo_gp.Base_GP):
 
     def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
-            If no filename given, does not save to file but instead returns 
-            the string that would otherwise have been written.
+            Iff no filename given, does not save to file but instead returns
+            the string that would have otherwise been written.
         """
         # Build model params in dict form
-        writestr = "{'operands': " + str(self.terminals)
+        writestr = "{ 'operands': " + str(self.terminals)
+        writestr += ", 'inputs_sz': " + str(self.input_sz)
         writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
         writestr += ", 'tourn_size': " + str(self.tourn_size)
         writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
         writestr += ", 'generation_id': " + str(self.generation_id)
-        writestr += "}\n"
-        writestr += str(self.population_a)
+        writestr += ", 'population': \"" + str(self.population_a) + "\""
+        writestr += "}"
 
         if not filename:
             return writestr
@@ -113,40 +114,25 @@ class GPMask(karoo_gp.Base_GP):
         with open(filename, 'w') as f:
             f.write(writestr)
             
-    def load(self, filename, from_str=None):
-        """ Loads model & population from from file. For use by ModelHandler.
-            Iff from_str, does not load from file but instead loads from the
+    def load(self, filename, not_file=False):
+        """ Loads model from file. For use by ModelHandler.
+            Iff not_file, does not load from file but instead loads from the
             given string as if it were file contents.
         """
-        # Build params and population strings from the given file
-
-        if from_str:
-            loadfrom = from_str
+        if not_file:
+            loadfrom = filename
         else:
             with open(filename, 'r') as f:
-                loadfrom = f
+                loadfrom = f.read()
 
-        # Extract params and population from the data
-        params = ''
-        population = ''
-        param_flag = True
-        for line in loadfrom:
-            for ch in line:
-                if param_flag:
-                    params += ch
-                    if ch == '}': param_flag = False
-                else:
-                    population += ch
-
-        # Restore population
-        self.population_a = eval(population)
-
-        # Restore params (note: not all theparams written need to be restored)
-        for k, v in eval(params).items():
-            if k == 'operands':
-                self.terminals = v
-            elif k == 'generation_id':
-                self.generation_id = v
+        data = eval(loadfrom.replace('\n', ''))
+        self.terminals = data['operands']
+        self.input_sz = data['inputs_sz']
+        self.tree_depth_max = data['tree_depth_max']
+        self.tourn_size = data['tourn_size']
+        self.tree_pop_max = data['tree_pop_max']
+        self.generation_id = data['generation_id']
+        self.population_a = eval(data['population'])
 
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -256,10 +242,10 @@ class GPMask(karoo_gp.Base_GP):
                     new_expr += ch
 
             if verbose:
-                self.model.log('Mask ' + str(treeID) + ': ' + str(orig_expr))
-                # print(new_expr)  # debug
+                self.model.log(str(treeID) + ' - Mask: ' + str(orig_expr))
+                # self.model.log(str(treeID) + ' - Expr: ' + str(new_expr))
 
-            # Eval reformed expr against each input, noting the source tree ID
+            # Eval new expr against each input & associate it with its tree
             for row in inputs:
                 results[treeID].append(eval(new_expr))
 
@@ -309,7 +295,7 @@ if __name__ == '__main__':
     row = [['A', 'B', 'C', 'D', 'E', 'F']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('treegp', 25, 15, len(row[0]), console_out=True, persist=False)
+    ev = GPMask('treegp', 25, 15, len(row[0]), console_out=True, persist=True)
 
     sequential = False  # Denote inputs should not be considered sequential
     epochs = 50         # Learning epochs
