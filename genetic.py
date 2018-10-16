@@ -121,7 +121,7 @@ class GPMask(karoo_gp.Base_GP):
         # Build params and population strings from the given file
 
         if from_str:
-            loadfrom = nofile
+            loadfrom = from_str
         else:
             with open(filename, 'r') as f:
                 loadfrom = f
