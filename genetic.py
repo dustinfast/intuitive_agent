@@ -34,12 +34,12 @@ class GPMask(karoo_gp.Base_GP):
         to "mask" data between layers two and three. Learns in an online, or
         can be pre-trained.
     """
-    def __init__(self, ID, max_pop, max_depth, input_sz, console_out, persist):
+    def __init__(self, ID, max_pop, max_depth, input_sz, cout, persist, model=False):
         """ ID (str)                : This object's unique ID number
             max_pop (int)           : Max number of expression trees
             max_depth (int)         : Max tree mutate depth
             input_sz (int)          : Max number of inputs to expect
-            console_out (bool)      : Output log stmts to console flag
+            cout (bool)      : Output log stmts to console flag
             persist (bool)          : Persit mode flag
         """
         super(GPMask, self).__init__()
@@ -67,13 +67,16 @@ class GPMask(karoo_gp.Base_GP):
         self.evolve_branch = int(0.1 * max_pop)
         self.evolve_cross = int(0.7 * max_pop)
 
-        # Init the load, save, log, and console output handler
-        f_save = "self.save('MODEL_FILE')"
-        f_load = "self.load('MODEL_FILE')"
-        self.model = ModelHandler(self, console_out, persist,
-                                  model_ext=MODEL_EXT,
-                                  save_func=f_save,
-                                  load_func=f_load)
+        # Init the load, save, log, and console output handler if none given
+        if not model:
+            f_save = "self.save('MODEL_FILE')"
+            f_load = "self.load('MODEL_FILE')"
+            self.model = ModelHandler(self, cout, persist,
+                                      model_ext=MODEL_EXT,
+                                      save_func=f_save,
+                                      load_func=f_load)
+        else:
+            self.model = model
 
         # Init first generation if not already loaded by ModelHandler
         try:
@@ -189,7 +192,7 @@ class GPMask(karoo_gp.Base_GP):
 
         return results
 
-    def forward(self, inputs, ordered, max_results=0, split=.8, verbose=False):
+    def forward(self, inputs, ordered, max_results=0, split=.8):
         """ Peforms each tree's expression on the given inputs and returns 
             the results as a dict denoting the source tree ID
             Accepts:
@@ -252,8 +255,7 @@ class GPMask(karoo_gp.Base_GP):
                 else:
                     new_expr += ch
 
-            if verbose:
-                self.model.log(str(treeID) + ' - Mask: ' + str(orig_expr))
+            # print(str(treeID) + ' - Mask: ' + str(orig_expr))  # debug
 
             # Eval new expr against each input & associate it with its tree
             for row in inputs:
@@ -305,7 +307,7 @@ if __name__ == '__main__':
     row = [['A', 'B', 'C', 'D', 'E', 'F']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('treegp', 25, 15, len(row[0]), console_out=True, persist=True)
+    ev = GPMask('treegp', 25, 15, len(row[0]), cout=True, persist=True)
 
     sequential = False  # Denote inputs should not be considered sequential
     epochs = 50         # Learning epochs
@@ -316,7 +318,7 @@ if __name__ == '__main__':
         print('\n*** Epoch %d ***' % z)
 
         # Get results using current population
-        results = ev.forward(row, ordered=sequential, verbose=True)
+        results = ev.forward(row, ordered=sequential)
         print('Results:'); pprint(results)
 
         # Update fitness of each tree - 

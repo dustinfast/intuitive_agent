@@ -136,7 +136,7 @@ class IntuitiveLayer(object):
                                   save_func=f_save,
                                   load_func=f_load)
 
-    def forward(self, data, is_seq, verbose=False):
+    def forward(self, data, is_seq):
         """ Returns the layer's output after moving the given input_data 
             through it and setting the currently active node according to it
             (the node is created first, if it doesn't already exist).
@@ -152,7 +152,7 @@ class IntuitiveLayer(object):
             node = self._nodes[data][0]
 
         self._curr_node = node
-        return node.forward(list([data]), is_seq, verbose)
+        return node.forward(list([data]), is_seq)
 
     def update(self, data):
         """ Updates the currently active node with the given fitness data dict.
@@ -207,7 +207,7 @@ class LogicalLayer(object):
             Accepts:
                 results (dict)  : { ID: result }
             Returns:
-                fitness (dict)  : { ID: fitness score (float)}
+                fitness (dict)  : { ID: fitness score (float) }
         """
         fitness = {k: 0 for k in results.keys()}
         for k, v in results.items():
@@ -287,14 +287,13 @@ class Agent(threading.Thread):
         """
         self.l2.model.load()
 
-    def _step(self, data_row, verbose=True):
+    def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
             of tuples (one for each depth) of inputs and targets. Each tuple,
             by depth, is fed to layer one, who's ouput is fed to layer 2, etc.
             Note: At this time, the 'targets' in the data row are not used.
             Accepts:
                 data_row (list)     : [inputs, ... ]
-                verbose (bool)      : Denotes verbose output
         """
         self.model.log('\n****** AGENT STEP ******')
 
@@ -336,7 +335,6 @@ class Agent(threading.Thread):
         """ Starts the agent thread.
             Accepts:
                 max_iters (int)     : Max times to iterate data set (0=inf)
-                verbose (bool)      : Denotes verbose output
         """
         self.max_iters = max_iters
         threading.Thread.start(self)
@@ -357,7 +355,7 @@ class Agent(threading.Thread):
                 for j in range(self.l1_depth):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
-                
+
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1
