@@ -14,9 +14,10 @@
         See "__main__" for example usage.
 
     TODO:
-        Ensure string passed to is_python won't break the process.
-        Improve is_python perf by using a presistent process
-
+        String passed to is_python could break things. Try just compiling?
+        is_python is slow - need to find way to keep exec isolated without 
+            the overhead of creating a new process each time.
+        is_python)func should be in a sep mem space, like is_python
 
     Author: Dustin Fast, 2018
 """
@@ -33,18 +34,14 @@ class Connector(object):
         returns False.
     """
     @staticmethod
-    def is_python(string, is_kwd=False, timeout=5):
-        """ Returns true iff the given string is valid python.
+    def is_python(string, timeout=5):
+        """ Returns true iff the given string is a valid python program with
+            no syntax errors that generates no exception on execution.
             Accepts:
                 string (str)    : The string to be checked
-                is_kwd (bool)   : True - denotes check for python keyword.
-                                : False - denotes check for python "program".
                 timeout (int)   : Give up after "timeout" seconds (0=never).
                                   On timeout, False is returned.
         """
-
-        if is_kwd:
-            return keyword.iskeyword(string)
 
         subproc = _ExecProc()
         subproc.start()
@@ -56,6 +53,28 @@ class Connector(object):
         except queue.Empty:
             print('TIMEOUT OCCURRED!')
             subproc.terminate()
+            return False
+
+    @staticmethod
+    def is_python_kwd(string):
+        """ Returns true iff the given string is a python keyword.
+        """
+        return keyword.iskeyword(string)
+
+    @staticmethod
+    def is_python_func(string):
+        """ Returns true iff the given string is a python function name.
+        """
+        def test():
+            pass
+        
+        # Ensure string isn't an actual func call; we don't want to eval those!
+        if '(' in string:
+            return False
+
+        try:
+            return callable(eval(string))
+        except:
             return False
    
     @staticmethod
@@ -114,15 +133,26 @@ class _ExecProc(multiprocessing.Process):
 
 if __name__ == '__main__':
     # Test the following set of string for Python attributes
-    strings = ["if", "print('if')", "a = b", "a = 3; b = a", "a = 3; a++"]
-
-    print('Is python program?')
-    for s in strings:
-        result = Connector.is_python(s)
-        print('"%s": %s' % (s, result))
+    strings = ["if",
+               "print",
+               "print('if')",
+               "a = 3",
+               "a = b",
+               "a = 3; b = a", 
+               "a = 3; a++", "test"]
 
     print('\nIs python keyword?')
     for s in strings:
-        result = Connector.is_python(s, is_kwd=True)
+        result = Connector.is_python_kwd(s)
+        print('"%s": %s' % (s, result))
+
+    print('\nIs python function?')
+    for s in strings:
+        result = Connector.is_python_func(s)
+        print('"%s": %s' % (s, result))
+
+    print('\nIs python program?')
+    for s in strings:
+        result = Connector.is_python(s)
         print('"%s": %s' % (s, result))
     
