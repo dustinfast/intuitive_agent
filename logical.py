@@ -11,15 +11,11 @@
 
     Usage: 
         See "__main__" for example usage.
-<<<<<<< HEAD
-        
-=======
 
     TODO:
-        Ensure string passed to is_python won't break anything
-        Imprive is_python perf by using a presistent process
+        Ensure string passed to is_python won't break the process.
+        Improve is_python perf by using a presistent process
 
->>>>>>> 8302aad349e5e2f3bf79e29b8d91adb1a29dec64
 
     Author: Dustin Fast, 2018
 """
