@@ -13,7 +13,8 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        forward() results should denote which inputs were in prev context?
+        forward() results should denote which inputs were in prev context
+        input_sz currently limited to <= 26
 
     Author: Dustin Fast, 2018
 """
@@ -27,6 +28,8 @@ import karoo_gp.karoo_gp_base_class as karoo_gp
 from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
+OPERATORS = [['+', '2']]
+# OPERATORS = [['+', '2'], ['-', '1']]
 
 
 class GPMask(karoo_gp.Base_GP):
@@ -54,7 +57,7 @@ class GPMask(karoo_gp.Base_GP):
         self.tree_type = 'r'                    # Allow full and sparse trees
         self.fitness_type = 'max'               # "Maximizing" fitness kernel
         self.tourn_size = int(max_pop / 3)      # Fitness tourny size
-        self.functions = array([['+', '2']])    # Expression operators/arity
+        self.functions = array(OPERATORS)    # Expression operators/arity
         self.precision = 6                      # Fitness floating points
 
         # Terminal symbols - one ucase letter for each input, plus label(s)
@@ -62,21 +65,20 @@ class GPMask(karoo_gp.Base_GP):
         self.terminals += ['s']
         
         # Update gp mutation ratios based on max pop given
-        self.evolve_repro = int(0.1 * max_pop)
-        self.evolve_point = int(0.1 * max_pop)
+        self.evolve_repro = int(0.2 * max_pop)
+        self.evolve_point = int(0.2 * max_pop)
         self.evolve_branch = int(0.1 * max_pop)
-        self.evolve_cross = int(0.7 * max_pop)
+        self.evolve_cross = int(0.4 * max_pop)
 
         # Init the load, save, log, and console output handler if none given
-        if not model:
+        self.model = model
+        if not self.model:
             f_save = "self.save('MODEL_FILE')"
             f_load = "self.load('MODEL_FILE')"
             self.model = ModelHandler(self, cout, persist,
                                       model_ext=MODEL_EXT,
                                       save_func=f_save,
                                       load_func=f_load)
-        else:
-            self.model = model
 
         # Init first generation if not already loaded by ModelHandler
         try:

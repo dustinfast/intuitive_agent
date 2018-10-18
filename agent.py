@@ -38,6 +38,7 @@
         REPL vs. Flask interface?
         Changing in_data row count breaks ANN's; it determines their init shape 
         Accuracy: Print on stop, Check against kb
+        GP tunables - mutation ratios, pop sizes, etc
         
 
 
