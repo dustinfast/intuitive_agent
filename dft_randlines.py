@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 """ Randomizes the lines in a file specified at the cmd line.
-    Cautin: Mem complexity of this module grows linearly with given file size.
-
-    # TODO: Move to datasets/tools
+    Caution: Mem complexity of this module grows linearly with given file size.
 
     Author: Dustin Fast, 2018
 """
@@ -21,7 +19,12 @@ if __name__ == '__main__':
         random.shuffle(lines)
 
         # Write them back to the file
+        stop_at = len(lines) - 1
         with open(sys.argv[1], 'w') as f:
-            [f.write(l + "\n") for l in lines]
+            for i, line in enumerate(lines):
+                f.write(line)
+                if i < stop_at:
+                    f.write('\n')
+
     except IndexError:
         print('ERROR: No filename specified from command line.')
