@@ -45,7 +45,7 @@ import threading
 
 from ann import ANN
 from genetic import GPMask
-from logical import Logical
+from connector import Connector
 from classlib import ModelHandler, DataFrom
 
 CONSOLE_OUT = True
@@ -53,7 +53,7 @@ PERSIST = True
 MODEL_EXT = '.agnt'
 L2_EXT = '.intu'
 MAX_L2_DEPTH = 15                   # Has big perf effect
-FITNESS_MODE = Logical.is_python    # The agent's "goal" in life
+FITNESS_MODE = Connector.is_python    # The agent's "goal" in life
 
 
 class ConceptualLayer(object):
@@ -208,7 +208,7 @@ class LogicalLayer(object):
         for k, v in results.items():
             for j in v:
                 # print('L3: ' + j, sep=': ')
-                # if Logical.is_python(j):
+                # if Connector.is_python(j):
                 #     print('TRUE')
                 #     fitness[k] += .3
                 # else:
