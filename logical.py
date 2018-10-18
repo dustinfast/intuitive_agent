@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-""" A module for determining logical/conceptual associatitivy. See object def
-    for more info.
+""" A module for determining logical "connectedness" of a set of symbols.
+    See object definition for more info.
 
     Module Structure:
         Class Logical contains static methods for determining various kinds
@@ -54,9 +54,9 @@ class Logical(object):
         
     @staticmethod
     def is_noun(string, lang='en'):
-        """ Returns True iff the given string is a noun in the english language.
-            Results are obtained from OxfordDictionaries.com via HTTP GET.
-            For API info, see: https://developer.oxforddictionaries.com
+        """ Returns True iff the given string is a noun in the english language
+            according to OxfordDictionaries.com (via HTTP GET - for API info,
+            see: https://developer.oxforddictionaries.com).
             Accepts:
                 string (str)    : The string of interest
                 lang (str)      : Language. Ex: en = english, es = spanish, etc.

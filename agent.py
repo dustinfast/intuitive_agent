@@ -33,10 +33,9 @@
         Auto-tuned training lr/epochs based on data files
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
-        L3 logger?
+        L3 logging?
         Add branching after some accuracy threshold
-        REPL (Do this last)
-        Refactor layer classes to their indiv files?
+        REPL (Do last)
 
 
     Author: Dustin Fast, 2018

@@ -161,13 +161,13 @@ class GPMask(karoo_gp.Base_GP):
     def _symp_expr(self, treeID):
         """ Returns the sympified expression of the tree with the given ID
         """
-        self.fx_eval_poly(self.population_a[treeID])  # Updates self.algo_sym
+        self.fx_eval_poly(self.population_a[treeID])  # Update self.algo_sym
         return self.algo_sym
 
     def _raw_expr(self, treeID):
         """ Returns the raw expression of the tree with the given ID
         """
-        self.fx_eval_poly(self.population_a[treeID])  # Updates self.algo_raw
+        self.fx_eval_poly(self.population_a[treeID])  # Update self.algo_raw
         return self.algo_raw
 
     def _expr_strings(self, symp_expr=False, w_fit=False):
