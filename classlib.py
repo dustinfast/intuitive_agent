@@ -59,8 +59,8 @@ class ModelHandler(object):
                 save_func = "torch.save(self.state_dict(), 'MODEL_FILE')"
                 load_func = "load_state_dict(torch.load('MODEL_FILE'))"
                 The func string will be used to save/load with eval()
-                Note: The 'MODEL_FILE' placeholder is required.
-                Note: Ensure you import any depencies of save/load funcs
+                Note: The 'MODEL_FILE' placeholder is required iff func !=None
+                Note: Ensure depencies of save/load funcs are imported
         """
         # Model properties
         self._child = child
