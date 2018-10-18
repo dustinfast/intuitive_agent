@@ -167,7 +167,7 @@ class Base_GP(object):
 		self.fittest_dict = {} # temp store all Trees which share the best fitness score
 		self.gene_pool = [] # temp store all Tree IDs for use by Tournament
 		self.class_labels = 0 # temp set a variable which will be assigned the number of class labels (data_y)
-		self.write_runs = True # Flag denoting to write run info to file
+		self.write_runs = False # Flag denoting to write run info to file
 		return
 		
 	
@@ -1706,7 +1706,6 @@ class Base_GP(object):
 			# tree_id = np.random.randint(1, self.tree_pop_max + 1) # former method of selection from the unfiltered population
 			rnd = np.random.randint(len(self.gene_pool)) # select one Tree at random from the gene pool
 			tree_id = int(self.gene_pool[rnd])
-			
 			fitness = float(self.population_a[tree_id][12][1]) # extract the fitness from the array
 			fitness = round(fitness, self.precision) # force 'result' and 'solution' to the same number of floating points
 			

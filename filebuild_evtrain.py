@@ -18,7 +18,6 @@
     Author: Dustin Fast, 2018
 """
 
-from classlib import easy_join
 
 INFILE = 'static/datasets/words.dat'      # File w/single label per line
 OUTFILE = 'static/datasets/words_cat.csv'  # Resulting file
@@ -28,6 +27,24 @@ alpha = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
          'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 
 results = []
+
+
+def easy_join(lst, seperator, last_seperator):
+    """ Given a list, seperator (str), and last element seperator (str),
+        returns a string of the list items in joined as specified. Example:
+            Given lst = ['one', 'two', 'three'],
+                  seperator = ', '
+                  last_sep = ', and'
+            Returns "one, two, and three"
+    """
+    listlen = len(lst)
+    if listlen > 1:
+        return seperator.join(lst[:-1]) + last_seperator + lst[-1]
+    elif listlen == 1:
+        return lst[0]
+    elif listlen == 0:
+        return ''
+
 
 if __name__ == '__main__':
     # Get lines from INFILE as a list

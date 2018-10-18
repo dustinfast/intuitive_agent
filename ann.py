@@ -29,6 +29,7 @@
 """
 
 import logging
+
 import torch
 import torch.nn as nn
 
@@ -130,7 +131,6 @@ class ANN(nn.Module):
             # Output status as specified by stats_at
             if stats_at and epoch % stats_at == 0:
                 self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
-                # self.validate(val_data, verbose=False)  # debug
 
         self.model.log('Training Completed: ' + info_str + '\n')
         self.model.log('Last epcoh loss: {}'.format(curr_loss))
@@ -207,7 +207,6 @@ class ANN(nn.Module):
 
 
 if __name__ == '__main__':
-    # global val_data  # debug
     # Load the training and validation data sets
     'static/datasets/test/test3x2.csv'
     trainfile = 'static/datasets/letter_train.csv'
