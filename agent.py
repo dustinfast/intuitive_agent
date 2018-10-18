@@ -36,6 +36,7 @@
         L3 logging?
         Add branching after some accuracy threshold
         REPL (Do last)
+        Changing in_data row count breaks ANN's - it determines their shape 
 
 
     Author: Dustin Fast, 2018
@@ -51,10 +52,10 @@ from classlib import ModelHandler, DataFrom
 CONSOLE_OUT = True
 PERSIST = True
 MODEL_EXT = '.agnt'
-L2_EXT = '.intu'
-MAX_L2_DEPTH = 15                   # Has big perf effect
-FITNESS_MODE = Connector.is_python    # The agent's "goal" in life
 
+L2_EXT = '.intu'
+L2_MAX_DEPTH = 15                               # Has big perf effect
+L3_FITNESS_MODE = Connector.is_python_kwd       # Fitness evaluator
 
 class ConceptualLayer(object):
     """ An abstraction of the agent's conceptual layer (i.e. layer one), which
@@ -141,7 +142,7 @@ class IntuitiveLayer(object):
             # Init new node ("False", because we'll handle its persistence)
             sz = len(data)
             pop_sz = sz * 10
-            node = GPMask(data, pop_sz, MAX_L2_DEPTH, sz, CONSOLE_OUT, False)
+            node = GPMask(data, pop_sz, L2_MAX_DEPTH, sz, CONSOLE_OUT, False)
             self._nodes[data] = (node, None)
         else:
             node = self._nodes[data][0]
@@ -213,7 +214,10 @@ class LogicalLayer(object):
                 #     fitness[k] += .3
                 # else:
                 #     print('False')
-                if len(j) == 3:
+                if j[0] == 'X' :
+                    if len(j) == 5:
+                        fitness[k] += 1
+                elif len(j) == 3:
                     fitness[k] += 1
         return fitness
 
@@ -263,7 +267,7 @@ class Agent(threading.Thread):
         id_prefix = self.ID + '_'   # Sub-layer node-ID prefix
         self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
         self.l2 = IntuitiveLayer(id_prefix + 'L2', id_prefix)
-        self.l3 = LogicalLayer(FITNESS_MODE)
+        self.l3 = LogicalLayer(L3_FITNESS_MODE)
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -348,7 +352,7 @@ class Agent(threading.Thread):
                 for j in range(self.l1_depth):
                     row.append([row for row in iter(self.inputs[j][i])])
                 self._step(row)
-
+                
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1
@@ -410,4 +414,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=1)
+    agent.start(max_iters=5)

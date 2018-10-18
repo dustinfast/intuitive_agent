@@ -43,6 +43,7 @@ The analytical layer examines the output-nodes of the attentive layer to draw co
 Analyst - Accepts highest weighted input. What does it do with the input? Can it override the weights? We can't choose to focus on one context or another, rather, the environment dictates
 
 ## Notes
+Can learn python and branch into a hiearchy of layers, thanks to relfection
 Purpose of "mistakes" is a signal to "check in" on this process or connectoin or whatever it represents.
 The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
 "Lottery scheduling", but in an evolving way - we learn an optimal schedule according to what is in our current awareness vs what isn't - it can be thought of as a temporal priroirty
