@@ -13,7 +13,8 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py') 
 
     # TODO: 
-        forward() results should denote which inputs were in prev context
+        forward() need to denote which inputs are in curr context
+        forward() perf improvements
         input_sz currently limited to <= 26
 
     Author: Dustin Fast, 2018
@@ -28,8 +29,9 @@ import karoo_gp.karoo_gp_base_class as karoo_gp
 from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
-OPERATORS = [['+', '2']]
-# OPERATORS = [['+', '2'], ['or', '2']]
+# OPERATORS = [['+', '2']]
+OPERATORS = [['+', '2'], ['+ abs', '2']]  # We use abs as our alpha negate op
+NEG_OP = ' abs('                       # String denoting abs operator
 
 
 class GPMask(karoo_gp.Base_GP):
@@ -248,20 +250,50 @@ class GPMask(karoo_gp.Base_GP):
             results[treeID] = []
             orig_expr = str(f_expr(treeID))
 
+            # print(str(treeID) + ' - Mask o: ' + str(orig_expr))  # debug
+
             # Reform the expr by mapping each operand to an input index
+            # At the same time, denote where negate operator gets applied
             #   Ex: expr 'A + 2*D + B' -> 'row[0] + 2*row[3] + row[1]'
             new_expr = ''
+            negate_at = []
+            i_ch = -1
+            i_term = -1
+            goback = len(NEG_OP)
             for ch in orig_expr:
-                if ch in self.terminals:
+                i_ch += 1
+                if ch in self.terminals and ch != 's':
+                    i_term += 1
+
+                    # If term proceeds negate operator, denote and rm
+                    if orig_expr[i_ch - goback:i_ch] == NEG_OP:
+                        negate_at.append(i_term)
+                        new_expr = new_expr[:-goback]
+                    
+                    # Map term to "row[idx]" and add to new expression str
                     new_expr += 'row[' + str(self.terminals.index(ch)) + ']'
+
                 else:
                     new_expr += ch
 
-            # print(str(treeID) + ' - Mask: ' + str(orig_expr))  # debug
+            # Clean up open/close parens - we may have left strays doing neg op
+            new_expr = new_expr.replace('(', '').replace(')', '')
 
-            # Eval new expr against each input & associate it with its tree
+            # print(str(treeID) + ' - Mask n: ' + str(new_expr))  # debug
+
+            # Eval expr against each input
             for row in inputs:
-                results[treeID].append(eval(new_expr))
+                output = eval(new_expr)
+                
+                # Apply negate operators if needed, as previously denoted
+                if negate_at:
+                    r = [c for c in output]
+                    for i in negate_at:
+                        r[i] = self.negate(r[i])
+                    output = ','.join(r)
+                
+                # Associate it with its tree
+                results[treeID].append(output)
 
         # Filter out trees w/no results and return
         return {k: v for k, v in results.items() if v}
@@ -300,6 +332,19 @@ class GPMask(karoo_gp.Base_GP):
         if self.persist:
             self.model.save()
 
+    @staticmethod
+    def negate(x):
+        """ Returns a negated version of the given string/digit.
+        """
+        # String negate
+        if type(x) is str:
+            if x.isupper():
+                return x.lower()
+            return x.lower()
+        
+        # Numerical negate
+        return (x * -1)
+
 
 if __name__ == '__main__':
     # Import for pretty-printing of demo data
@@ -324,11 +369,11 @@ if __name__ == '__main__':
         print('Results:'); pprint(results)
 
         # Update fitness of each tree - 
-        # Our demo's desired result is a string of all D's w/len <=  4
+        # Our demo's desired result is a string of all d's w/len <=  4
         fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
             for j in [j for j in v if len(j) <= 4]:
-                for c in [c for c in j if c == 'D']:
+                for c in [c for c in j if c == 'd']:
                     fitness[k] += 1
 
         # Evolve a new population with the new fitness values
