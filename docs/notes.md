@@ -50,10 +50,10 @@ L2 Tuning:
 3. decrease max pop size if proprtion of unfit to fit outputs calls for it
 
 Branching:
-1. Into a hierarichal structure of agents (faciliated by reflection"
+1. Branch into a hierarichal structure of agents (faciliated by reflection)
 2. L2 branch after some number of increases of the last x iters
 3. Each agent represents a single "concept" such as a letter, or a python kwd
-
+4. If a branch agent does not learn enough over some t, rm it (log to kb?) - it's inputs do not form any concepts
 ## Notes
 Purpose of "mistakes" is a signal to "check in" on this process or connectoin or whatever it represents.
 The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
