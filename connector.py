@@ -16,7 +16,6 @@
     TODO:
         Ensure string passed to is_python won't break the process.
         Improve is_python perf by using a presistent process
-        is_python(mode) for denoting if the string must be compileable
 
 
     Author: Dustin Fast, 2018
@@ -24,6 +23,7 @@
 import os
 import sys
 import queue
+import keyword
 import requests
 import multiprocessing
 
@@ -33,13 +33,19 @@ class Connector(object):
         returns False.
     """
     @staticmethod
-    def is_python(string, timeout=5):
-        """ Returns true iff the given string is a parseable python string
+    def is_python(string, is_kwd=False, timeout=5):
+        """ Returns true iff the given string is valid python.
             Accepts:
                 string (str)    : The string to be checked
+                is_kwd (bool)   : True - denotes check for python keyword.
+                                : False - denotes check for python "program".
                 timeout (int)   : Give up after "timeout" seconds (0=never).
                                   On timeout, False is returned.
         """
+
+        if is_kwd:
+            return keyword.iskeyword(string)
+
         subproc = _ExecProc()
         subproc.start()
         try:
@@ -51,7 +57,7 @@ class Connector(object):
             print('TIMEOUT OCCURRED!')
             subproc.terminate()
             return False
-        
+   
     @staticmethod
     def is_noun(string, lang='en'):
         """ Returns True iff the given string is a noun in the english language
@@ -107,20 +113,16 @@ class _ExecProc(multiprocessing.Process):
 
 
 if __name__ == '__main__':
-    # Determine if 4 seperate strings are valid python
-    test_str = "print('test')"                              # valid
-    result = Connector.is_python(test_str)
-    print('"%s" is valid python? %s' % (test_str, result))
+    # Test the following set of string for Python attributes
+    strings = ["if", "print('if')", "a = b", "a = 3; b = a", "a = 3; a++"]
 
-    test_str = "a = 3; b = a"                               # valid
-    result = Connector.is_python(test_str)
-    print('"%s" is valid python? %s' % (test_str, result))
+    print('Is python program?')
+    for s in strings:
+        result = Connector.is_python(s)
+        print('"%s": %s' % (s, result))
 
-    test_str = "a = b"                                      # b is not defined
-    result = Connector.is_python(test_str)
-    print('"%s" is valid python? %s' % (test_str, result))
-
-    test_str = "a = 3; a++"                                 # a++ is not python
-    result = Connector.is_python(test_str)
-    print('"%s" is valid python? %s' % (test_str, result))
+    print('\nIs python keyword?')
+    for s in strings:
+        result = Connector.is_python(s, is_kwd=True)
+        print('"%s": %s' % (s, result))
     
