@@ -290,7 +290,7 @@ class GPMask(karoo_gp.Base_GP):
                     r = [c for c in output]
                     for i in negate_at:
                         r[i] = self.negate(r[i])
-                    output = ','.join(r)
+                    output = ''.join(r)
                 
                 # Associate it with its tree
                 results[treeID].append(output)
