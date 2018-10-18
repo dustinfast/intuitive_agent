@@ -39,6 +39,7 @@
         Changing in_data row count breaks ANN's; it determines their init shape 
         Accuracy: Print on stop, Check against kb
         GP tunables - mutation ratios, pop sizes, etc
+        Adapt ann.py to accept dataloader and use MNIST (or similiar)
         
 
 
@@ -57,11 +58,11 @@ PERSIST = True
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
-L2_MAX_DEPTH = 15  # > ~15 gives lg time complexity hit
+L2_MAX_DEPTH = 15  # > ~15 gives big time complexity hit
 
 L3_EXT = '.lyr3'
 # L3_ADVISOR = Connector.is_python
-L3_ADVISOR = Connector.is_python_kwd
+L3_ADVISOR = Connector.is_python_func
 
 
 class ConceptualLayer(object):
@@ -412,12 +413,18 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/test/lettersa.csv', normalize=True),
-               DataFrom('static/datasets/test/lettersb.csv', normalize=True),
-               DataFrom('static/datasets/test/lettersc.csv', normalize=True),
-               DataFrom('static/datasets/test/lettersd.csv', normalize=True),
-               DataFrom('static/datasets/test/letterse.csv', normalize=True),
-               DataFrom('static/datasets/test/lettersf.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/test/letters0.csv', normalize=True),
+               DataFrom('static/datasets/test/letters1.csv', normalize=True),
+               DataFrom('static/datasets/test/letters2.csv', normalize=True),
+               DataFrom('static/datasets/test/letters3.csv', normalize=True),
+               DataFrom('static/datasets/test/letters4.csv', normalize=True),
+               DataFrom('static/datasets/test/letters5.csv', normalize=True),
+               DataFrom('static/datasets/test/letters6.csv', normalize=True),
+               DataFrom('static/datasets/test/letters7.csv', normalize=True),
+               DataFrom('static/datasets/test/letters8.csv', normalize=True),
+               DataFrom('static/datasets/test/letters9.csv', normalize=True),
+               DataFrom('static/datasets/test/letters10.csv', normalize=True),
+               DataFrom('static/datasets/test/letters11.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -438,4 +445,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=30)
+    agent.start(max_iters=500)
