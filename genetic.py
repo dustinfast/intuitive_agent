@@ -29,9 +29,9 @@ import karoo_gp.karoo_gp_base_class as karoo_gp
 from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
-# OPERATORS = [['+', '2']]
-OPERATORS = [['+', '2'], ['+ abs', '2']]  # We use abs as our alpha negate op
-NEG_OP = ' abs('                       # String denoting abs operator
+OPERATORS_MODE1 = [['+', '2']]
+OPERATORS_MODE2 = [['+', '2'], ['+ abs', '2']]   # abs used as negate operator
+NEG_OP = ' abs('                                 # String denoting abs operator
 
 
 class GPMask(karoo_gp.Base_GP):
@@ -39,13 +39,17 @@ class GPMask(karoo_gp.Base_GP):
         to "mask" data between layers two and three. Learns in an online, or
         can be pre-trained.
     """
-    def __init__(self, ID, max_pop, max_depth, input_sz, cout, persist, model=False):
+    def __init__(self, ID, max_pop, max_depth, input_sz, cout, persist, 
+                 model=False,
+                 mode=1):
         """ ID (str)                : This object's unique ID number
             max_pop (int)           : Max num expression trees (< 10 not ideal)
             max_depth (int)         : Max tree mutate depth
             input_sz (int)          : Max number of inputs to expect
-            cout (bool)      : Output log stmts to console flag
+            cout (bool)             : Output log stmts to console flag
             persist (bool)          : Persit mode flag
+            model (ModelHandler)    : Model Handeler (optional)
+            mode (int)              : Denotes operator mode (see consts)
         """
         super(GPMask, self).__init__()
         self.ID = ID
@@ -59,7 +63,6 @@ class GPMask(karoo_gp.Base_GP):
         self.tree_type = 'r'                    # Allow full and sparse trees
         self.fitness_type = 'max'               # "Maximizing" fitness kernel
         self.tourn_size = int(max_pop / 3)      # Fitness tourny size
-        self.functions = array(OPERATORS)    # Expression operators/arity
         self.precision = 6                      # Fitness floating points
 
         # Terminal symbols - one ucase letter for each input, plus label(s)
@@ -71,6 +74,10 @@ class GPMask(karoo_gp.Base_GP):
         self.evolve_point = int(0.2 * max_pop)
         self.evolve_branch = int(0.1 * max_pop)
         self.evolve_cross = int(0.4 * max_pop)
+
+        # Set operators
+        operators = {1: OPERATORS_MODE1, 2: OPERATORS_MODE2}.get(mode)
+        self.functions = array(operators)
 
         # Init the load, save, log, and console output handler if none given
         self.model = model
@@ -354,10 +361,10 @@ if __name__ == '__main__':
     row = [['A', 'B', 'C', 'D', 'E', 'F']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('treegp', 20, 10, len(row[0]), cout=True, persist=True)
+    ev = GPMask('treegp', 25, 10, len(row[0]), cout=True, persist=True, mode=1)
 
     sequential = False  # Denote inputs should not be considered sequential
-    epochs = 25         # Learning epochs
+    epochs = 75         # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
@@ -369,11 +376,11 @@ if __name__ == '__main__':
         print('Results:'); pprint(results)
 
         # Update fitness of each tree - 
-        # Our demo's desired result is a string of all d's w/len <=  4
+        # Our demo's desired result is a string of all D's w/len <=  4
         fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
             for j in [j for j in v if len(j) <= 4]:
-                for c in [c for c in j if c == 'd']:
+                for c in [c for c in j if c == 'D']:
                     fitness[k] += 1
 
         # Evolve a new population with the new fitness values
