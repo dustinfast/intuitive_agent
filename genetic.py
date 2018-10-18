@@ -29,7 +29,7 @@ from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
 OPERATORS = [['+', '2']]
-# OPERATORS = [['+', '2'], ['-', '1']]
+# OPERATORS = [['+', '2'], ['or', '2']]
 
 
 class GPMask(karoo_gp.Base_GP):
@@ -39,7 +39,7 @@ class GPMask(karoo_gp.Base_GP):
     """
     def __init__(self, ID, max_pop, max_depth, input_sz, cout, persist, model=False):
         """ ID (str)                : This object's unique ID number
-            max_pop (int)           : Max number of expression trees
+            max_pop (int)           : Max num expression trees (< 10 not ideal)
             max_depth (int)         : Max tree mutate depth
             input_sz (int)          : Max number of inputs to expect
             cout (bool)      : Output log stmts to console flag
@@ -194,13 +194,13 @@ class GPMask(karoo_gp.Base_GP):
 
         return results
 
-    def forward(self, inputs, ordered, max_results=0, split=.8):
+    def forward(self, inputs, ordered, max_results=0, gain=.8):
         """ Peforms each tree's expression on the given inputs and returns 
             the results as a dict denoting the source tree ID
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
                 max_results (int) : Max results to return (0=population size)
-                split (float)     : Ratio of fittest expressions used to
+                gain (float)     : Ratio of fittest expressions used to
                                       randomly chosen expressions used
                 ordered (bool)    : Denotes if the inputs considered sequential
             Returns:
@@ -231,16 +231,16 @@ class GPMask(karoo_gp.Base_GP):
         trees = [t for t in trees if str(f_expr(t)) not in added and
                  (added.add(str(f_expr(t))) or True)]
 
-        # At this point, every t in trees is useable, so do fit/random split
+        # At this point, every t in trees is useable, so do fit/random gain
         # Determine max results
         if not max_results: max_results = self.tree_pop_max
-        fit_count = int(max_results * split)
-        split_trees = trees[:fit_count]
+        fit_count = int(max_results * gain)
+        gain_trees = trees[:fit_count]
         rand_pool = trees[fit_count:]
 
-        while len(split_trees) < max_results and rand_pool:
+        while len(gain_trees) < max_results and rand_pool:
             idx = randint(0, len(rand_pool) - 1)
-            split_trees.append(rand_pool.pop(idx))
+            gain_trees.append(rand_pool.pop(idx))
 
         # Iterate every tree that hasn't been filtered out
         results = {}
@@ -309,10 +309,10 @@ if __name__ == '__main__':
     row = [['A', 'B', 'C', 'D', 'E', 'F']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('treegp', 25, 15, len(row[0]), cout=True, persist=True)
+    ev = GPMask('treegp', 20, 10, len(row[0]), cout=True, persist=True)
 
     sequential = False  # Denote inputs should not be considered sequential
-    epochs = 50         # Learning epochs
+    epochs = 25         # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
@@ -320,15 +320,15 @@ if __name__ == '__main__':
         print('\n*** Epoch %d ***' % z)
 
         # Get results using current population
-        results = ev.forward(row, ordered=sequential)
+        results = ev.forward(row, ordered=sequential, gain=1)
         print('Results:'); pprint(results)
 
         # Update fitness of each tree - 
-        # Our desired result has 'DF' as first 2 chars and a len < 5
+        # Our demo's desired result is a string of all D's w/len <=  4
         fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
-            for j in v:
-                if j[0] == 'D' and j[1] == 'F' and len(j) < 5:
+            for j in [j for j in v if len(j) <= 4]:
+                for c in [c for c in j if c == 'D']:
                     fitness[k] += 1
 
         # Evolve a new population with the new fitness values
