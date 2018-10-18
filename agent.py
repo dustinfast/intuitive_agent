@@ -34,9 +34,11 @@
         Auto-tuned training lr/epochs based on data files
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
-        REPL cmds (Do last): start, clear, train
+        L2 case toggle unary operator
+        REPL vs. Flask interface?
         Changing in_data row count breaks ANN's; it determines their init shape 
-        Print accuracy on stop
+        Accuracy: Print on stop, Check against kb
+        
 
 
     Author: Dustin Fast, 2018
@@ -57,6 +59,7 @@ L2_EXT = '.lyr2'
 L2_MAX_DEPTH = 15  # > ~15 gives lg time complexity hit
 
 L3_EXT = '.lyr3'
+# L3_ADVISOR = Connector.is_python
 L3_ADVISOR = Connector.is_python_kwd
 
 
@@ -201,6 +204,7 @@ class LogicalLayer(object):
         self.ID = ID
         self.mode = mode
         self.node = self.check_fitness
+        self.kb = []  # debug
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=L3_EXT,
                                   save_func='MODEL_FILE',  # i.e., unused
@@ -218,10 +222,15 @@ class LogicalLayer(object):
         for k, v in results.items():
             for j in v:
                 j = j.lower()  # debug/temp fix
+                self.model.log('L3 TRYING: ' + j)
                 if self.mode(j):
-                    self.model.log('L3 TRUE: ' + j)
-                    # print('L3 TRUE: ' + j)  # debug
                     fitness[k] += 1
+                    self.model.log('TRUE!')
+
+                    # debug output
+                    if j not in self.kb:
+                        self.kb.append(j)
+                        print('L3 LEARNED: ' + j)
 
                 # Debug: If starts with 'X', favor len=4, else favor len=3
                 # if j[0] == 'X' :
@@ -402,10 +411,12 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/lettersa.csv', normalize=True),
-               DataFrom('static/datasets/lettersb.csv', normalize=True),
-               DataFrom('static/datasets/lettersc.csv', normalize=True),
-               DataFrom('static/datasets/lettersd.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/test/lettersa.csv', normalize=True),
+               DataFrom('static/datasets/test/lettersb.csv', normalize=True),
+               DataFrom('static/datasets/test/lettersc.csv', normalize=True),
+               DataFrom('static/datasets/test/lettersd.csv', normalize=True),
+               DataFrom('static/datasets/test/letterse.csv', normalize=True),
+               DataFrom('static/datasets/test/lettersf.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -426,4 +437,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=20)
+    agent.start(max_iters=30)
