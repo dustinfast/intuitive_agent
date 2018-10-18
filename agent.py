@@ -3,7 +3,7 @@
     See README.md for description of the agent and the application as a whole.
         
     If CONSOLE_OUT = True:
-        The Agent and its sub-modules print their output to stdout
+        The Agent and its sub-modules write their output to stdout
 
     If PERSIST = True:
         Agent and its sub-module states persist between executions via file
@@ -34,10 +34,9 @@
         Auto-tuned training lr/epochs based on data files
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
-        L3 logging?
-        Add branching after some accuracy threshold
-        REPL (Do last)
-        Changing in_data row count breaks ANN's - it determines their shape 
+        REPL cmds (Do last): start, clear, train
+        Changing in_data row count breaks ANN's; it determines their init shape 
+        Print accuracy on stop
 
 
     Author: Dustin Fast, 2018
@@ -50,13 +49,16 @@ from genetic import GPMask
 from connector import Connector
 from classlib import ModelHandler, DataFrom
 
-CONSOLE_OUT = True
+CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.agnt'
 
-L2_EXT = '.intu'
-L2_MAX_DEPTH = 15                           # Has big perf effect
-L3_FITNESS_MODE = Connector.is_python       # Fitness evaluator
+L2_EXT = '.lyr2'
+L2_MAX_DEPTH = 15  # > ~15 gives lg time complexity hit
+
+L3_EXT = '.lyr3'
+L3_ADVISOR = Connector.is_python_kwd
+
 
 class ConceptualLayer(object):
     """ An abstraction of the agent's conceptual layer (i.e. layer one), which
@@ -189,14 +191,20 @@ class LogicalLayer(object):
     """ An abstraction of the agent's Logical layer (i.e. layer three), which
         evaluates the fitness of it's input according to the given mode.
         This layer does no persistence or logging at this time.
+        Note: This is the most computationally expensive layer
     """
-    def __init__(self, mode):
+    def __init__(self, ID, mode):
         """ Accepts:
                 mode (function)  : Any func returning True or false when given
                 a layer-two output, denoting if that output is fit/productive
         """
+        self.ID = ID
         self.mode = mode
         self.node = self.check_fitness
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+                                  model_ext=L3_EXT,
+                                  save_func='MODEL_FILE',  # i.e., unused
+                                  load_func='MODEL_FILE')  # i.e., unused
 
     def check_fitness(self, results):
         """ Checks each result in results and returns a dict of fitness scores
@@ -209,20 +217,18 @@ class LogicalLayer(object):
         fitness = {k: 0 for k in results.keys()}
         for k, v in results.items():
             for j in v:
-                # print('L3: ' + j, sep=': ')
-                # if Connector.is_python(j):
-                #     print('TRUE')
-                #     fitness[k] += .3
-                # else:
-                #     print('False')
-
-                # Debug: Will favor strings of len 3, unless string starts
-                #        with 'X', then it will favor length 4
-                if j[0] == 'X' :
-                    if len(j) == 4:
-                        fitness[k] += 1
-                elif len(j) == 3:
+                j = j.lower()  # debug/temp fix
+                if self.mode(j):
+                    self.model.log('L3 TRUE: ' + j)
+                    # print('L3 TRUE: ' + j)  # debug
                     fitness[k] += 1
+
+                # Debug: If starts with 'X', favor len=4, else favor len=3
+                # if j[0] == 'X' :
+                #     if len(j) == 4:
+                #         fitness[k] += 1
+                # elif len(j) == 3:
+                #     fitness[k] += 1
         return fitness
 
 
@@ -271,7 +277,7 @@ class Agent(threading.Thread):
         id_prefix = self.ID + '_'   # Sub-layer node-ID prefix
         self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
         self.l2 = IntuitiveLayer(id_prefix + 'L2', id_prefix)
-        self.l3 = LogicalLayer(L3_FITNESS_MODE)
+        self.l3 = LogicalLayer(id_prefix + 'L3', L3_ADVISOR)
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -298,8 +304,6 @@ class Agent(threading.Thread):
             Accepts:
                 data_row (list)     : [inputs, ... ]
         """
-        self.model.log('\n****** AGENT STEP ******')
-
         # Ensure well formed data_row
         if len(data_row) != self.l1_depth:
             err_str = 'Bad data_row size - expected sz ' + str(self.l1_depth)
@@ -314,7 +318,6 @@ class Agent(threading.Thread):
             inputs = data_row[i][0]
             self.model.log('-- Feeding L1 node[%d] w/\n%s' % (i, str(inputs)))
             self.l1.output[i] = self.l1.node[i].classify(data_row[i][0])
-            
         # --------------------- Step Layer 2 -------------------------------
         # L2.output becomes the "masked" versions of all L1.outputs
         # ------------------------------------------------------------------
@@ -355,6 +358,8 @@ class Agent(threading.Thread):
                 row = []
                 for j in range(self.l1_depth):
                     row.append([row for row in iter(self.inputs[j][i])])
+        
+                self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
                 self._step(row)
                 
             if self.max_iters and iters >= self.max_iters - 1:
@@ -397,17 +402,20 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/lettersa.csv', normalize=True),
+               DataFrom('static/datasets/lettersb.csv', normalize=True),
+               DataFrom('static/datasets/lettersc.csv', normalize=True),
+               DataFrom('static/datasets/lettersd.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
+                DataFrom('static/datasets/letters.csv', normalize=True),
                 DataFrom('static/datasets/letters.csv', normalize=True),
                 DataFrom('static/datasets/letters.csv', normalize=True)]
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
     l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True),
                DataFrom('static/datasets/letters.csv', normalize=True)]
 
@@ -418,4 +426,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=5)
+    agent.start(max_iters=20)
