@@ -42,8 +42,18 @@ VALIDATION_DATAFILE
 The analytical layer examines the output-nodes of the attentive layer to draw concl
 Analyst - Accepts highest weighted input. What does it do with the input? Can it override the weights? We can't choose to focus on one context or another, rather, the environment dictates
 
+## What's next
+L2 Tuning:
+1. Monitor accuracy heuristics over time -
+1. increase max pop size after some accuracy threshold
+3. decrease max pop size if proprtion of unfit to fit outputs calls for it
+
+Branching: 
+1. Into a hierarichal structure of agents (faciliated by reflection"
+2. L2 branch after some number of increases of the last x iters
+3. Each agent represents a single "concept" such as a letter, or a python kwd
+
 ## Notes
-Can learn python and branch into a hiearchy of layers, thanks to relfection
 Purpose of "mistakes" is a signal to "check in" on this process or connectoin or whatever it represents.
 The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
 "Lottery scheduling", but in an evolving way - we learn an optimal schedule according to what is in our current awareness vs what isn't - it can be thought of as a temporal priroirty
