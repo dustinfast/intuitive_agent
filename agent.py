@@ -30,6 +30,7 @@
         Run from the terminal with './agent.py'.
 
     # TODO: 
+        lcase letters in datafiles
         Auto-tuned training lr/epochs based on data files
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
@@ -54,8 +55,8 @@ PERSIST = True
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.intu'
-L2_MAX_DEPTH = 15                               # Has big perf effect
-L3_FITNESS_MODE = Connector.is_python_kwd       # Fitness evaluator
+L2_MAX_DEPTH = 15                           # Has big perf effect
+L3_FITNESS_MODE = Connector.is_python       # Fitness evaluator
 
 class ConceptualLayer(object):
     """ An abstraction of the agent's conceptual layer (i.e. layer one), which
