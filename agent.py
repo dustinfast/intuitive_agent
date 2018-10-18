@@ -214,8 +214,11 @@ class LogicalLayer(object):
                 #     fitness[k] += .3
                 # else:
                 #     print('False')
+
+                # Debug: Will favor strings of len 3, unless string starts
+                #        with 'X', then it will favor length 4
                 if j[0] == 'X' :
-                    if len(j) == 5:
+                    if len(j) == 4:
                         fitness[k] += 1
                 elif len(j) == 3:
                     fitness[k] += 1
