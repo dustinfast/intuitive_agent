@@ -18,21 +18,26 @@
         is_python is slow - need to find way to keep exec isolated without 
             the overhead of creating a new process each time.
         is_python)func should be in a sep mem space, like is_python
+        is_alphastr would be more efficient if using re.compile
 
     Author: Dustin Fast, 2018
 """
 import os
+import re
 import sys
 import queue
 import keyword
 import requests
 import multiprocessing
 
+RGX_NOALPHA = re.compile('[^a-zA-Z_]')
+
 class Connector(object):
     """ Static methods for determining logical/conceptual connectedness. Ex:
         Connector.is_noun("ball") returns True, where Connector.is_noun("kick")
         returns False.
     """
+
     @staticmethod
     def is_python(string, timeout=5):
         """ Returns true iff the given string is a valid python program with
@@ -57,13 +62,13 @@ class Connector(object):
 
     @staticmethod
     def is_python_kwd(string):
-        """ Returns true iff the given string is a python keyword.
+        """ Returns True iff the given string is a python keyword.
         """
         return keyword.iskeyword(string)
 
     @staticmethod
     def is_python_func(string):
-        """ Returns true iff the given string is a python function name.
+        """ Returns True iff the given string is a python function name.
         """
         def test():
             pass
@@ -76,12 +81,28 @@ class Connector(object):
             return callable(eval(string))
         except:
             return False
+
+    @staticmethod
+    def is_alpha(string):
+        """ Returns True iff string is a single alphabetic character.
+        """
+        if len(string) == 1:
+            uni = ord(string)
+            if (uni > 64 and uni < 91) or (uni > 96 and uni < 123):
+                return True
+        return False
+
+    @staticmethod
+    def is_alphastr(string):
+        """ Returns True iff string contains only alphabetic characters.
+        """
+        return not RGX_NOALPHA.search(string)
    
     @staticmethod
     def is_noun(string, lang='en'):
-        """ Returns True iff the given string is a noun in the english language
-            according to OxfordDictionaries.com (via HTTP GET - for API info,
-            see: https://developer.oxforddictionaries.com).
+        """ Returns True iff string is a noun in the english language as given
+            by OxfordDictionaries.com API via HTTP GET.
+            API info: https://developer.oxforddictionaries.com).
             Accepts:
                 string (str)    : The string of interest
                 lang (str)      : Language. Ex: en = english, es = spanish, etc.
@@ -155,4 +176,3 @@ if __name__ == '__main__':
     for s in strings:
         result = Connector.is_python(s)
         print('"%s": %s' % (s, result))
-    
