@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-""" A module for determining logical "connectedness" of a set of symbols.
-    See object definition for more info.
+""" A module of static methods for determining logical "connectedness" of a
+    set of symbols. For example, contains a method for checking if a set of
+    letters represents a noun.
 
     Module Structure:
-        Class Logical contains static methods for determining various kinds
-        of logical associations.
+        Class Connector contains static methods for determining various kinds
+        of logical associations/connectedness.
 
     Dependencies:
         Requests
@@ -15,6 +16,7 @@
     TODO:
         Ensure string passed to is_python won't break the process.
         Improve is_python perf by using a presistent process
+        is_python(mode) for denoting if the string must be compileable
 
 
     Author: Dustin Fast, 2018
@@ -25,25 +27,23 @@ import queue
 import requests
 import multiprocessing
 
-class Logical(object):
-    """ Static methods for determining logical/conceptual associativity. Ex:
-        Logical.is_noun("ball") returns True, where Logical.is_noun("kick")
+class Connector(object):
+    """ Static methods for determining logical/conceptual connectedness. Ex:
+        Connector.is_noun("ball") returns True, where Connector.is_noun("kick")
         returns False.
     """
     @staticmethod
     def is_python(string, timeout=5):
-        """ Returns true iff the given string is a valid python string, as
-            determined by an eval/exec of the given string - this occurs in
-            a seperate process, so the current applicaton is not affected.
+        """ Returns true iff the given string is a parseable python string
             Accepts:
                 string (str)    : The string to be checked
                 timeout (int)   : Give up after "timeout" seconds (0=never).
                                   On timeout, False is returned.
         """
-        # return_queue = multiprocessing.Queue()  # Subproc results queue
         subproc = _ExecProc()
         subproc.start()
         try:
+            # Test string in seperate process (protects current application)
             subproc.in_queue.put_nowait(string)
             results = subproc.out_queue.get(timeout=timeout)
             return results
@@ -109,18 +109,18 @@ class _ExecProc(multiprocessing.Process):
 if __name__ == '__main__':
     # Determine if 4 seperate strings are valid python
     test_str = "print('test')"                              # valid
-    result = Logical.is_python(test_str)
+    result = Connector.is_python(test_str)
     print('"%s" is valid python? %s' % (test_str, result))
 
     test_str = "a = 3; b = a"                               # valid
-    result = Logical.is_python(test_str)
+    result = Connector.is_python(test_str)
     print('"%s" is valid python? %s' % (test_str, result))
 
     test_str = "a = b"                                      # b is not defined
-    result = Logical.is_python(test_str)
+    result = Connector.is_python(test_str)
     print('"%s" is valid python? %s' % (test_str, result))
 
     test_str = "a = 3; a++"                                 # a++ is not python
-    result = Logical.is_python(test_str)
+    result = Connector.is_python(test_str)
     print('"%s" is valid python? %s' % (test_str, result))
     
