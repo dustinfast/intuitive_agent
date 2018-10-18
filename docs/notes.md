@@ -43,12 +43,13 @@ The analytical layer examines the output-nodes of the attentive layer to draw co
 Analyst - Accepts highest weighted input. What does it do with the input? Can it override the weights? We can't choose to focus on one context or another, rather, the environment dictates
 
 ## What's next
+
 L2 Tuning:
 1. Monitor accuracy heuristics over time -
 1. increase max pop size after some accuracy threshold
 3. decrease max pop size if proprtion of unfit to fit outputs calls for it
 
-Branching: 
+Branching:
 1. Into a hierarichal structure of agents (faciliated by reflection"
 2. L2 branch after some number of increases of the last x iters
 3. Each agent represents a single "concept" such as a letter, or a python kwd
