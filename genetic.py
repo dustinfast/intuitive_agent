@@ -70,10 +70,10 @@ class GPMask(karoo_gp.Base_GP):
         self.terminals += ['s']
         
         # Update gp mutation ratios based on max pop given
-        self.evolve_repro = int(0.2 * max_pop)
-        self.evolve_point = int(0.2 * max_pop)
-        self.evolve_branch = int(0.1 * max_pop)
-        self.evolve_cross = int(0.4 * max_pop)
+        self.evolve_repro = int(0.5 * max_pop)
+        self.evolve_point = int(0.0 * max_pop)
+        self.evolve_branch = int(0.0 * max_pop)
+        self.evolve_cross = int(0.5 * max_pop)
 
         # Set operators
         operators = {1: OPERATORS_MODE1, 2: OPERATORS_MODE2}.get(mode)
@@ -364,7 +364,7 @@ if __name__ == '__main__':
     ev = GPMask('treegp', 25, 10, len(row[0]), cout=True, persist=True, mode=1)
 
     sequential = False  # Denote inputs should not be considered sequential
-    epochs = 75         # Learning epochs
+    epochs = 20         # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
