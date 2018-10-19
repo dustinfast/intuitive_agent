@@ -141,6 +141,11 @@ class IntuitiveLayer(object):
                                   save_func=f_save,
                                   load_func=f_load)
 
+    def __str__(self):
+        str_out = 'ID = ' + self.ID + '\n'
+        str_out += 'Nodes = ' + str(len(self._nodes))
+        return str_out
+
     def forward(self, data, is_seq):
         """ Returns the layer's output after moving the given input_data 
             through it and setting the currently active node according to it
