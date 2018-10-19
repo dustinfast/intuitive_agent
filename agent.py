@@ -13,7 +13,7 @@
     Module Structure:
         Agent() is the main interface. It expects training/validation data as
         an instance obj of type classlib.DataFrom(). 
-        Agent persistence and output is handled by classlib.ModelHandler().
+        Persistence and output is handled by classlib.ModelHandler().
 
     Dependencies:
         PyTorch
@@ -36,7 +36,7 @@
         L2.node_map[].kb/correct/solution strings
         L2 case toggle unary operator
         REPL vs. Flask interface?
-        Changing in_data row count breaks ANN's; it determines their init shape 
+        in_data must contain all labels, otherwise ANN inits break 
         Accuracy: Print on stop, Check against kb
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
@@ -58,11 +58,12 @@ PERSIST = True
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
-L2_MAX_DEPTH = 15  # > ~15 gives big time complexity hit
+L2_MODE = 2         # 1 = + operator only, 2 = + and negate operators
+L2_MAX_DEPTH = 12   # > ~15 gives big time complexity hit
 
 L3_EXT = '.lyr3'
 # L3_ADVISOR = Connector.is_python
-L3_ADVISOR = Connector.is_python_func
+L3_ADVISOR = Connector.is_python_kwd
 
 
 class ConceptualLayer(object):
@@ -83,9 +84,9 @@ class ConceptualLayer(object):
             depth (int)         : How many nodes this layer contains
             dims (list)         : 3 ints - ANN in/hidden/output layer sizes
         """
-        self.node = []  # A list of nodes, one for each layer 1 depth
+        self.node = []      # A list of nodes, one for each layer 1 depth
         self.output = []    # A list of outputs, one for each node
-        self.depth = depth  # This layers depth. I.e. it's node count
+        self.depth = depth  # This layer's depth. I.e. it's node count
 
         for i in range(depth):
             ID = id_prefix + 'L1_node_' + str(i)
@@ -150,7 +151,9 @@ class IntuitiveLayer(object):
             # Init new node ("False", because we'll handle its persistence)
             sz = len(data)
             pop_sz = sz * 10
-            node = GPMask(data, pop_sz, L2_MAX_DEPTH, sz, CONSOLE_OUT, False)
+            node = GPMask(data, pop_sz, L2_MAX_DEPTH, sz, CONSOLE_OUT, False,
+                          model=False,
+                          mode=L2_MODE)
             self._nodes[data] = (node, None)
         else:
             node = self._nodes[data][0]
@@ -248,8 +251,8 @@ class Agent(threading.Thread):
         The constructor accepts the agent's "sensory input" data, from which
         the layer dimensions are derived. After init, start the agent from 
         the terminal with 'agent start', which runs the agent as a seperate
-        thread (running this does not cause the agent to block, so the user
-        can stop it from the command line, etc.
+        thread (running does not cause the agent to block, so the user may
+        stop it from the command line, etc.
         Persistence: On each iteration of the input data, the agent is saved 
         to a file.
     """
@@ -413,18 +416,16 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length of this list denotes the agent depth.
-    in_data = [DataFrom('static/datasets/test/letters0.csv', normalize=True),
-               DataFrom('static/datasets/test/letters1.csv', normalize=True),
-               DataFrom('static/datasets/test/letters2.csv', normalize=True),
-               DataFrom('static/datasets/test/letters3.csv', normalize=True),
-               DataFrom('static/datasets/test/letters4.csv', normalize=True),
-               DataFrom('static/datasets/test/letters5.csv', normalize=True),
-               DataFrom('static/datasets/test/letters6.csv', normalize=True),
-               DataFrom('static/datasets/test/letters7.csv', normalize=True),
-               DataFrom('static/datasets/test/letters8.csv', normalize=True),
-               DataFrom('static/datasets/test/letters9.csv', normalize=True),
-               DataFrom('static/datasets/test/letters10.csv', normalize=True),
-               DataFrom('static/datasets/test/letters11.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
+               DataFrom('static/datasets/letters1.csv', normalize=True),
+               DataFrom('static/datasets/letters2.csv', normalize=True),
+               DataFrom('static/datasets/letters3.csv', normalize=True),
+               DataFrom('static/datasets/letters4.csv', normalize=True),
+               DataFrom('static/datasets/letters5.csv', normalize=True),
+               DataFrom('static/datasets/letters6.csv', normalize=True),
+               DataFrom('static/datasets/letters7.csv', normalize=True),
+               DataFrom('static/datasets/letters8.csv', normalize=True),
+               DataFrom('static/datasets/letters9.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -445,4 +446,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=500)
+    agent.start(max_iters=50)
