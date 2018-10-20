@@ -233,7 +233,6 @@ class LogicalLayer(object):
         fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
             for j in v['masked']:
-                j = j.lower()  # debug/temp fix
                 self.model.log('L3 TRYING: ' + j)
                 if self.mode(j):
                     fitness[k] += 1
