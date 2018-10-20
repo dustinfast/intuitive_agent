@@ -13,6 +13,7 @@
 #   Removed "Copy gp.population_b to gp.population_a" output
 #   Added fx_karoo_load_raw()
 #   Added np print threshold = np.inf
+# 	Removed pause on branch_depth < 0
 
 '''
 A NOTE TO THE NEWBIE, EXPERT, AND BRAVE
@@ -1911,7 +1912,7 @@ class Base_GP(object):
 			rnd = np.random.randint(0, len(self.terminals) - 1) # call the previously loaded .csv which contains all terminals
 			tree[6][node] = self.terminals[rnd] # replace terminal (variable)
 		
-		else: print('\n\tERROR! In fx_evolve_point_mutate, node_type =', tree[5][node], ''); self.fx_karoo_pause(0)
+		else: print('\n\tERROR! In fx_evolve_point_mutate, node_type =', tree[5][node], ''); # self.fx_karoo_pause(0)
 		
 		tree = self.fx_evolve_fitness_wipe(tree) # wipe fitness data
 		
