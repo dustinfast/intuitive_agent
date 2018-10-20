@@ -55,6 +55,7 @@ Branching:
 3. Each agent represents a single "concept" such as a letter, or a python kwd
 4. If a branch agent does not learn enough over some t, rm it (log to kb?) - it's inputs do not form any concepts
 ## Notes
+How to simulate a positve change in the agent's environment - alter input/less noise?
 The agent exists in the context of its inputs/environment and intuitively learns the symbols present in it - it might be thought of as an automatic tokenizer.
 Purpose of "mistakes" is a signal to "check in" on this process or connectoin or whatever it represents.
 The difference between this model and a single ANN is the extensibility of memory, and introduction of error into the connection-forming process. More recurrance
