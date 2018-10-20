@@ -82,7 +82,7 @@ class ANN(nn.Module):
                                   load_func=f_load)
 
     def __str__(self):
-        str_out = 'ID = ' + self.ID + '\n'
+        str_out = '\nID = ' + self.ID + '\n'
         str_out += 'Layers = ' + str(self.seq_layers)
         return str_out
 
