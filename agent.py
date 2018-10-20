@@ -221,13 +221,18 @@ class LogicalLayer(object):
         """ Checks each result in results and returns a dict of fitness scores
             corresponding to each, as determined by self.mode.
             Accepts:
-                results (dict)  : { ID: result }
-            Returns:
-                fitness (dict)  : { ID: fitness score (float) }
+                results (dict)  : { treeID:  { masked:    [ ... ], 
+                                               in_context: [ ... ], ... }
+            Returns a tuple containing:
+                dict            : Fitness as { treeID: fitness score (float) }
         """
-        fitness = {k: 0 for k in results.keys()}
+        # Extract each tree's masked output
+        # results = {k: v['masked'] for k, v in results.items()}
+
+        # Update fitness of each tree based on this demo's desired result
+        fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
-            for j in v:
+            for j in v['masked']:
                 j = j.lower()  # debug/temp fix
                 self.model.log('L3 TRYING: ' + j)
                 if self.mode(j):
@@ -237,7 +242,24 @@ class LogicalLayer(object):
                     # debug output
                     if j not in self.kb:
                         self.kb.append(j)
-                        print('L3 LEARNED: ' + j)
+                        print('L3 Learned: ' + j)
+                    else:
+                        print('L3 Encountered: ' + j)
+
+
+        # fitness = {k: 0 for k in results.keys()}
+        # for k, v in results.items():
+        #     for j in v:
+        #         j = j.lower()  # debug/temp fix
+        #         self.model.log('L3 TRYING: ' + j)
+        #         if self.mode(j):
+        #             fitness[k] += 1
+        #             self.model.log('TRUE!')
+
+        #             # debug output
+        #             if j not in self.kb:
+        #                 self.kb.append(j)
+        #                 print('L3 LEARNED: ' + j)
 
                 # Debug: If starts with 'X', favor len=4, else favor len=3
                 # if j[0] == 'X' :
@@ -332,22 +354,22 @@ class Agent(threading.Thread):
         # ------------------------------------------------------------------
         for i in range(self.l1_depth):
             inputs = data_row[i][0]
-            self.model.log('-- Feeding L1 node[%d] w/\n%s' % (i, str(inputs)))
+            self.model.log('-- Feed L1 node[%d]:\n%s' % (i, str(inputs)))
             self.l1.output[i] = self.l1.node[i].classify(data_row[i][0])
         # --------------------- Step Layer 2 -------------------------------
         # L2.output becomes the "masked" versions of all L1.outputs
         # ------------------------------------------------------------------
         l2_input = ''.join(self.l1.output)  # stringify L1's output
-        self.model.log('-- Feeding L2 node[%s] w/\n: %s' % (l2_input, self.l1.output))
+        self.model.log('-- Feed L2 node[%s]:\n %s' % (l2_input, self.l1.output))
         self.l2.output = self.l2.forward(l2_input, self.is_seq)
         
         # --------------------- Step Layer 3 -------------------------------
         # L3 evals fitness of it's input from L2 and backpropagates signals
         # ------------------------------------------------------------------
-        self.model.log('-- Feeding L3 w/\n%s' % str(self.l2.output))
+        self.model.log('-- Feed L3:\n%s' % str(self.l2.output))
         fitness = self.l3.check_fitness(self.l2.output)
 
-        self.model.log('-- L2 Backprop w/\n%s' % str(fitness))
+        self.model.log('-- L2 Backprop:\n%s' % str(fitness))
         self.l2.update(fitness)
         # TODO: Send feedback /noise/"in context" to level 1
 
