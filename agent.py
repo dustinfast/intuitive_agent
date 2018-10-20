@@ -40,6 +40,7 @@
         Accuracy: Print on stop, Check against kb
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
+        Refactor save/loads into ModelHandler.get_savestring?
         
 
 
@@ -59,7 +60,7 @@ MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
 L2_MODE = 2         # 1 = + operator only, 2 = + and negate operators
-L2_MAX_DEPTH = 12   # > ~15 gives big time complexity hit
+L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man
 
 L3_EXT = '.lyr3'
 # L3_ADVISOR = Connector.is_python
@@ -73,7 +74,7 @@ class ConceptualLayer(object):
         Nodes at this level are ANN's representing a single sensory 
         input processing channel, where the input to each channel is a sample
         of some subset of the agent's environment. Its output is then its
-        "classification" of  what that input represents.
+        "classification" of what that input represents.
         On init, each node is loaded by the ANN object from file iff PERSIST.
         Note: This layer must be trained offline via self.train(). After 
         training, each node saves its model to file iff PERSIST.
@@ -142,8 +143,8 @@ class IntuitiveLayer(object):
                                   load_func=f_load)
 
     def __str__(self):
-        str_out = 'ID = ' + self.ID + '\n'
-        str_out += 'Nodes = ' + str(len(self._nodes))
+        str_out = '\nID = ' + self.ID
+        str_out += '\nNodes = ' + str(len(self._nodes))
         return str_out
 
     def forward(self, data, is_seq):
@@ -451,4 +452,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=50)
+    agent.start(max_iters=1)
