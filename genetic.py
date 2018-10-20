@@ -39,52 +39,47 @@ class GPMask(karoo_gp.Base_GP):
         to "mask" data between layers two and three. Learns in an online, or
         can be pre-trained.
     """
-    def __init__(self, ID, max_pop, max_depth, input_sz, cout, persist, 
-                 model=False,
-                 mode=1):
+    def __init__(self, ID, max_pop, max_depth, max_inputs, 
+                 console_out, persist, model=False, mode=1, tourn_sz=10):
         """ ID (str)                : This object's unique ID number
-            max_pop (int)           : Max num expression trees (< 10 not ideal)
+            max_pop (int)           : Max num expression trees (< 11 not ideal)
             max_depth (int)         : Max tree mutate depth
-            input_sz (int)          : Max number of inputs to expect
-            cout (bool)             : Output log stmts to console flag
+            max_inputs (int)        : Max number of inputs to expect
+            c_out (bool)            : Output log stmts to console flag
             persist (bool)          : Persit mode flag
             model (ModelHandler)    : Model Handeler (optional)
             mode (int)              : Denotes operator mode (see consts)
+            tourn_size (int)        : Num surviving parent trees per generation
         """
         super(GPMask, self).__init__()
         self.ID = ID
         self.persist = persist
         self.tree_pop_max = max_pop
         self.tree_depth_max = max_depth
-        self.input_sz = input_sz
-
-        # Application specific KarooGP params
-        self.display = 's'                      # Silence KarooGP output
-        self.tree_type = 'r'                    # Allow full and sparse trees
-        self.fitness_type = 'max'               # "Maximizing" fitness kernel
-        self.tourn_size = int(max_pop / 3)      # Fitness tourny size
-        self.precision = 6                      # Fitness floating points
+        self.tourn_size = tourn_sz
 
         # Terminal symbols - one ucase letter for each input, plus label(s)
-        self.terminals = [chr(i) for i in range(65, min(91, 65 + input_sz))]
+        self.terminals = [chr(i) for i in range(65, min(91, 65 + max_inputs))]
         self.terminals += ['s']
         
-        # Update gp mutation ratios based on max pop given
-        self.evolve_repro = int(0.5 * max_pop)
-        self.evolve_point = int(0.0 * max_pop)
-        self.evolve_branch = int(0.0 * max_pop)
-        self.evolve_cross = int(0.5 * max_pop)
+        # Set initial mutation ratios
+        self._set_mratio()
 
         # Set operators
         operators = {1: OPERATORS_MODE1, 2: OPERATORS_MODE2}.get(mode)
         self.functions = array(operators)
+
+        # Application specific KarooGP params
+        self.display = 's'                      # Silence KarooGP output
+        self.fitness_type = 'max'               # Maximal fitness is goal
+        self.precision = 6                      # Tourney floating points
 
         # Init the load, save, log, and console output handler if none given
         self.model = model
         if not self.model:
             f_save = "self.save('MODEL_FILE')"
             f_load = "self.load('MODEL_FILE')"
-            self.model = ModelHandler(self, cout, persist,
+            self.model = ModelHandler(self, console_out, persist,
                                       model_ext=MODEL_EXT,
                                       save_func=f_save,
                                       load_func=f_load)
@@ -96,24 +91,28 @@ class GPMask(karoo_gp.Base_GP):
         except AttributeError:
             self.generation_id = 1
             self.population_a = ['Generation 1']
-            self.fx_karoo_construct(self.tree_type, 3)
+            self.fx_karoo_construct('r', 6)  # r = most diverse initial pop
             for treeID in range(1, len(self.population_a)):
                 self.population_a[treeID][12][1] = 0.0
     
     def __str__(self):
-        str_out = 'ID = ' + self.ID + '\nSize = (\n  '
+        str_out = '\nID = ' + self.ID + '\nSize = (\n  '
         str_out += 'max_depth: ' + str(self.tree_depth_max) + '\n  '
         str_out += 'max_pop: ' + str(self.tree_pop_max) + '\n  '
-        str_out += 'inputs: ' + str(self.input_sz) + '\n)'
+        str_out += 'max_inputs: ' + str(len(self.terminals)) + '\n  '
+        str_out += 'evolve_repro : ' + str(self.evolve_repro) + '\n  '
+        str_out += 'evolve_point: ' + str(self.evolve_point) + '\n  '
+        str_out += 'evolve_branch: ' + str(self.evolve_branch) + '\n  '
+        str_out += 'evolver_cross: ' + str(self.evolver_cross) + '\n)'
         return str_out
 
-    def _set_mratio(self, max_pop):
+    def _set_mratio(self, repro=0.25, point=0.25, branch=0.25, cross=0.25):
         """ Sets the mutation ratios, based on the given max population metric.
         """
-        self.evolve_repro = int(0.1 * max_pop)
-        self.evolve_point = int(0.1 * max_pop)
-        self.evolve_branch = int(0.1 * max_pop)
-        self.evolve_cross = int(0.7 * max_pop)
+        self.evolve_repro = int(repro * self.tree_pop_max)
+        self.evolve_point = int(point * self.tree_pop_max)
+        self.evolve_branch = int(branch * self.tree_pop_max)
+        self.evolve_cross = int(cross * self.tree_pop_max)
 
     def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
@@ -122,13 +121,16 @@ class GPMask(karoo_gp.Base_GP):
         """
         # Build model params in dict form
         writestr = "{ 'operands': " + str(self.terminals)
-        writestr += ", 'inputs_sz': " + str(self.input_sz)
         writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
         writestr += ", 'tourn_size': " + str(self.tourn_size)
         writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
         writestr += ", 'generation_id': " + str(self.generation_id)
         writestr += ", 'pop_tree_type': '" + str(self.pop_tree_type) + "'"
         writestr += ", 'population': \"" + str(self.population_a) + "\""
+        writestr += ", 'evolve_repro': \"" + str(self.evolve_repro) + "\""
+        writestr += ", 'evolve_point': \"" + str(self.evolve_point) + "\""
+        writestr += ", 'evolve_branch': \"" + str(self.evolve_branch) + "\""
+        writestr += ", 'evolve_cross': \"" + str(self.evolve_cross) + "\""
         writestr += "}"
 
         if not filename:
@@ -150,14 +152,16 @@ class GPMask(karoo_gp.Base_GP):
 
         data = eval(loadfrom.replace('\n', ''))
         self.terminals = data['operands']
-        self.input_sz = data['inputs_sz']
         self.tree_depth_max = data['tree_depth_max']
         self.tourn_size = data['tourn_size']
         self.tree_pop_max = data['tree_pop_max']
-        self._set_mratio(self.tree_pop_max)
         self.generation_id = data['generation_id']
         self.pop_tree_type = data['pop_tree_type']
         self.population_a = eval(data['population'])
+        self._set_mratio(data['evolve_repro'],
+                         data['evolve_point'],
+                         data['evolve_branch'],
+                         data['evolve_cross'])
 
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -358,13 +362,19 @@ if __name__ == '__main__':
     from pprint import pprint
 
     # Example input row
-    row = [['A', 'B', 'C', 'D', 'E', 'F']]
+    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']]
 
     # Init the genetically evolving expression trees
-    ev = GPMask('treegp', 25, 10, len(row[0]), cout=True, persist=True, mode=1)
+    ev = GPMask(ID='treegp', 
+                max_pop=20, 
+                max_depth=6, 
+                max_inputs=len(row[0]), 
+                console_out=True, 
+                persist=False, 
+                mode=1)
 
     sequential = False  # Denote inputs should not be considered sequential
-    epochs = 20         # Learning epochs
+    epochs = 10         # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
