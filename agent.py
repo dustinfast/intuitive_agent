@@ -30,11 +30,8 @@
         Run from the terminal with './agent.py'.
 
     # TODO: 
-        lcase letters in datafiles
-        Auto-tuned training lr/epochs based on data files
         L2.node_map[].weight (logarithmic decay over time/frequency)
         L2.node_map[].kb/correct/solution strings
-        L2 case toggle unary operator
         REPL vs. Flask interface?
         in_data must contain all labels, otherwise ANN inits break 
         Accuracy: Print on stop, Check against kb
@@ -42,7 +39,6 @@
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
         
-
 
     Author: Dustin Fast, 2018
 """
