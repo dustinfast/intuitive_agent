@@ -383,8 +383,7 @@ if __name__ == '__main__':
     sequential = False   # Denote inputs should not be considered sequential
     epochs = 75          # Learning epochs
 
-    # Example learning - 
-    # forward() gets results, we set fitness based on them, then call update()
+    # Get results with forward(), eval fitness, then do update(fitness)
     for z in range(0, epochs):
         print('\n*** Epoch %d ***' % z)
 
