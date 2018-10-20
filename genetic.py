@@ -106,7 +106,7 @@ class GPMask(karoo_gp.Base_GP):
         str_out += 'evolver_cross: ' + str(self.evolver_cross) + '\n)'
         return str_out
 
-    def _set_mratio(self, repro=0.25, point=0.25, branch=0.25, cross=0.25):
+    def _set_mratio(self, repro=0.15, point=0.15, branch=0.0, cross=0.70):
         """ Sets the mutation ratios, based on the given max population metric.
         """
         self.evolve_repro = int(repro * self.tree_pop_max)
@@ -213,11 +213,12 @@ class GPMask(karoo_gp.Base_GP):
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
                 max_results (int) : Max results to return (0=population size)
-                gain (float)     : Ratio of fittest expressions used to
+                gain (float)      : Ratio of fittest expressions used to
                                       randomly chosen expressions used
-                ordered (bool)    : Denotes if the inputs considered sequential
+                ordered (bool)    : Denotes inputs to be considered sequential
             Returns:
-                dict: { treeID: [result1, result2, ... ], ... }
+                A dictionary of lists representing the masked inputs, by tree:
+                { treeID: { masked: [ ... ], in_context: [ ... ], ... } 
         """
         try:
             trees = self._trees_byfitness()  # leftmost = most fit
@@ -232,7 +233,7 @@ class GPMask(karoo_gp.Base_GP):
 
         # print('Trees: ' + self._expr_strings(symp_expr=ordered))  # debug
 
-        # If strings in "input", rm exprs w/neg operators - they're nonsensical
+        # If strings in inputs, rm exprs w/neg operators - they're nonsensical
         for inp in inputs:
             if not [i for i in inp if type(i) is str]: 
                 break
@@ -244,30 +245,32 @@ class GPMask(karoo_gp.Base_GP):
         trees = [t for t in trees if str(f_expr(t)) not in added and
                  (added.add(str(f_expr(t))) or True)]
 
-        # At this point, every t in trees is useable, so do fit/random gain
-        # Determine max results
-        if not max_results: max_results = self.tree_pop_max
-        fit_count = int(max_results * gain)
-        gain_trees = trees[:fit_count]
-        rand_pool = trees[fit_count:]
+        # Every tree is useable at this pt, so do apply gain if specified
+        if max_results: 
+            fit_count = int(max_results * gain)
+            gain_trees = trees[:fit_count]
+            rand_pool = trees[fit_count:]
 
-        while len(gain_trees) < max_results and rand_pool:
-            idx = randint(0, len(rand_pool) - 1)
-            gain_trees.append(rand_pool.pop(idx))
+            while len(gain_trees) < max_results and rand_pool:
+                idx = randint(0, len(rand_pool) - 1)
+                gain_trees.append(rand_pool.pop(idx))
+            
+            trees = gain_trees
 
-        # Iterate every tree that hasn't been filtered out
+        # Iterate every tree that has made the cut
         results = {}
         for treeID in trees:
-            results[treeID] = []
+            results[treeID] = {'masked': [], 'in_context': None}
             orig_expr = str(f_expr(treeID))
 
-            # print(str(treeID) + ' - Mask o: ' + str(orig_expr))  # debug
-
             # Reform the expr by mapping each operand to an input index
-            # At the same time, denote where negate operator gets applied
-            #   Ex: expr 'A + 2*D + B' -> 'row[0] + 2*row[3] + row[1]'
+            # At the same time, denote where negate operator gets applied,
+            # and also set "in_context", to denote which inputs are in result.
+            #   Ex: expr 'A + 2*D + B'-> 'row[0] + 2*row[3] + row[1]'
+            #   Ex: expr 'abs(A) + C'-> 'row[0] + row[3]' w/negate_at = [0]
             new_expr = ''
             negate_at = []
+            in_context = []
             i_ch = -1
             i_term = -1
             goback = len(NEG_OP)
@@ -276,14 +279,15 @@ class GPMask(karoo_gp.Base_GP):
                 if ch in self.terminals and ch != 's':
                     i_term += 1
 
-                    # If term proceeds negate operator, denote and rm
+                    # If term proceeds negate operator, denote and rm operator
                     if orig_expr[i_ch - goback:i_ch] == NEG_OP:
                         negate_at.append(i_term)
                         new_expr = new_expr[:-goback]
                     
-                    # Map term to "row[idx]" and add to new expression str
-                    new_expr += 'row[' + str(self.terminals.index(ch)) + ']'
-
+                    # Map term to idx, udpate in_context, & rowify for new_expr
+                    input_idx = self.terminals.index(ch)
+                    in_context.append(input_idx)
+                    new_expr += 'row[' + str(input_idx) + ']'
                 else:
                     new_expr += ch
 
@@ -292,7 +296,7 @@ class GPMask(karoo_gp.Base_GP):
 
             # print(str(treeID) + ' - Mask n: ' + str(new_expr))  # debug
 
-            # Eval expr against each input
+            # Eval expr against each input in inputs
             for row in inputs:
                 output = eval(new_expr)
                 
@@ -300,14 +304,19 @@ class GPMask(karoo_gp.Base_GP):
                 if negate_at:
                     r = [c for c in output]
                     for i in negate_at:
-                        r[i] = self.negate(r[i])
+                        r[i] = self._negate(r[i])
                     output = ''.join(r)
                 
                 # Associate it with its tree
-                results[treeID].append(output)
+                results[treeID]['masked'].append(output)
+            
+            # Add the inputs used in this tree's results, to the results
+            results[treeID]['in_context'] = in_context
 
-        # Filter out trees w/no results and return
-        return {k: v for k, v in results.items() if v}
+        # Filter out any trees that didn't produce results
+        results = {k: v for k, v in results.items() if v['masked']}
+
+        return results
 
     def update(self, fitness):
         """ Evolves a new population of trees after updating the fitness of 
@@ -323,8 +332,6 @@ class GPMask(karoo_gp.Base_GP):
         # Update tree's fitness as given by "fitness" arg
         for k, v in fitness.items():
             self.population_a[k][12][1] = v
-
-        # print(self._expr_strings(w_fit=True))  # debug
 
         # Build the new gene pool
         self.gene_pool = [t for t in range(1, len(self.population_a))
@@ -344,7 +351,7 @@ class GPMask(karoo_gp.Base_GP):
             self.model.save()
 
     @staticmethod
-    def negate(x):
+    def _negate(x):
         """ Returns a negated version of the given string/digit.
         """
         # String negate
@@ -362,19 +369,19 @@ if __name__ == '__main__':
     from pprint import pprint
 
     # Example input row
-    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']]
+    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'O']]
 
     # Init the genetically evolving expression trees
     ev = GPMask(ID='treegp', 
-                max_pop=20, 
-                max_depth=6, 
+                max_pop=15, 
+                max_depth=4, 
                 max_inputs=len(row[0]), 
                 console_out=True, 
                 persist=False, 
                 mode=1)
 
     sequential = False  # Denote inputs should not be considered sequential
-    epochs = 10         # Learning epochs
+    epochs = 100         # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
@@ -383,15 +390,21 @@ if __name__ == '__main__':
 
         # Get results using current population
         results = ev.forward(row, ordered=sequential, gain=1)
+
+        # For this demo, we're only interested in each trees masked output
+        results = {k: v['masked'] for k, v in results.items()}
         print('Results:'); pprint(results)
 
-        # Update fitness of each tree - 
-        # Our demo's desired result is a string of all D's w/len <=  4
+        # Update fitness of each tree based on this demo's desired result
         fitness = {k: 0.0 for k in results.keys()}
         for k, v in results.items():
-            for j in [j for j in v if len(j) <= 4]:
-                for c in [c for c in j if c == 'D']:
-                    fitness[k] += 1
+            v = v[0]
+            if len(v) > 2:
+                continue
+            if v[:1] == 'H':
+                fitness[k] += 1
+            if v[1:2] == 'I':
+                fitness[k] += 1
 
         # Evolve a new population with the new fitness values
         ev.update(fitness)
