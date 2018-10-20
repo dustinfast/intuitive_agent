@@ -369,7 +369,7 @@ if __name__ == '__main__':
     from pprint import pprint
 
     # Example input row
-    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'O']]
+    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']]
 
     # Init the genetically evolving expression trees
     ev = GPMask(ID='treegp', 
@@ -380,8 +380,8 @@ if __name__ == '__main__':
                 persist=False, 
                 mode=1)
 
-    sequential = False  # Denote inputs should not be considered sequential
-    epochs = 100         # Learning epochs
+    sequential = False   # Denote inputs should not be considered sequential
+    epochs = 75          # Learning epochs
 
     # Example learning - 
     # forward() gets results, we set fitness based on them, then call update()
@@ -401,9 +401,9 @@ if __name__ == '__main__':
             v = v[0]
             if len(v) > 2:
                 continue
-            if v[:1] == 'H':
+            if v[:1] == 'A':
                 fitness[k] += 1
-            if v[1:2] == 'I':
+            if v[1:2] == 'K':
                 fitness[k] += 1
 
         # Evolve a new population with the new fitness values
