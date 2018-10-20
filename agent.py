@@ -246,27 +246,6 @@ class LogicalLayer(object):
                     else:
                         print('L3 Encountered: ' + j)
 
-
-        # fitness = {k: 0 for k in results.keys()}
-        # for k, v in results.items():
-        #     for j in v:
-        #         j = j.lower()  # debug/temp fix
-        #         self.model.log('L3 TRYING: ' + j)
-        #         if self.mode(j):
-        #             fitness[k] += 1
-        #             self.model.log('TRUE!')
-
-        #             # debug output
-        #             if j not in self.kb:
-        #                 self.kb.append(j)
-        #                 print('L3 LEARNED: ' + j)
-
-                # Debug: If starts with 'X', favor len=4, else favor len=3
-                # if j[0] == 'X' :
-                #     if len(j) == 4:
-                #         fitness[k] += 1
-                # elif len(j) == 3:
-                #     fitness[k] += 1
         return fitness
 
 
