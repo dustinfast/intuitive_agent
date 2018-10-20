@@ -10,11 +10,11 @@
 
 General intelligence of the type we possess exists exclusively, for now, in the domain of the conscious human. Therefore, an understanding of the mechanisms leading to our conscious experience may be required if an artificial general intelligence is to one day be realized.
 
-One defining aspect of human intelligence is our ability to subconsciously form new connections between abstract concepts, which then seem to "bubble up" to the forefront of our attention. This phenomenon, commonly called intuition, is responsible not only for our most startling "Aha!" moments, but also for the seemingly arbitrary changes in our awareness of, say, the ticking of a clock on the wall.
+One defining aspect of human intelligence is our ability to subconsciously form new connections between abstract concepts which then seem to "bubble up" to the forefront of our attention. This phenomenon, commonly called intuition, is responsible not only for our most startling and profound "Aha!" moments, but also for the seemingly arbitrary changes in our awareness of, say, the ticking of a clock on the wall.
 
-That we experience these changes of awareness unwillingly provides powerful clues to the underlying mechanisms of intuition and consciousness. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" switches contexts according to its "intuition". If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
+That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to their underlying mechanisms. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" switches contexts according to its "intuition". If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
 
-The agent will be developed in Python using readily available machine learning and evolutionary programming libraries.
+The agent is developed in Python using the PyTorch and KarooGP machine learning and genetic programming libraries, respectively.
 
 ## The Agent
 
@@ -24,9 +24,7 @@ The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *A
 
 ### Conceptual Layer
 
-The conceptual layer represents our existing knowledge base of abstract concepts. It consists of a set `A` of artificial neural networks (ANNs) with the following properties -
-
-The order of each `a` in `A` denotes temporal arrival of input.
+The conceptual layer represents one's existing knowledge base (KB) of abstract concepts. It consists of a set `A` of artificial neural networks (ANNs) with the following properties -
 
 Each ANN at this level has a set `X` of input nodes consisting of `k` feed-forward sensory input nodes and `m` feedback input nodes, defined as:
 
@@ -35,7 +33,7 @@ Each ANN at this level has a set `X` of input nodes consisting of `k` feed-forwa
 | `x_0` to `x_k-1` | Feed-forward | Environmental sensory input, identical for every `a` in `A` |
 | `x_k` to `x_k+m-1`   | Feedback    | Each `x_k` to `x_n` is mapped from a corresponding attentive-layer input node. This represents feedback of the agent's current context. |
 
-Each ANN is pre-trained (offline) for a different class of objects (ex: `a_0` classifies digits, `a_1` classifies letters, etc). During this pre-training, each `x_k` to `x_m-1` input-value should be randomized to simulate environmental noise.
+Each ANN is pre-trained (offline), possibly each for a different class of objects (ex: `a_0` classifies digits, `a_1` classifies letters, etc). During this pre-training, each `x_k` to `x_m-1` input-value should be randomized to simulate environmental noise.
 
 Each ANN's output nodes are provided to the intuitive layer as input.
 
@@ -54,10 +52,5 @@ This layer will be implemented as a singular ANN having a set `M` of input nodes
 ## Proof of Concept
 
 Upon completion of development, proof of concept will be attempted in the following way: The attentive-layer ANN will be trained on a set of known conceptual links between some set of concepts known by the conceptual-layer. The entire agent will then be subjected to the validation set. In this way, a successful intuitive agent will be demonstrated by the attentive layer's discovery of previously unlearned connections in the validation set.
-
-
-## #TODO:
-    Allow comment lines in all data files
-    Move datafile label columns from leftmost cols to rightmost cols, where applicable.
 
 __Author__: Dustin Fast, 2018
