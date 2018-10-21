@@ -261,4 +261,67 @@ class Logger(logging.Logger):
             self.addHandler(console_handler)
 
 
+class AttributesIter(object):
+    """ An iterator of parrallel attribute stacks, indexed by an 
+        arbitrary key. The iterator returns the next set of all attributes
+        for every key as a dict: { ID_1: {attr_1: val, attr_n: val}, ... }
+    """
+    def __init__(self):
+        self._results = {}  # {ID: {attr_1: [val_x], attr_n: [val_x]}, ..}
+        
+    def push(self, key, attr, value):
+        """ Push the given results attribute to its stack for the given key. 
+            Note: Each push() for an attr should be immediately followed by
+            the rest of the attrs for that key, to ensure balanced stacks.
+        """
+        try:
+            node = self._results[key]
+        except KeyError:
+            self._results[key] = {}
+            node = self._results[key]
 
+        try:
+            val_list = node[attr]
+        except KeyError:
+            node[attr] = []
+            val_list = node[attr]
+
+        val_list.append(value)
+
+    def rm_empties(self, attr):
+        """ Removes all keys having no attributes of the given name.
+        """
+        self._results = {k: v for k, v in self._results.items() if v[attr]}
+
+    def is_empty(self, attr):
+        """ Returns True if the given attr exists for any key. Else False.
+        """
+        if {k: v for k, v in self._results.items() if v[attr]}:
+            return False
+        return True
+
+    def keys(self):
+        """ Returns a list of this objects associative keys.
+        """
+        return [k for k in self._results.keys()]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        """ Dequeues and returns a single set of attributes for each key.
+        """
+        attributes = {}
+        good_results = False
+        for key, attrs in self._results.items():
+            attributes[key] = {}
+            for k, v in attrs.items():
+                try:
+                    attributes[key][k] = v.pop()
+                    good_results = True
+                except IndexError:
+                    attributes[key][k] = None
+        
+        if not good_results:
+            raise StopIteration
+        return attributes
