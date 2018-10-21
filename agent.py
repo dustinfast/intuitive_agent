@@ -43,6 +43,7 @@
 
     Author: Dustin Fast, 2018
 """
+
 import logging
 import threading
 
@@ -51,17 +52,16 @@ from genetic import GPMask
 from connector import Connector
 from classlib import ModelHandler, DataFrom
 
-CONSOLE_OUT = False
-PERSIST = True
+CONSOLE_OUT = True
+PERSIST = False
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
 L2_MODE = 2         # 1 = + operator only, 2 = + and negate operators
-L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man
-L2_MAX_POP = 25
+L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man. Has perf affect.
+L2_MAX_POP = 25     # Number of expressions to generate. Has perf affect.
 
 L3_EXT = '.lyr3'
-# L3_ADVISOR = Connector.is_python
 L3_ADVISOR = Connector.is_python_kwd
 
 
@@ -77,21 +77,21 @@ class ConceptualLayer(object):
         Note: This layer must be trained offline via self.train(). After 
         training, each node saves its model to file iff PERSIST.
         """
-    def __init__(self, id_prefix, depth, dims, inputs):
+    def __init__(self, ID, id_prefix, depth, dims, inputs):
         """ Accepts:
             id_prefix (str)     : Each nodes ID prefix. Ex: 'Agent1_'
             depth (int)         : How many nodes this layer contains
             dims (list)         : 3 ints - ANN in/hidden/output layer sizes
         """
-        self.node = []      # A list of nodes, one for each layer 1 depth
-        self.output = []    # A list of outputs, one for each node
-        self.depth = depth  # This layer's depth. I.e. it's node count
+        self.nodes = []      # A list of nodes, one for each layer 1 depth
+        self.outputs = []    # A list of outputs, one for each node
+        self.depth = depth  # This layer's depth. I.e., it's node count
 
         for i in range(depth):
-            ID = id_prefix + 'L1_node_' + str(i)
-            self.node.append(ANN(ID, dims[i], CONSOLE_OUT, PERSIST))
-            self.output.append([None for i in range(depth)])
-            self.node[i].set_labels(inputs[i].class_labels)
+            nodeID = ID + '_node_' + str(i)
+            self.nodes.append(ANN(nodeID, dims[i], CONSOLE_OUT, PERSIST))
+            self.outputs.append([None for i in range(depth)])
+            self.nodes[i].set_labels(inputs[i].class_labels)
     
     def train(self, train_data, val_data, epochs=500, lr=.01, alpha=.9):
         """ Trains each node from the given training/validation data.
@@ -103,49 +103,168 @@ class ConceptualLayer(object):
                 alpha (float)           : Learning gain/momentum
         """
         for i in range(self.depth):
-            self.node[i].train(
+            self.nodes[i].train(
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
-            self.node[i].validate(val_data[i], verbose=True)
+            self.nodes[i].validate(val_data[i], verbose=True)
 
 
+class Heuristics(object):
+    """ A collection of heuristics.
+    """
+    def __init__(self):
+        self.count = 0      # Num of times the input has been encountered
+        self.pos = 0        # Num times the input resulted in "fit" output
+        self.neg = 0        # Num times input resulted in "unfit" output
+        self.magn = 0       # Magnitude (if numeric) or ascii val (if str)
+        self.notprev = 0    # 1 if curr input doesn't match prev, else -1
+        # TODO: Others (search common heuristics)
+
+    def __str__(self):
+        str_out = 'count: ' + str(self.count) + '\n'
+        str_out += 'pos: ' +  str(self.pos) + '\n'
+        str_out += 'neg: ' +  str(self.neg) + '\n'
+        str_out += 'magn: ' + str(self.magn) + '\n'
+        str_out += 'notprev: ' + str(self.notprev)
+        return str_out
+
+    
 class HeuristicsLayer(object):
     """ An abstraction of the agents second layer, representing its ability to
         selectively focus it's attention on "pertinent" input. This layer is 
-        implemented as sets of heuristics for each node's unique received input.
-        The layer's output is the combined inputs after heuristics of all nodes after being applied to a 
-        genetically evolving expression that attempts to optimize their usage.
-        Each node of this layer is a dictionary of those heuristics, as
-        { 'UNIQUEINPUT': {'h_1': 0.4, 'heuristic_n': 0.9} }, with each h being:
-            change (float)  : Denotes node's input differs from last input
-            fit (float)     : Overall usefulness/fitness
+        implemented as sets of heuristics of each node's unique input applied 
+        to a genetically evolving expression that attempts to optimize
+        their usage. The expression is ultimitely used to "mask" the layer's
+        inputs, with the results being the layer's output.
+        Each node is represented by the heuristics in class Heuristics
     """
     def __init__(self, ID, id_prefix, depth, dims):
         """ Accepts:
             id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_'
             depth (int)         : How many nodes this layer contains
-            dims (list)         : A list of each node's output length (an int)
+            dims (list)         : A list of each node's input length
         """
         self.ID = ID            # This layer's unique ID
-        self.node = []          # A list of nodes, one at each depth
-        self.node_prev = []     # The previous input value for this node
-        self.output = []        # A list of outputs, one for each node
         self.depth = depth      # This layer's depth. I.e., its node count
-        self.optim = None      # Genetically evolving heuristics expression
-        
-        t_heuristcs = {'change': 0.0, 'fit': 0.0}
+        self.nodes = []         # A list of nodes, one at each depth
+        self.outputs = []       # A list of outputs, one for each node
+        self.prev_inputs = []   # Previous input values, one for each node
+        self.optimizers = []    # Evolving heuristics optimizers, one per node
+        self.outmasker = None   # Evolving output mask
+        self.id_prefix = id_prefix + ID + '_node_'
 
-        # Init each node
+        # Init each node and helpers
         for i in range(depth):
-            ID = id_prefix + 'L2_node_' + str(i)
-            self.node.append({})
-            self.output.append([None for i in range(depth)])
-            self.node_prev.append([None for i in range(depth)])
+            self.nodes.append({})  # {'UNIQUEINPUT': HeursticsInstanceObj }
+            self.outputs.append(None)
+            self.prev_inputs.append(None)
 
-        # Init optimizer ("False", because we'll handle its persistence)
-        in_sz = sum(dims)
-        self.optim= GPMask('L2_optimizer', L2_MAX_POP, L2_MAX_DEPTH, in_sz,
-                           CONSOLE_OUT, False, model=False, mode=L2_MODE)
+            # Init node optimizer (persist=False because this layer handles it)
+            self.optimizer = GPMask(self.id_prefix + str(i),
+                                    max_pop=L2_MAX_POP,
+                                    max_depth=L2_MAX_DEPTH,
+                                    max_inputs=dims[i],
+                                    console_out=CONSOLE_OUT,
+                                    persist=False,
+                                    op_mode=3,
+                                    tourn_sz=L2_MAX_POP / 2)
 
+        # Init the output mask (persist=False because this layer handles it)
+        self.outmasker = GPMask(ID + '_outmask',
+                                max_pop=L2_MAX_POP,
+                                max_depth=L2_MAX_DEPTH,
+                                max_inputs=sum(dims),
+                                console_out=CONSOLE_OUT,
+                                persist=False,
+                                op_mode=1,
+                                tourn_sz=L2_MAX_POP / 2)
+
+    def __str__(self):
+        str_out = '\nID = ' + self.ID
+        str_out += '\nNodes = ' + str(len(self.nodes))
+        return str_out
+
+    def forward(self, inputs, is_seq=False):
+        """ Moves the given inputs through the layer & returns the output.
+            Accepts: 
+                inputs (list)       : Data elements, one for each node
+                is_seq (bool)       : Denotes inputs stay ordered for output 
+            Assumes:
+                Any strings in inputs are exactly one char in length
+        """
+        # Iterate each node and its input (nodes[i] maps to inputs[i])
+        for i in range(self.depth):
+            inp = inputs[i]
+            
+            try:
+                heurs = self.nodes[i][inp]
+            except KeyError:
+                # Node hasn't encountered this input; add it now w/fresh heurs
+                self.nodes[i][inp] = Heuristics()
+                heurs = self.nodes[i][inp]
+
+            # Update non-aggregate heuristics
+            if type(inp) is str:
+                heurs.magn = ord(inp)
+            else:
+                heurs.magn = inp
+
+            heurs.notprev = 1
+            if (inp == self.prev_inputs[i]):
+                heurs.notprev = -1
+
+            print(inp)
+            print(heurs)
+            self.outputs[i] = inp
+
+        exit()
+
+            # TODO: Get optimizer results
+            # opt = self.nodes[i][inp].forward()
+
+
+        self.prev_inputs = inputs
+
+    def update(self, fitness_data):
+        """ Update active node with the given fitness data dict.
+        """
+        # heurs['count'] += 1
+        # self._curr_node.update(fitness_data)
+        pass
+        
+    def _save(self, filename):
+        """ Saves the layer to file. For use by ModelHandler.
+        """
+        # Write each node ID and asociated data as { "ID": ("save_string") }
+        with open(filename, 'w') as f:
+            f.write('{')
+
+            # Write each node optimizer
+            for node in self.nodes:
+                key = node.optimizer.ID
+                savestr = node.save()
+                f.write('"' + key + '": """' + savestr + '""", ')
+            
+            # Write the outmasker
+            f.write('"outmasker": """' + self.outmasker.save() + '""", ')
+
+            f.write('}')
+
+    def _load(self, filename):
+        """ Loads the layer from file. For use by ModelHandler.
+        """
+        # Restore the layer nodes, one at a time
+        self._nodes = {}
+        i = 0
+
+        with open(filename, 'r') as f:
+            data = f.read()
+
+        for k, v in eval(data).items():
+            ID = self.id_prefix + str(i)
+            node = GPMask(ID, 0, 0, 0, CONSOLE_OUT, False)
+            node.load(v, not_file=True)
+            self._nodes[k] = (node, None)
+            i += 1
 
 
 class IntuitiveLayer(object):
@@ -168,7 +287,7 @@ class IntuitiveLayer(object):
             id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_L2_'
         """
         self.ID = ID
-        self.output = None      # Placeholder for current output
+        self.outputs = None      # Placeholder for current output
         self._curr_node = None  # The node for the current unique input
         self._nodes = {}        # Nodes, as: { nodeID: (obj_instance, output) }
         self.id_prefix = id_prefix + ID + '_node_'
@@ -197,7 +316,7 @@ class IntuitiveLayer(object):
             pop_sz = sz * 10
             node = GPMask(data, pop_sz, L2_MAX_DEPTH, sz, CONSOLE_OUT, False,
                           model=False,
-                          mode=L2_MODE)
+                          op_mode=L2_MODE)
             self._nodes[data] = (node, None)
         else:
             node = self._nodes[data][0]
@@ -300,23 +419,23 @@ class Agent(threading.Thread):
         Persistence: On each iteration of the input data, the agent is saved 
         to a file.
     """
-    def __init__(self, ID, input_data, is_seq):
+    def __init__(self, ID, inputs, is_seq):
         """ Accepts the following parameters:
-            ID (str)           : The agent's unique ID
-            input_data (list)  : List of agent input data, one for each L1 ANN
-            is_seq (bool)      : Denotes input data is sequential in nature,
-                                 i.e., the layer 2 mask will use only ordered
-                                 expressions, such as 'A + C + E', as opposed
-                                 to something like 'C + E + A'
+            ID (str)            : The agent's unique ID
+            inputs (list)       : Agent input data, one for each L1 node
+            is_seq (bool)       : Denotes input data is sequential in nature,
+                                  i.e., the layer 2 mask will use only ordered
+                                  expressions, such as 'A + C + E', as opposed
+                                  to something like 'C + E + A'
         """
         threading.Thread.__init__(self)
         self.ID = ID
-        self.l1_depth = None        # Layer 1 depth/node count
+        self.depth = None           # Layer 1 depth/node count
         self.model = None           # The model handler
         self.running = False        # Agent thread running flag (set on start)
-        self.inputs = input_data    # The agent's "sensory input" data
-        self.is_seq = is_seq        # Denote input_data is sequential in nature
-        self.max_iters = None       # Num input_data iters, set on self.start
+        self.inputs = inputs        # The agent's "sensory input" data
+        self.is_seq = is_seq        # Denote inputs is sequential in nature
+        self.max_iters = None       # Num inputs iters, set on self.start
         self.L2_nodemap = None      # Pop via ModelHandler, for loading L2
 
         # Init the load, save, log, and console output handler
@@ -327,15 +446,28 @@ class Agent(threading.Thread):
                                   save_func=f_save,
                                   load_func=f_load)
 
-        # Determine agent shape from input_data
-        dims = tuple(self._shape_fromdata(input_data))
-        self.l1_depth = dims[0]
+        # Determine agent shape from the given input data
+        l1_dims = []
+        l2_dims = []
+        self.depth = len(inputs)
+
+        for i in range(self.depth):
+            l1_dims.append([])                              # New L1 dimension
+            l1_dims[i].append(in_data[i].feature_count)     # x node count
+            l1_dims[i].append(0)                            # h sz placeholder
+            l1_dims[i].append(in_data[i].class_count)       # y node count
+            l1_dims[i][1] = int(
+                (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
+            l2_dims.append(in_data[i].class_count)          # y node counts
 
         # Init layers
-        id_prefix = self.ID + '_'   # Sub-layer node-ID prefix
-        self.l1 = ConceptualLayer(id_prefix, self.l1_depth, dims[1], input_data)
-        self.l2 = IntuitiveLayer(id_prefix + 'L2', id_prefix)
-        self.l3 = LogicalLayer(id_prefix + 'L3', L3_ADVISOR)
+        id_prefix = self.ID + '_'  # For prefixing sub elements w/agent ID
+        ID = id_prefix + 'L1'
+        self.l1 = ConceptualLayer(ID, id_prefix, self.depth, l1_dims, inputs)
+        ID = id_prefix + 'L2'
+        self.l2 = HeuristicsLayer(ID, id_prefix, self.depth, l2_dims)
+        ID = id_prefix + 'L3'
+        self.l3 = LogicalLayer(ID, L3_ADVISOR)
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -363,31 +495,30 @@ class Agent(threading.Thread):
                 data_row (list)     : [inputs, ... ]
         """
         # Ensure well formed data_row
-        if len(data_row) != self.l1_depth:
-            err_str = 'Bad data_row size - expected sz ' + str(self.l1_depth)
+        if len(data_row) != self.depth:
+            err_str = 'Bad data_row size - expected sz ' + str(self.depth)
             err_str += ', recieved sz' + str(len(data_row))
             self.model.log(err_str, logging.error)
             return
 
         # --------------------- Step Layer 1 -------------------------------
-        # L1.output[i] becomes L1.node[i]'s classification of self.inputs[i]
+        # L1.outputs[i] becomes L1.nodes[i]'s classification of self.inputs[i]
         # ------------------------------------------------------------------
-        for i in range(self.l1_depth):
+        for i in range(self.depth):
             inputs = data_row[i][0]
-            self.model.log('-- Feed L1 node[%d]:\n%s' % (i, str(inputs)))
-            self.l1.output[i] = self.l1.node[i].classify(data_row[i][0])
+            self.model.log('-- Feeding L1 node[%d]:\n%s' % (i, str(inputs)))
+            self.l1.outputs[i] = self.l1.nodes[i].classify(data_row[i][0])
         # --------------------- Step Layer 2 -------------------------------
-        # L2.output becomes the "masked" versions of all L1.outputs
+        # L2.outputs becomes the "masked" versions of all L1.outputs
         # ------------------------------------------------------------------
-        l2_input = ''.join(self.l1.output)  # stringify L1's output
-        self.model.log('-- Feed L2 node[%s]:\n %s' % (l2_input, self.l1.output))
-        self.l2.output = self.l2.forward(l2_input, self.is_seq)
+        self.model.log('-- Feeding L2:\n %s' % (self.l1.outputs))
+        self.l2.outputs = self.l2.forward(self.l1.outputs)
         
         # --------------------- Step Layer 3 -------------------------------
         # L3 evals fitness of it's input from L2 and backpropagates signals
         # ------------------------------------------------------------------
-        self.model.log('-- Feed L3:\n%s' % str(self.l2.output))
-        fitness = self.l3.check_fitness(self.l2.output)
+        self.model.log('-- Feeding L3:\n%s' % str(self.l2.outputs))
+        fitness = self.l3.check_fitness(self.l2.outputs)
 
         self.model.log('-- L2 Backprop:\n%s' % str(fitness))
         self.l2.update(fitness)
@@ -414,7 +545,7 @@ class Agent(threading.Thread):
         while self.running:
             for i in range(min_rows):
                 row = []
-                for j in range(self.l1_depth):
+                for j in range(self.depth):
                     row.append([row for row in iter(self.inputs[j][i])])
         
                 self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
@@ -437,39 +568,45 @@ class Agent(threading.Thread):
 
     @staticmethod
     def _shape_fromdata(in_data):
-        """ Determines agent's shape from the given list of data sets.
+        """ Determines agent's shape from the given list of input data sets.
             Assumes each layer 1 node has 3 layers (x, h, and y).
             Accepts:
-                in_data (list)     : A list of DataFrom objects
+                in_data (list)     : A list of input data, as DataFrom objects
             Returns:
                 2-tuple: L1 depth and L1 dims, as (int, [int, int, int]) 
         """
-        l1_depth = len(in_data)
+        depth = len(in_data)
         l1_dims = []
+        l2_dims = []
 
-        for i in range(l1_depth):
+        for i in range(depth):
             l1_dims.append([])                              # New L1 dimension
             l1_dims[i].append(in_data[i].feature_count)     # x node count
             l1_dims[i].append(0)                            # h sz placeholder
             l1_dims[i].append(in_data[i].class_count)       # y node count
             l1_dims[i][1] = int(     
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
+            l2_dims.append(in_data[i].class_count)          # y node counts
             
-        return l1_depth, l1_dims
+        return depth, l1_dims, l2_dims
 
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
-    in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
-               DataFrom('static/datasets/letters1.csv', normalize=True),
-               DataFrom('static/datasets/letters2.csv', normalize=True),
-               DataFrom('static/datasets/letters3.csv', normalize=True),
-               DataFrom('static/datasets/letters4.csv', normalize=True),
-               DataFrom('static/datasets/letters5.csv', normalize=True),
-               DataFrom('static/datasets/letters6.csv', normalize=True),
-               DataFrom('static/datasets/letters7.csv', normalize=True),
-               DataFrom('static/datasets/letters8.csv', normalize=True),
-               DataFrom('static/datasets/letters9.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True),
+               DataFrom('static/datasets/letters.csv', normalize=True)]
+    # in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
+    #            DataFrom('static/datasets/letters1.csv', normalize=True),
+    #            DataFrom('static/datasets/letters2.csv', normalize=True),
+    #            DataFrom('static/datasets/letters3.csv', normalize=True),
+    #            DataFrom('static/datasets/letters4.csv', normalize=True),
+    #            DataFrom('static/datasets/letters5.csv', normalize=True),
+    #            DataFrom('static/datasets/letters6.csv', normalize=True),
+    #            DataFrom('static/datasets/letters7.csv', normalize=True),
+    #            DataFrom('static/datasets/letters8.csv', normalize=True),
+    #            DataFrom('static/datasets/letters9.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -490,4 +627,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=1)
+    agent.start(max_iters=5)

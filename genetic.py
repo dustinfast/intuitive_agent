@@ -30,8 +30,14 @@ from classlib import ModelHandler
 
 MODEL_EXT = '.ev'
 OPERATORS_MODE1 = [['+', '2']]
-OPERATORS_MODE2 = [['+', '2'], ['+ abs', '2']]   # abs used as negate operator
-NEG_OP = ' abs('                                 # String denoting abs operator
+OPERATORS_MODE2 = [['+', '2'], 
+                   ['+ abs', '2']]   # abs used as negate operator
+OPERATORS_MODE3 = [['+', '2'],
+                   ['-', '2'],
+                   ['*', '2'],
+                   ['/', '2']]
+
+OPSTR_NEG = ' abs('                  # String placeholder for abs operator
 
 
 class GPMask(karoo_gp.Base_GP):
@@ -40,7 +46,7 @@ class GPMask(karoo_gp.Base_GP):
         can be pre-trained.
     """
     def __init__(self, ID, max_pop, max_depth, max_inputs, 
-                 console_out, persist, model=False, mode=1, tourn_sz=10):
+                 console_out, persist, model=False, op_mode=1, tourn_sz=10):
         """ ID (str)                : This object's unique ID number
             max_pop (int)           : Max num expression trees (< 11 not ideal)
             max_depth (int)         : Max tree mutate depth
@@ -48,7 +54,7 @@ class GPMask(karoo_gp.Base_GP):
             c_out (bool)            : Output log stmts to console flag
             persist (bool)          : Persit mode flag
             model (ModelHandler)    : Model Handeler (optional)
-            mode (int)              : Denotes operator mode (see consts)
+            op_mode (int)           : Denotes operators set to use (see consts)
             tourn_size (int)        : Num surviving parent trees per generation
         """
         super(GPMask, self).__init__()
@@ -65,8 +71,11 @@ class GPMask(karoo_gp.Base_GP):
         # Set initial mutation ratios
         self._set_mratio()
 
-        # Set operators
-        operators = {1: OPERATORS_MODE1, 2: OPERATORS_MODE2}.get(mode)
+        # Set operators based on the given mode
+        operators = {1: OPERATORS_MODE1,
+                     2: OPERATORS_MODE2,
+                     3: OPERATORS_MODE3
+                     }.get(op_mode)
         self.functions = array(operators)
 
         # Application specific KarooGP params
@@ -273,14 +282,14 @@ class GPMask(karoo_gp.Base_GP):
             in_context = []
             i_ch = -1
             i_term = -1
-            goback = len(NEG_OP)
+            goback = len(OPSTR_NEG)
             for ch in orig_expr:
                 i_ch += 1
                 if ch in self.terminals and ch != 's':
                     i_term += 1
 
                     # If term proceeds negate operator, denote and rm operator
-                    if orig_expr[i_ch - goback:i_ch] == NEG_OP:
+                    if orig_expr[i_ch - goback:i_ch] == OPSTR_NEG:
                         negate_at.append(i_term)
                         new_expr = new_expr[:-goback]
                     
@@ -378,7 +387,7 @@ if __name__ == '__main__':
                 max_inputs=len(row[0]), 
                 console_out=True, 
                 persist=False, 
-                mode=1)
+                op_mode=1)
 
     sequential = False   # Denote inputs should not be considered sequential
     epochs = 75          # Learning epochs
