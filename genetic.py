@@ -156,11 +156,16 @@ class Genetic(karoo_gp.Base_GP):
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
             fitness (L to R).
+            If no trees, raises Attribute Error
         """
         rev = {'min': False, 'max': True}.get(self.fitness_type)
         trees = [t for t in range(1, len(self.population_a))]
         trees = sorted(
             trees, key=lambda x: self.population_a[x][12][1], reverse=rev)
+
+        if not trees:
+            raise AttributeError('Population has no trees.')
+
         return trees
 
     def _symp_expr(self, treeID):
@@ -259,7 +264,7 @@ def mode1_udpate(obj, fitness):
     pass
 
 
-def mode2_forward(obj, inputs, ordered, max_results=0, gain=.8):
+def mode2_forward(obj, inputs, ordered=False, max_results=0, gain=.8):
     """ Peforms each tree's expression on the given inputs and returns 
         the results as a dict denoting the source tree ID
         Accepts:
@@ -271,10 +276,7 @@ def mode2_forward(obj, inputs, ordered, max_results=0, gain=.8):
             A dictionary of lists representing the masked inputs, by tree:
             { treeID: { masked: [ ... ], in_context: [ ... ], ... } 
     """
-    try:
-        trees = obj._trees_byfitness()  # leftmost = most fit
-    except AttributeError:
-        raise Exception('Forward attempted on an uninitialized model.')
+    trees = obj._trees_byfitness()  # leftmost = most fit
 
     # If ordered specified, use raw expression, else use sympified
     if ordered:
