@@ -38,6 +38,7 @@
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
+        Rename depth to nodes?
         
 
     Author: Dustin Fast, 2018
@@ -57,6 +58,7 @@ MODEL_EXT = '.agnt'
 L2_EXT = '.lyr2'
 L2_MODE = 2         # 1 = + operator only, 2 = + and negate operators
 L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man
+L2_MAX_POP = 25
 
 L3_EXT = '.lyr3'
 # L3_ADVISOR = Connector.is_python
@@ -104,6 +106,46 @@ class ConceptualLayer(object):
             self.node[i].train(
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self.node[i].validate(val_data[i], verbose=True)
+
+
+class HeuristicsLayer(object):
+    """ An abstraction of the agents second layer, representing its ability to
+        selectively focus it's attention on "pertinent" input. This layer is 
+        implemented as sets of heuristics for each node's unique received input.
+        The layer's output is the combined inputs after heuristics of all nodes after being applied to a 
+        genetically evolving expression that attempts to optimize their usage.
+        Each node of this layer is a dictionary of those heuristics, as
+        { 'UNIQUEINPUT': {'h_1': 0.4, 'heuristic_n': 0.9} }, with each h being:
+            change (float)  : Denotes node's input differs from last input
+            fit (float)     : Overall usefulness/fitness
+    """
+    def __init__(self, ID, id_prefix, depth, dims):
+        """ Accepts:
+            id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_'
+            depth (int)         : How many nodes this layer contains
+            dims (list)         : A list of each node's output length (an int)
+        """
+        self.ID = ID            # This layer's unique ID
+        self.node = []          # A list of nodes, one at each depth
+        self.node_prev = []     # The previous input value for this node
+        self.output = []        # A list of outputs, one for each node
+        self.depth = depth      # This layer's depth. I.e., its node count
+        self.optim = None      # Genetically evolving heuristics expression
+        
+        t_heuristcs = {'change': 0.0, 'fit': 0.0}
+
+        # Init each node
+        for i in range(depth):
+            ID = id_prefix + 'L2_node_' + str(i)
+            self.node.append({})
+            self.output.append([None for i in range(depth)])
+            self.node_prev.append([None for i in range(depth)])
+
+        # Init optimizer ("False", because we'll handle its persistence)
+        in_sz = sum(dims)
+        self.optim= GPMask('L2_optimizer', L2_MAX_POP, L2_MAX_DEPTH, in_sz,
+                           CONSOLE_OUT, False, model=False, mode=L2_MODE)
+
 
 
 class IntuitiveLayer(object):
@@ -417,7 +459,7 @@ class Agent(threading.Thread):
 
 
 if __name__ == '__main__':
-    # Agent "sensory input" data. Length of this list denotes the agent depth.
+    # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
     in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
                DataFrom('static/datasets/letters1.csv', normalize=True),
                DataFrom('static/datasets/letters2.csv', normalize=True),
