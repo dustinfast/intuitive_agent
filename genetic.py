@@ -32,7 +32,8 @@ MODEL_EXT = '.ev'       # File extensions for model file save/load
 OP_ABS_STR = ' abs('    # Negate operator in string form
 
 ATTRIB_OUTPUT = 'output'
-ATTRIB_INCONTEXT = 'from_inputs'
+ATTRIB_INCONTEXT = 'from_inps'
+ATTRIB_FITNESS = 'fit'
 
 class Genetic(karoo_gp.Base_GP):
     """ An evolving population of expression trees able to operate in -
@@ -250,62 +251,70 @@ class Genetic(karoo_gp.Base_GP):
 # Forward/update methods (per mode) and helpers #
 #################################################
 
-class TreeResults(object):
-    """ A parrallel arrangment of FIFO attribute queues, indexed by treed ID.
+class Attributes(object):
+    """ An iterator of parrallel attribute stacks, indexed by an 
+        arbitrary key. The iterator returns the next set of all attributes
+        for every key as a dict: { ID_1: {attr_1: val, attr_n: val}, ... }
     """
     def __init__(self):
-        self._results = {}  # {TREE_ID: {attr_1: [val_x], attr_n: [val_x]}, .. }
-
-    def enqueue(self, treeID, attr, value):
-        """ Enqueue the given results attribute, by tree ID.
+        self._results = {}  # {TREE_ID: {attr_1: [val_x], attr_n: [val_x]}, ..}
+        
+    def push(self, key, attr, value):
+        """ Push the given results attribute to its stack for the given key. 
+            Note: Each push() for an attr should be immediately followed by
+            the rest of the attrs for that key, to ensure balanced stacks.
         """
         try:
-            tree = self._results[treeID]
+            node = self._results[key]
         except KeyError:
-            self._results[treeID] = {}
-            tree = self._results[treeID]
+            self._results[key] = {}
+            node = self._results[key]
 
         try:
-            val_list = tree[attr]
+            val_list = node[attr]
         except KeyError:
-            tree[attr] = []
-            val_list = tree[attr]
+            node[attr] = []
+            val_list = node[attr]
 
         val_list.append(value)
 
-    def filter_empty(self, attr):
+    def rm_empties(self, attr):
         """ Removes all trees having no attributes of the given name.
         """
         self._results = {k: v for k, v in self._results.items() if v[attr]}
 
     def is_empty(self, attr):
-        """ Returns True if attributes of the given name exists. Else False.
+        """ Returns True if the given attr exists for any key. Else False.
         """
         if {k: v for k, v in self._results.items() if v[attr]}:
             return False
         return True
 
-    def dequeue(self):
-        """ Dequeues and returns a single set of attributes for each tree as:
-            { TREEID_1: {attr_1: val, attr_n: val}, ... }
+    def keys(self):
+        """ Returns a list of this objects associative keys.
+        """
+        return [k for k in self._results.keys()]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        """ Dequeues and returns a single set of attributes for each key.
         """
         attributes = {}
-
-        for treeID, attrs in self._results.items():
-            attributes[treeID] = {}
+        good_results = False
+        for key, attrs in self._results.items():
+            attributes[key] = {}
             for k, v in attrs.items():
                 try:
-                    attributes[treeID][k] = v.pop(0)
+                    attributes[key][k] = v.pop()
+                    good_results = True
                 except IndexError:
-                    attributes[treeID][k] = None
+                    attributes[key][k] = None
+        
+        if not good_results:
+            raise StopIteration
         return attributes
-
-
-class Fitness(object):
-    """ Container for returning fitness data to the update methods.
-    """
-    def __init__(self):
-        pass
 
 
 def mode1_forward(obj, inputs, ordered=False, max_results=0, gain=.8):
@@ -366,7 +375,7 @@ def mode2_forward(obj, inputs, ordered, max_results=0, gain=.8):
         trees = gain_trees
 
     # Iterate every tree that has made the cut
-    results = TreeResults()
+    results = Attributes()
     for treeID in trees:
         orig_expr = str(f_expr(treeID))
 
@@ -415,14 +424,14 @@ def mode2_forward(obj, inputs, ordered, max_results=0, gain=.8):
                 output = ''.join(r)
             
             # Associate output and its "in context" inputs with the tree's ID
-            results.enqueue(treeID, ATTRIB_OUTPUT, output)
-            results.enqueue(treeID, ATTRIB_INCONTEXT, in_context)
+            results.push(treeID, ATTRIB_OUTPUT, output)
+            results.push(treeID, ATTRIB_INCONTEXT, in_context)
             # results[treeID]['masked'].append(output)
         
         # Add the inputs used in this tree's results, to the results
         # results[treeID]['in_context'] = in_context
 
-        results.filter_empty(ATTRIB_OUTPUT)
+        results.rm_empties(ATTRIB_OUTPUT)
 
     return results
 
@@ -473,14 +482,17 @@ def _negate(x):
 
 
 if __name__ == '__main__':
+    """ TODO: Demo info... 
+    """
     # Import for pretty-printing of demo data
     from pprint import pprint
 
-    # Example input row
-    row = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']]
+    inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']]
+    is_seq = False   # Denote inputs should not be considered sequential
+    epochs = 25          # Learning epochs
 
     # Init the genetically evolving expression trees (mode 2)
-    lengs = [len(row[i]) for i in range(len(row))]
+    lengs = [len(inputs[i]) for i in range(len(inputs))]
     gp = Genetic(ID='treegp', 
                  mode=2,
                  max_pop=15, 
@@ -490,35 +502,27 @@ if __name__ == '__main__':
                  console_out=True, 
                  persist=False)
 
-    sequential = False   # Denote inputs should not be considered sequential
-    epochs = 75          # Learning epochs
-
-    # Get results with forward(), eval fitness, then update(fitness)
+    # Get results, eval fitness, then backprogate fitness
     for z in range(0, epochs):
         print('\n*** Epoch %d ***' % z)
 
-        # Get mask results
-        results = gp.forward(inputs=row, ordered=sequential, gain=1)
+        results = gp.forward(inputs=inputs, ordered=is_seq, gain=1)
+        fitness = fitness = {k: 0.0 for k in results.keys()}  # init
+        
+        print('Results:')
+        for trees in results:
+            # pprint(trees)
+            for treeID, attrs in trees.items():
+                output = attrs[ATTRIB_OUTPUT]
+                print('Tree %d: %s' % (treeID, output))
 
-        while not results.is_empty(ATTRIB_OUTPUT):
-            r = results.dequeue()
-            pprint(r)
-        exit()
-
-        # For this demo, we're only interested in each trees masked output
-        results = {k: v['masked'] for k, v in results._results.items()}
-        print('Results:'); pprint(results)
-
-        # Update fitness of each tree based on this demo's desired result
-        fitness = {k: 0.0 for k in results.keys()}
-        for k, v in results.items():
-            v = v[0]
-            if len(v) > 2:
-                continue
-            if v[:1] == 'A':
-                fitness[k] += 1
-            if v[1:2] == 'K':
-                fitness[k] += 1
+                # Evaluate fitness
+                if len(output) > 2:
+                    continue
+                if output[:1] == 'A':
+                    fitness[treeID] += 1
+                if output[1:2] == 'K':
+                    fitness[treeID] += 1
 
         # Evolve a new population with the new fitness values
         gp.update(fitness)
