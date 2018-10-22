@@ -26,7 +26,7 @@ import sys; sys.path.append('lib')
 from numpy import array
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
-from sharedlib import ModelHandler, AttributesIter
+from sharedlib import ModelHandler, AttributesIter, negate
 
 MODEL_EXT = '.ev'       # File extensions for model file save/load
 OP_ABS_STR = ' abs('    # Negate operator in string form
@@ -36,15 +36,17 @@ ATTRIB_INCONTEXT = 'from_inps'
 ATTRIB_FITNESS = 'fit'
 
 class Genetic(karoo_gp.Base_GP):
-    """ An evolving population of expression trees able to operate in -
-        Mode 1: Produces numeric expressions with +, -, *, and / operators
-        Mode 2: Evolves string "mask" expressions without case mutation
-        Mode 3: Evolves string "mask" expressions with case mutation
+    """ An evolving population of expression trees with methods for applying
+        them to supplied data and reproducing based on fitness according to
+        the given kernel:
+        Kernel 1: Minimizing function with +, -, *, and / operators
+        Kernel 2: Maximinzing function without + operator
+        Kernel 3: Maximinzing function without + and negate operators
     """
-    def __init__(self, ID, mode, max_pop, max_depth, max_inputs, tourn_sz,
+    def __init__(self, ID, kernel, max_pop, max_depth, max_inputs, tourn_sz,
                  console_out=True, persist=False):
         """ ID (str)                : This object's unique ID number
-            mode (int)              : Operation mode (see class docstring)
+            kernel (int)            : Operation kernel (see class docstring)
             max_pop (int)           : Max num expression trees (< 11 not ideal)
             max_depth (int)         : Max tree depth
             max_inputs (int)        : Max number of inputs to expect
@@ -59,10 +61,10 @@ class Genetic(karoo_gp.Base_GP):
         self.tree_depth_max = max_depth
         self.tourn_size = tourn_sz
 
-        self.display = 's'      # Silence Karoo GP menus/output
-        self.precision = 6      # Tourney floating points
-        self._set_mratio()      # Set initial mutation ratios
-        self._set_mode(mode)    # Setup operators and methods
+        self.display = 's'          # Silence Karoo GP menus/output
+        self.precision = 6          # Tourney floating points
+        self._set_mratio()          # Set initial mutation ratios
+        self._set_kernel(kernel)    # Setup the specified kernel
 
         # Init terminals - one ucase letter for each input, plus unused "s"
         self.terminals = [chr(i) for i in range(65, min(91, 65 + max_inputs))]
@@ -106,10 +108,10 @@ class Genetic(karoo_gp.Base_GP):
         self.evolve_branch = int(branch * self.tree_pop_max)
         self.evolve_cross = int(cross * self.tree_pop_max)
 
-    def _set_mode(self, mode):
-        """ Sets up GP operators and methods, depending on the given mode.
+    def _set_kernel(self, kernel):
+        """ Sets up GP operators and methods, depending on the given kernel.
         """
-        # Operators, by mode
+        # Operators, by kernel
         opers = {1: [['+', '2'],        
                      ['-', '2'],
                      ['*', '2'],
@@ -118,24 +120,13 @@ class Genetic(karoo_gp.Base_GP):
                  3: [['+', '2'],        
                      ['+ abs', '2']]}
 
-        # Kernels, by mode
-        kernel = {1: 'max',
-                  2: 'max',
-                  3: 'min'}
+        # Goal type, by kernel
+        goals = {1: 'max',
+                 2: 'max',
+                 3: 'min'}
 
-        # Update and Forward methods
-        f_forward = {1: self._mode1_forward,
-                     2: self._mode2_forward,
-                     3: self._mode2_forward}
-
-        # f_update = {1: mode1_udpate,
-        #             2: mode2_udpate,
-        #             3: mode2_udpate}
-        self.f_forward = f_forward.get(mode)
-        # self.f_update = f_update.get(mode)
-
-        self.functions = array(opers.get(mode))
-        self.fitness_type = kernel.get(mode)
+        self.functions = array(opers.get(kernel))
+        self.fitness_type = goals.get(kernel)
 
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -171,13 +162,13 @@ class Genetic(karoo_gp.Base_GP):
                 symp_expr (bool) : Uses sympyfied expression, vs raw expr
         """
         if symp_expr:
-            f_expr = self._symp_expr
+            f_getexpr = self._symp_expr
         else:
-            f_expr = self._raw_expr
+            f_getexpr = self._raw_expr
 
         exprs = ''
         for treeID in range(1, len(self.population_a)):
-            expr = str(f_expr(treeID))
+            expr = str(f_getexpr(treeID))
             exprs += 'Tree ' + str(treeID) + ': ' + expr + '\n'
 
             if w_fit:
@@ -185,19 +176,6 @@ class Genetic(karoo_gp.Base_GP):
                 exprs += ' (fitness: ' + fit + ')\n'
 
         return exprs
-
-    @staticmethod
-    def _negate(x):
-        """ Returns a negated version of the given string or digit.
-        """
-        # String negate
-        if type(x) is str:
-            if x.isupper():
-                return x.lower()
-            return x.lower()
-
-        # Numerical negate
-        return (x * -1)
 
     def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
@@ -248,40 +226,65 @@ class Genetic(karoo_gp.Base_GP):
                          data['evolve_branch'],
                          data['evolve_cross'])
 
-    def forward(self, inputs, ordered=False, max_results=0, gain=.8):
+    # def hforward(self, heuristics):
+    #     """
+    #     """
+    #     trees = self._trees_byfitness()  # leftmost = most fit
+    #     return trees[
+
+    def _filtered_trees(self, get_expr, exclude_ops=[]):
+        """ Returns a list of the current population's expression, arranged by 
+            fitness (leftmost = most fit) after filtering trees with duplicate
+            expressions and unwanted operators.
+        """
+        # Get trees sorted by fitness
+        trees = self._trees_byfitness()
+
+        # Remove duplicates
+        added = set()
+        trees = [t for t in trees if str(get_expr(t)) not in added and
+                 (added.add(str(get_expr(t))) or True)]
+
+        # Remove unwanted oeprators
+        for op in exclude_ops:
+            trees = [t for t in trees if op not in str(get_expr(t))]
+
+        return trees
+
+    def forward(self, inputs, is_seq=False, max_results=0, gain=.8, 
+                expr_only=False):
         """ Peforms each tree's expression on the given inputs and returns 
             the results as a dict denoting the source tree ID
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
+                is_seq (bool)     : Denotes row (in input) order must persist 
                 max_results (int) : Max results to return (0=population size)
-                gain (float)      : Ratio of fittest to randomly chosen expressions
-                ordered (bool)    : Denotes row-input order must persist 
+                gain (float)      : Ratio of fittest to randomly chosen exprs
+                expr_only (bool)  : Denotes to return only the expressions
             Returns:
-                A dictionary of lists representing the masked inputs, by tree:
-                { treeID: { masked: [ ... ], in_context: [ ... ], ... } 
+                If expr_only=True, a list of expressions (len=max_results)
+                Else, a dictionary, by tree ID, of lists representing the 
+                inputs after they are applied to the expression and the inputs
+                that contribute to them:
+                    { treeID: { output: [ ... ], from_inps: [ ... ], ... } 
         """
-        trees = self._trees_byfitness()  # leftmost = most fit
-
-        # If ordered, use order-preserving raw expression, else use simplified
-        if ordered:
-            f_expr = self._symp_expr
+        # Denote use of order-preserving raw expression, or simplified
+        if is_seq:
+            f_getexpr = self._symp_expr
         else:
-            f_expr = self._raw_expr
+            f_getexpr = self._raw_expr
 
-        # print('Trees: ' + self._expr_strings(symp_expr=ordered))  # debug
-
-        # If strings in inputs, rm exprs w/neg operators - they're nonsensical
+        # If inputs contain any strings, denote neg operator as nonsensical
+        bad_ops = []
         for inp in inputs:
-            if not [i for i in inp if type(i) is str]:
+            if [i for i in inp if type(i) is str]:
+                bad_ops.append('-')
                 break
-        else:
-            trees = [t for t in trees if '-' not in str(f_expr(t))]
 
-        # Filter trees having duplicate expressions
-        added = set()
-        trees = [t for t in trees if str(f_expr(t)) not in added and
-                 (added.add(str(f_expr(t))) or True)]
+        trees = self._filtered_trees(f_getexpr, exclude_ops=bad_ops)
 
+        # print('Trees: ' + self._expr_strings(symp_expr=is_seq))  # debug
+        
         # Every tree is useable at this pt, so apply gain as specified
         if max_results:
             fit_count = int(max_results * gain)
@@ -294,10 +297,13 @@ class Genetic(karoo_gp.Base_GP):
 
             trees = gain_trees
 
+        if expr_only:
+            return trees
+
         # Iterate every tree that has made the cut
         results = AttributesIter()
         for treeID in trees:
-            orig_expr = str(f_expr(treeID))
+            orig_expr = str(f_getexpr(treeID))
 
             # Reform the expr by mapping each operand to an input index
             # At the same time, denote where negate operator gets applied,
@@ -346,20 +352,10 @@ class Genetic(karoo_gp.Base_GP):
                 # Associate output and its "in context" inputs with the tree's ID
                 results.push(treeID, ATTRIB_OUTPUT, output)
                 results.push(treeID, ATTRIB_INCONTEXT, in_context)
-                # results[treeID]['masked'].append(output)
 
-            # Add the inputs used in this tree's results, to the results
-            # results[treeID]['in_context'] = in_context
-
-            results.rm_empties(ATTRIB_OUTPUT)
-
+        # Remove empty results and return
+        results.rm_empties(ATTRIB_OUTPUT)
         return results
-
-    def _mode1_forward(self, expr):
-        pass
-
-    def _mode2_forward(self, expr):
-        pass
 
     def update(self, fitness_results):
         """ Evolves a new population of trees after updating the fitness of 
@@ -413,7 +409,7 @@ if __name__ == '__main__':
     # Init the genetically evolving expression trees (mode 2)
     lengs = [len(inputs[i]) for i in range(len(inputs))]
     gp = Genetic(ID='treegp', 
-                 mode=2,
+                 kernel=2,
                  max_pop=15, 
                  max_depth=4, 
                  max_inputs=max(lengs),
@@ -422,10 +418,10 @@ if __name__ == '__main__':
                  persist=False)
 
     # Get results, eval fitness, then backprogate fitness
-    for z in range(0, epochs):
+    for z in range(1, epochs + 1):
         print('\n*** Epoch %d ***' % z)
 
-        results = gp.forward(inputs=inputs, ordered=is_seq, gain=1)
+        results = gp.forward(inputs=inputs, gain=1)
         fitness = fitness = {k: 0.0 for k in results.keys()}  # init
         
         print('Results:')

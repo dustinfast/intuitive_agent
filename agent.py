@@ -39,18 +39,19 @@
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
         "provides feedback" connector - ex: True if the action returns a value
-        
+        Add other common heuristics to layer 2
 
     Author: Dustin Fast, 2018
 """
 
+import copy
 import logging
 import threading
 
 from ann import ANN
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom, Heuristics
+from sharedlib import ModelHandler, DataFrom, WeightedValues
 
 CONSOLE_OUT = True
 PERSIST = False
@@ -112,9 +113,8 @@ class IntuitiveLayer(object):
         selectively focus it's attention on "pertinent" input. This layer is 
         implemented as sets of heuristics of each node's unique input applied 
         to a genetically evolving expression that attempts to optimize
-        their usage. The expression is ultimitely used to "mask" the layer's
-        inputs, with the results being the layer's output.
-        Each node is represented by the heuristics in class Heuristics
+        their usage. The heuristics are ultimitely used to "mask" the layer's
+        inputs - the results are the layer's output.
     """
     def __init__(self, ID, id_prefix, depth, dims):
         """ Accepts:
@@ -127,35 +127,44 @@ class IntuitiveLayer(object):
         self.nodes = []         # A list of nodes, one at each depth
         self.outputs = []       # A list of outputs, one for each node
         self.prev_inputs = []   # Previous input values, one for each node
-        self.optimizers = []    # Evolving heuristics optimizers, one per node
-        self.outmasker = None   # Evolving output mask
-        self.id_prefix = id_prefix + ID + '_node_'
+        self._optimizers = []   # Evolving heuristics optimizers, one per node
+        self._outmasker = None  # Evolving output mask
+        self._t_heur = None     # A template of fresh heuristics
+        self._id_prefix = id_prefix + ID + '_node_'
+
+        # Init heuristics template
+        self.t_heur = WeightedValues()
+        self.t_heur.set('count')    # Curr input encountered count
+        self.t_heur.set('pos')      # Input resulted in "fit" output count
+        self.t_heur.set('neg')      # Input resulted in "unfit" output count
+        self.t_heur.set('magn')     # Ascii code if str, num if num, else 0
+        self.t_heur.set('notprev')  # 1 if input doesn't match prev, else -1
 
         # Init each node and helpers
         for i in range(depth):
-            self.nodes.append({})  # {'UNIQUEINPUT': HeursticsInstanceObj }
+            self.nodes.append({})  # {'UNIQUEINPUT': WeightedValuesObj }
             self.outputs.append(None)
             self.prev_inputs.append(None)
 
-            # Init node optimizer (persist=False because this layer handles it)
-            self.optimizer = Genetic(self.id_prefix + str(i),
-                                     mode=3,
-                                     max_pop=L2_MAX_POP,
-                                     max_depth=L2_MAX_DEPTH,
-                                     max_inputs=dims[i],
-                                     tourn_sz=L2_MAX_POP / 2,
-                                     console_out=CONSOLE_OUT,
-                                     persist=False)
+            # Init node optimizer (persist=False - the layer will handle it)
+            self._optimizers.append(Genetic(self._id_prefix + str(i),
+                                            mode=3,
+                                            max_pop=L2_MAX_POP,
+                                            max_depth=L2_MAX_DEPTH,
+                                            max_inputs=dims[i],
+                                            tourn_sz=L2_MAX_POP / 2,
+                                            console_out=CONSOLE_OUT,
+                                            persist=False))
 
-        # Init the output mask (persist=False because this layer handles it)
-        self.outmasker = Genetic(ID + '_outmask',
-                                 mode=1,
-                                 max_pop=L2_MAX_POP,
-                                 max_depth=L2_MAX_DEPTH,
-                                 max_inputs=sum(dims),
-                                 tourn_sz=L2_MAX_POP / 2,
-                                 console_out=CONSOLE_OUT,
-                                 persist=False)
+        # Init output mask (persist=False because this layer handles it)
+        self._outmasker = Genetic(ID + '_outmask',
+                                  mode=1,
+                                  max_pop=L2_MAX_POP,
+                                  max_depth=L2_MAX_DEPTH,
+                                  max_inputs=sum(dims),
+                                  tourn_sz=L2_MAX_POP / 2,
+                                  console_out=CONSOLE_OUT,
+                                  persist=False)
 
         # Init the model handler
         f_save = "self._save('MODEL_FILE')"
@@ -178,36 +187,42 @@ class IntuitiveLayer(object):
             Assumes:
                 Any strings in inputs are exactly one char in length
         """
-        # Iterate each node and its input (note: nodes[i] maps to inputs[i])
+        # Iterate each node and its input (nodes[i]:inputs[i]:prev_inputs[i])
         for i in range(self.depth):
             inp = inputs[i]
             
+            # Lookup the heuristics for this input
             try:
                 heurs = self.nodes[i][inp]
             except KeyError:
-                # Node hasn't encountered this input: add it now w/fresh heurs
-                self.nodes[i][inp] = Heuristics()
+                # Node encountered new unique input: init fresh heuristics
+                self.nodes[i][inp] = copy.copy(self.t_heur)
                 heurs = self.nodes[i][inp]
 
-            # Update non-aggregate heuristics for current input
+            # Update non-aggregate heuristics (magn and notprev)
+            curr_heur = 'magn'
             if type(inp) is str:
-                heurs.magn = ord(inp)
+                heurs.set(curr_heur, ord(inp))
+            elif isinstance(inp, (int, float, complex)):
+                heurs.set(curr_heur, inp)
             else:
-                heurs.magn = inp
-
-            heurs.notprev = 1
-            if (inp == self.prev_inputs[i]):
-                heurs.notprev = -1
+                heurs.set(curr_heur, 0)
+            
+            curr_heur = 'notprev'
+            if inp != self.prev_inputs[i]:
+                heurs.set(curr_heur, 1)
+            else:
+                heurs.set(curr_heur, -1)
 
             # Get optimizer expression
-            optexp = self.nodes[i].forward(heurs)
-
+            optexp = self._optimizers[i].forward(None, expr_only=True)
             # Apply mask
 
             # Add results to return set
         
             print(inp)
             print(heurs)
+            print(optexp)
             exit()
             self.outputs[i] = inp
 
@@ -236,7 +251,7 @@ class IntuitiveLayer(object):
                 f.write('"' + key + '": """' + savestr + '""", ')
             
             # Write the outmasker
-            f.write('"outmasker": """' + self.outmasker.save() + '""", ')
+            f.write('"outmasker": """' + self._outmasker.save() + '""", ')
 
             f.write('}')
 
@@ -251,7 +266,7 @@ class IntuitiveLayer(object):
             data = f.read()
 
         for k, v in eval(data).items():
-            ID = self.id_prefix + str(i)
+            ID = self._id_prefix + str(i)
             node = Genetic(ID, 0, 0, 0, CONSOLE_OUT, False)
             node.load(v, not_file=True)
             self._nodes[k] = (node, None)

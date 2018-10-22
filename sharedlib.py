@@ -30,6 +30,11 @@ LOG_FILES = 2
 # Global logger
 g_logger = None
 
+
+#################
+#   Class Lib   #
+#################
+
 class ModelHandler(object):
     """ The ModelHandler, used by many of the inutive agent's classes for
         logging, saving, and loading methods. A "child" is defined here as
@@ -262,23 +267,23 @@ class Logger(logging.Logger):
 
 
 class AttributesIter(object):
-    """ An iterator of parrallel attribute stacks, indexed by an 
-        arbitrary key. The iterator returns the next set of all attributes
-        for every key as a dict: { ID_1: {attr_1: val, attr_n: val}, ... }
+    """ An iterable set of parrallel attribute stacks (one set per label).
+        The iterator returns the next set of all attributes for every label
+        as a dict: { ID_1: {attr_1: val, attr_n: val}, ... }
     """
     def __init__(self):
         self._results = {}  # {ID: {attr_1: [val_x], attr_n: [val_x]}, ..}
         
-    def push(self, key, attr, value):
-        """ Push the given results attribute to its stack for the given key. 
-            Note: Each push() for an attr should be immediately followed by
-            the rest of the attrs for that key, to ensure balanced stacks.
+    def push(self, label, attr, value):
+        """ Push the given results attribute to its stack for the given label. 
+            Note: To keep stacks balanced, each push() for a labels's attribute
+            should be followed by the rest of the attributes for that label.
         """
         try:
-            node = self._results[key]
+            node = self._results[label]
         except KeyError:
-            self._results[key] = {}
-            node = self._results[key]
+            self._results[label] = {}
+            node = self._results[label]
 
         try:
             val_list = node[attr]
@@ -289,19 +294,19 @@ class AttributesIter(object):
         val_list.append(value)
 
     def rm_empties(self, attr):
-        """ Removes all keys having no attributes of the given name.
+        """ Removes all sets/labels having no attributes of the given name.
         """
         self._results = {k: v for k, v in self._results.items() if v[attr]}
 
     def is_empty(self, attr):
-        """ Returns True if the given attr exists for any key. Else False.
+        """ Returns True if the given attr exists for any label. Else False.
         """
         if {k: v for k, v in self._results.items() if v[attr]}:
             return False
         return True
 
     def keys(self):
-        """ Returns a list of this objects associative keys.
+        """ Returns a list of this object's keys/labels.
         """
         return [k for k in self._results.keys()]
 
@@ -309,39 +314,85 @@ class AttributesIter(object):
         return self
 
     def __next__(self):
-        """ Dequeues and returns a single set of attributes for each key.
+        """ Dequeues and returns a single set of attributes for each label.
         """
         attributes = {}
         good_results = False
-        for key, attrs in self._results.items():
-            attributes[key] = {}
+        for label, attrs in self._results.items():
+            attributes[label] = {}
             for k, v in attrs.items():
                 try:
-                    attributes[key][k] = v.pop()
+                    attributes[label][k] = v.pop()
                     good_results = True
                 except IndexError:
-                    attributes[key][k] = None
+                    attributes[label][k] = None
         
         if not good_results:
             raise StopIteration
         return attributes
 
 
-class Heuristics(object):
-    """ A collection of heuristic values.
+class WeightedValues(object):
+    """ A collection of weighted numeric values, by label.
     """
     def __init__(self):
-        self.count = 0      # Num of times the input has been encountered
-        self.pos = 0        # Num times the input resulted in "fit" output
-        self.neg = 0        # Num times input resulted in "unfit" output
-        self.magn = 0       # Magnitude (if numeric) or ascii val (if str)
-        self.notprev = 0    # 1 if curr input doesn't match prev, else -1
-        # TODO: Other common heuristics
+        self._values = {}  # { label: [ value, weight ], ... }
+
+    def set(self, label, value=0, default_weight=1.0):
+        """ Sets the value for the given label. If the label does not already
+            exist, it is created with the given value and default_weight.
+        """
+        try:
+            self._values[label][0] = value
+        except KeyError:
+            new_pair = [value, default_weight]
+            self._values[label] = new_pair
+    
+    def adjust(self, label, value):
+        """ Updates the given label's value by adding the given value to it.
+        """
+        try:
+            self._values[label][0] += value
+        except KeyError:
+            print("ERROR: Attempted to adjust a non-existent label.")
+
+    def weight(self, label, wt):
+        """ Sets the given label's weight to the specified value.
+        """
+        try:
+            self._values[label][1] = wt
+        except KeyError:
+            print("ERROR: Attempted to weight a non-existent label.")
+
+    def get(self, label):
+        """ Returns the value associated with the given label.
+        """
+        return self._values[label][0]
+
+    def get_weighted(self, label):
+        """ Returns the weighted value associated with specified label.
+        """
+        return self._values[label][0] * self._values[label][1]
 
     def __str__(self):
-        str_out = 'count: ' + str(self.count) + '\n'
-        str_out += 'pos: ' + str(self.pos) + '\n'
-        str_out += 'neg: ' + str(self.neg) + '\n'
-        str_out += 'magn: ' + str(self.magn) + '\n'
-        str_out += 'notprev: ' + str(self.notprev)
-        return str_out
+        str_out = ''
+        for k, v in self._values.items():
+            str_out += str(k) + ': ' + str(v) + '\n'
+        return str_out[:-1]
+
+
+################
+# Function Lib #
+################
+
+def negate(x):
+    """ Returns a negated version of the given string or digit.
+    """
+    # String negate
+    if x.islower():
+        return x.upper()
+    elif x.isupper():
+        return x.lower()
+
+    # Numerical negate
+    return (x * -1)
