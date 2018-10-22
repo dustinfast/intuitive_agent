@@ -58,8 +58,10 @@ PERSIST = False
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
-L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man. Has perf affect.
+L2_KERNEL = 2       # Kernel for the L2 mask
+L2_MAX_DEPTH = 4    # 10 is max, per Karoo user man. Has perf affect.
 L2_MAX_POP = 25     # Number of expressions to generate. Has perf affect.
+L2_TOURNYSZ = int(L2_MAX_POP / 2)
 
 L3_EXT = '.lyr3'
 L3_ADVISOR = Connector.is_python_kwd
@@ -128,7 +130,7 @@ class IntuitiveLayer(object):
         self.outputs = []       # A list of outputs, one for each node
         self.prev_inputs = []   # Previous input values, one for each node
         self._optimizers = []   # Evolving heuristics optimizers, one per node
-        self._outmasker = None  # Evolving output mask
+        self._outmask = None    # Evolving output mask
         self._t_heur = None     # A template of fresh heuristics
         self._id_prefix = id_prefix + ID + '_node_'
 
@@ -139,7 +141,7 @@ class IntuitiveLayer(object):
         self.t_heur.set('neg')      # Input resulted in "unfit" output count
         self.t_heur.set('magn')     # Ascii code if str, num if num, else 0
         self.t_heur.set('notprev')  # 1 if input doesn't match prev, else -1
-
+       
         # Init each node and helpers
         for i in range(depth):
             self.nodes.append({})  # {'UNIQUEINPUT': WeightedValuesObj }
@@ -147,24 +149,24 @@ class IntuitiveLayer(object):
             self.prev_inputs.append(None)
 
             # Init node optimizer (persist=False - the layer will handle it)
-            self._optimizers.append(Genetic(self._id_prefix + str(i),
-                                            mode=3,
+            self._optimizers.append(Genetic(ID=self._id_prefix + str(i),
+                                            kernel=1,
                                             max_pop=L2_MAX_POP,
                                             max_depth=L2_MAX_DEPTH,
-                                            max_inputs=dims[i],
-                                            tourn_sz=L2_MAX_POP / 2,
+                                            max_inputs=len(self.t_heur),
+                                            tourn_sz=L2_TOURNYSZ,
                                             console_out=CONSOLE_OUT,
                                             persist=False))
-
+                 
         # Init output mask (persist=False because this layer handles it)
-        self._outmasker = Genetic(ID + '_outmask',
-                                  mode=1,
-                                  max_pop=L2_MAX_POP,
-                                  max_depth=L2_MAX_DEPTH,
-                                  max_inputs=sum(dims),
-                                  tourn_sz=L2_MAX_POP / 2,
-                                  console_out=CONSOLE_OUT,
-                                  persist=False)
+        self._outmask = Genetic(ID=ID + '_outmask',
+                                kernel=L2_KERNEL,
+                                max_pop=L2_MAX_POP,
+                                max_depth=L2_MAX_DEPTH,
+                                max_inputs=sum(dims),
+                                tourn_sz=L2_TOURNYSZ,
+                                console_out=CONSOLE_OUT,
+                                persist=False)
 
         # Init the model handler
         f_save = "self._save('MODEL_FILE')"
@@ -214,17 +216,17 @@ class IntuitiveLayer(object):
             else:
                 heurs.set(curr_heur, -1)
 
-            # Get optimizer expression
-            optexp = self._optimizers[i].forward(None, expr_only=True)
-            # Apply mask
+            # Get the optimizer expression
+            results = self._optimizers[i].apply([heurs.get_list()])
 
-            # Add results to return set
-        
-            print(inp)
-            print(heurs)
-            print(optexp)
+            print('Results:')
+            print(heurs.get_list())
+            for trees in results:
+                print(trees)
+                for treeID, attrs in trees.items():
+                    output = attrs['output']
+                    print('Tree %d: %s' % (treeID, output))
             exit()
-            self.outputs[i] = inp
 
         # Remember curr inputs for next time anbd return results
         self.prev_inputs = inputs
@@ -251,7 +253,7 @@ class IntuitiveLayer(object):
                 f.write('"' + key + '": """' + savestr + '""", ')
             
             # Write the outmasker
-            f.write('"outmasker": """' + self._outmasker.save() + '""", ')
+            f.write('"outmasker": """' + self._outmask.save() + '""", ')
 
             f.write('}')
 
@@ -321,7 +323,7 @@ class IntuitiveLayer(object):
 #             sz = len(data)
 #             pop_sz = sz * 10
 #             node = Genetic(ID=data, 
-#                            mode=2,
+#                            kernel=2,
 #                            max_pop=pop_sz,
 #                            max_depth=L2_MAX_DEPTH,
 #                            max_inputs=sz,
@@ -333,7 +335,7 @@ class IntuitiveLayer(object):
 #             node = self._nodes[data][0]
 
 #         self._curr_node = node
-#         return node.forward(list([data]), is_seq)
+#         return node.apply(list([data]), is_seq)
 
 #     def update(self, data):
 #         """ Updates the currently active node with the given fitness data dict.
@@ -371,17 +373,17 @@ class IntuitiveLayer(object):
 
 class LogicalLayer(object):
     """ An abstraction of the agent's Logical layer (i.e. layer three), which
-        evaluates the fitness of it's input according to the given mode.
+        evaluates the fitness of it's input according to the given kernel.
         This layer does no persistence or logging at this time.
         Note: This is the most computationally expensive layer
     """
-    def __init__(self, ID, mode):
+    def __init__(self, ID, kernel):
         """ Accepts:
-                mode (function)  : Any func returning True or false when given
-                a layer-two output, denoting if that output is fit/productive
+                kernel (function)  : Any func returning True or false when
+                                     given some layer-two output
         """
         self.ID = ID
-        self.mode = mode
+        self.kernel = kernel
         self.node = self.check_fitness
         self.kb = []  # debug
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
@@ -391,7 +393,7 @@ class LogicalLayer(object):
 
     def check_fitness(self, results):
         """ Checks each result in results and returns a dict of fitness scores
-            corresponding to each, as determined by self.mode.
+            corresponding to each, as determined by self.kernel.
             Accepts:
                 results (dict)  : { treeID:  { masked:    [ ... ], 
                                                in_context: [ ... ], ... }
@@ -406,7 +408,7 @@ class LogicalLayer(object):
         for k, v in results.items():
             for j in v['masked']:
                 self.model.log('L3 TRYING: ' + j)
-                if self.mode(j):
+                if self.kernel(j):
                     fitness[k] += 1
                     self.model.log('TRUE!')
 
