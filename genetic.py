@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """ A module for genetically evolving a population of expression trees using 
-    the Karoo GP library.
-
+    and applying them to user-specified data in predefined ways.
+    
     Module Structure:
         GPM is the main interface.
         Persistence and output handled by sharedlib.ModelHandler.
@@ -13,32 +13,35 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
 
     # TODO: 
+        Ensure tourney happens only among 
 
     Author: Dustin Fast, 2018
 """
 
 import re
-from random import randint
+from numpy import array
+from random import randint, random
 import sys; sys.path.append('lib')
 
-from numpy import array
 import karoo_gp.karoo_gp_base_class as karoo_gp
-
 from sharedlib import ModelHandler, AttributesIter, negate
 
-MODEL_EXT = '.ev'       # File extensions for model file save/load
-OP_FLIP_STR = '+ abs'    # Case flip operator in string form
 
-ATTRIB_OUTPUT = 'output'
-ATTRIB_INCONTEXT = 'from_inps'
+MODEL_EXT = '.ev'           # File extensions for model file save/load
+OP_FLIP_STR = '+ abs'       # Alphabetic case flip operator in string form
+KERNEL_MODES = [1, 2, 3]    # See class docstring for mode descriptions
+
+ATTRIB_OUTPUT = 'output'            # Attribute label
+ATTRIB_INCONTEXT = 'from_inputs'    # Attribute label
+
 
 class Genetic(karoo_gp.Base_GP):
     """ An evolving population of expression trees with methods for applying
         them to supplied data and reproducing based on fitness according to
         the given kernel:
-        Kernel 1: Minimizing numeric kernel with +, -, *, and / operators
-        Kernel 2: Maximizing string kernel wit + operator
-        Kernel 3: Maximzing string kernel with + and "case flip" operators
+        Kernel 1: Numeric minimizing kernel with +, -, *, and / operators
+        Kernel 2: String masking kernel with + operator
+        Kernel 3: String masking kernel with + and "case flip" operators
     """
     def __init__(self, ID, kernel, max_pop, max_depth, max_inputs, tourn_sz=10,
                  console_out=True, persist=False):
@@ -91,10 +94,18 @@ class Genetic(karoo_gp.Base_GP):
     def _set_kernel(self, kernel, max_inputs):
         """ Sets up GP operators and methods, depending on the given kernel.
         """
-        # Kernel modes
+        if kernel not in KERNEL_MODES:
+            raise AttributeError('Invalid kernel requested.')
+
+        # Gradient directions, by kernel
         mode = {1: 'min',
                 2: 'max',
                 3: 'max'}
+
+        # Apply methods, by kernel
+        f_apply = {1: self._mode1_apply,
+                   2: self._mode2n3_apply,
+                   3: self._mode2n3_apply}
 
         # Operators, by kernel
         opers = {1: [['+', '2'],        
@@ -105,26 +116,33 @@ class Genetic(karoo_gp.Base_GP):
                  3: [['+', '2'],        
                      ['+ abs', '2']]}
 
-        # Set kernel dependent attributes
+        # Kernel-dependent attributes
+        self._mode = kernel
+        self._f_apply = f_apply.get(kernel)
         self.fitness_type = mode.get(kernel)
         self.functions = array(opers.get(kernel))
-        self.kernel = kernel
 
-        if self.functions is None or self.fitness_type is None:
-            raise AttributeError('Invalid kernel requested.')
+        # Kenrnel 1 gets a set of random floats from [0, 1)
+        if kernel == 1:
+            self.terminals = [random() for i in range(max_inputs)]
+            
+        # Kernels 2 & 3 work with string inputs, so terminals must be
+        # non-numeric (sympy will simplify those) and non sympy function name
+        # (sympy will try to call those) placeholders. Ex: 'bzzz', 'gh', etc.
+        elif kernel == 2 or kernel == 3:
+            self.terminals = []
+            trailing_chars = 1
+            curr_char = 0
+            for _ in range(1, max_inputs + 1):
+                curr_char += 1
+                if curr_char >= 26:
+                    trailing_chars += 1
+                    curr_char = 1
+                ch = curr_char + 96
+                self.terminals.append(chr(ch) + chr(ch + 1) * trailing_chars)
 
-        # Init terminal symbols
-        self.terminals = ['s']  # 's' label unused required by KarooGP
-        trailing_chars = 1
-        curr_char = 0
-        for _ in range(1, max_inputs + 1):
-            curr_char += 1
-            if curr_char >= 26:
-                trailing_chars += 1
-                curr_char = 1
-            ch = curr_char + 96
-            self.terminals.append(chr(ch) + chr(ch + 1) * trailing_chars)
-
+        #  Kernel independent attributes...
+        self.terminals += ['s']  # 's' label unused required by KarooGP
         self.display = 's'                    # Silence Karoo GP menus/output
         self.precision = 6                    # Tourney floating points
 
@@ -283,7 +301,33 @@ class Genetic(karoo_gp.Base_GP):
 
         return trees
 
-    def apply(self, inputs, is_seq=False, max_results=0, gain=.75):
+    def apply(self, **kwargs):
+        """ Applies the kernel to the given inputs and returns the results.
+        """
+        return self._f_apply(**kwargs)
+
+    def _mode1_apply(self, normalize=False, gain=.75):
+        """ Returns a list of max_inputs (as passed to constructor) numbers
+            generated by the max_inputs number of fittest trees.
+        """
+        results = []
+        num_results = len(self.terminals) - 1
+        trees = self._filtered_trees(self._symp_expr)
+        trees = self._apply_gain(trees, num_results, .75)
+
+        for i in range(num_results):
+            treeID = trees[i]
+            result = self._symp_expr(treeID) * self.terminals[i]
+            results.append(result)
+
+        if normalize:
+            norm_max = max(results)
+            norm_min = min(results)
+            results = [(r - norm_min) / (norm_max - norm_min) for r in results]
+            
+        return results
+
+    def _mode2n3_apply(self, inputs, is_seq=False, max_results=0, gain=.75):
         """ Applies each tree's expression to the given inputs.
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
@@ -292,7 +336,7 @@ class Genetic(karoo_gp.Base_GP):
                 gain (0 <= float <=1) : Fittest to randomly chosen ratio 
             Returns:
                 A dictionary, by tree ID, of lists representing the inputs
-                after masking, as well as the unmasked input indexes.
+                after masking, as well as the unmasked input indexes, as:
                     { treeID: { output: [ ... ], from_inps: [ ... ], ... } 
         """
         # Denote use of order-preserving raw expression, or simplified
@@ -308,23 +352,20 @@ class Genetic(karoo_gp.Base_GP):
         # Iterate every tree that has made the cut
         outputs = AttributesIter()
         for treeID in trees:
+            # Get current tree's expression. Ex: expr 'A + D'
             expression = self._expr_to_lst(f_getexpr(treeID))
 
-            # Build the expression string by mapping operands to inputs
-            # Also set "in_context", to denote which inputs are in results
-            #   Ex: expr 'A + 2*D + B'-> 'row[0] + 2*row[3] + row[1]'
-            #   Ex: expr 'abs(A) + C'-> 'row[0] + row[3]' w/negate_at = [0]
+            # Build expr str by mapping inputs to terms. Ex: 'row[0]+row[3]'
             expr_str = ''
             negate_at = []
             in_context = set()
             idx_term = -1
-            for el in expression:
+            for el in expression:  
                 if el in self.terminals:
-                    idx_term += 1
-                    
                     input_idx = self.terminals.index(el)
                     in_context.add(input_idx)
                     expr_str += 'row[' + str(input_idx) + ']'
+                    idx_term += 1
                 else:
                     if el != OP_FLIP_STR:
                         # Append non-negate operators as-is
@@ -334,7 +375,7 @@ class Genetic(karoo_gp.Base_GP):
                         negate_at.append(idx_term + 1)
                         expr_str += '+'
 
-            # Eval each row of input against the expr
+            # Eval each row of input against the expression
             for row in inputs:
                 try:
                     output = eval(expr_str)
@@ -350,24 +391,22 @@ class Genetic(karoo_gp.Base_GP):
 
                 # Results = output and contributing terminals, by treeID
                 outputs.push(treeID, ATTRIB_OUTPUT, output)
-                outputs.push(treeID, ATTRIB_INCONTEXT, in_context)
+                outputs.push(treeID, ATTRIB_INCONTEXT, list(in_context))
 
         # Remove empty results and return
         outputs.rm_empties(ATTRIB_OUTPUT)
         return outputs
 
     def update(self, fitness):
-        """ Evolves a new population of trees after updating the fitness of 
-        each existing tree's expression according to "fitness". 
+        """ Evolves a new population of trees after updating tree fitness. 
         Accepts:
-            fitness (dict)    : Each key (int) is a tree ID and each value
-                                denotes it's new fitness value
+            fitness (dict)    : { treeID: fitness }
         """
-        # Give each tree a baseline fitness score
+        # Rest each trees baseline fitness
         for treeID in range(1, len(self.population_a)):
                 self.population_a[treeID][12][1] = 0.0
 
-        # Update tree's fitness as given by "fitness" arg
+        # Update tree fitness as given by "fitness"
         for k, v in fitness.items():
             self.population_a[k][12][1] = v
 
@@ -425,7 +464,6 @@ if __name__ == '__main__':
         
         print('Results:')
         for trees in results:
-            # pprint(trees)
             for treeID, attrs in trees.items():
                 output = attrs[ATTRIB_OUTPUT]
                 pprint('Tree %d: %s' % (treeID, output))

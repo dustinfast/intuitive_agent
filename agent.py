@@ -110,12 +110,12 @@ class ConceptualLayer(object):
             self.nodes[i].validate(val_data[i], verbose=True)
 
     
-class IntuitiveLayer(object):
-    """ An abstraction of the agents second layer, representing its ability to
-        selectively focus it's attention on "pertinent" input. This layer is 
-        implemented as sets of heuristics of each node's unique input applied 
-        to a genetically evolving expression that attempts to optimize
-        their usage. The heuristics are ultimitely used to "mask" the layer's
+class AttentiveLayer(object):
+    """ An abstraction of the agents second layer, representing the ability to
+        learn which information to devote attention to. This layer is 
+        implemented as sets of heuristics for each node's unique input applied 
+        to genetically evolving weights. In this way, we're attempt to optimize
+        heuristic usage. The heuristics are ultimitely used to "mask" the layer's
         inputs - the results are the layer's output.
     """
     def __init__(self, ID, id_prefix, depth, dims):
@@ -139,7 +139,7 @@ class IntuitiveLayer(object):
         self.t_heur.set('count')    # Curr input encountered count
         self.t_heur.set('pos')      # Input resulted in "fit" output count
         self.t_heur.set('neg')      # Input resulted in "unfit" output count
-        self.t_heur.set('magn')     # Ascii code if str, num if num, else 0
+        self.t_heur.set('mag')      # Ascii code if str, num if num, else 0
         self.t_heur.set('notprev')  # 1 if input doesn't match prev, else -1
        
         # Init each node and helpers
@@ -185,58 +185,78 @@ class IntuitiveLayer(object):
         """ Moves the given inputs through the layer & returns the output.
             Accepts: 
                 inputs (list)       : Data elements, one for each node
-                is_seq (bool)       : Denotes inputs stay ordered for output 
-            Assumes:
-                Any strings in inputs are exactly one char in length
+                is_seq (bool)       : Denotes inputs order is significant
         """
-        # Iterate each node and its input (nodes[i]:inputs[i]:prev_inputs[i])
+        # Iterate the input for each node
         for i in range(self.depth):
             inp = inputs[i]
             
-            # Lookup the heuristics for this input
+            # Get heuristics for the current input
             try:
                 heurs = self.nodes[i][inp]
             except KeyError:
-                # Node encountered new unique input: init fresh heuristics
+                # None found - init w/fresh heuristics
                 self.nodes[i][inp] = copy.copy(self.t_heur)
                 heurs = self.nodes[i][inp]
 
-            # Update non-aggregate heuristics (magn and notprev)
-            curr_heur = 'magn'
-            if type(inp) is str:
-                heurs.set(curr_heur, ord(inp))
-            elif isinstance(inp, (int, float, complex)):
-                heurs.set(curr_heur, inp)
-            else:
-                heurs.set(curr_heur, 0)
+            # Update heuristic weights, according to node's optimizer
+            weights = self._optimizers[i].apply(normalize=True)
+            heurs.set_wts(weights)
+
+            # Increment count heuristic
+            heurs.adjust('count', 1)
             
-            curr_heur = 'notprev'
-            if inp != self.prev_inputs[i]:
-                heurs.set(curr_heur, 1)
+            # Set magnitude heuristic
+            if type(inp) is str and len(inp) == 1:
+                heurs.set('mag', (ord(inp) - 64) / 100)
+            elif isinstance(inp, (int, float, complex)):
+                heurs.set('mag', inp)
             else:
-                heurs.set(curr_heur, -1)
+                heurs.set('mag', 0)
+            
+            # Set not prev heuristic
+            if inp != self.prev_inputs[i]:
+                heurs.set('notprev', 1)
+            else:
+                heurs.set('notprev', -1)
 
-            # Get the optimizer expression
-            results = self._optimizers[i].apply([heurs.get_list()])
+            # The sum of all weighted heuristics is the grand node weight
+            print(heurs)  # debug
+            wtd_heurs = heurs.get_list(normalize=False)
+            node_wt = sum(wtd_heurs)
 
-            print('Results:')
-            print(heurs.get_list())
-            for trees in results:
-                print(trees)
-                for treeID, attrs in trees.items():
-                    output = attrs['output']
-                    print('Tree %d: %s' % (treeID, output))
+            # debug
+            node_wt = 0
+            # node_wt += heurs.get('count')
+            # node_wt += heurs.get('pos')
+            # node_wt += heurs.get('neg')
+            node_wt += heurs.get('mag')
+            node_wt += heurs.get('notprev')
+            print(wtd_heurs)
+            print(node_wt)
+
             exit()
 
-        # Remember curr inputs for next time anbd return results
-        self.prev_inputs = inputs
+        self.prev_inputs = inputs  # Denote curr inputs for next time
         return inputs
 
     def update(self, fitness_data):
         """ Update active node with the given fitness data dict.
         """
-        # heurs['count'] += 1
-        # self._curr_node.update(fitness_data)
+        # fitness = {k: 0.0 for k in results.keys()}
+        # for k, v in results.items():
+        #     for j in v['masked']:
+        #         self.model.log('L3 TRYING: ' + j)
+        #         if self.kernel(j):
+        #             fitness[k] += 1
+        #             self.model.log('TRUE!')
+
+        #             # debug output
+        #             if j not in self.kb:
+        #                 self.kb.append(j)
+        #                 print('L3 Learned: ' + j)
+        #             else:
+        #                 print('L3 Encountered: ' + j)
         pass
         
     def _save(self, filename):
@@ -273,102 +293,6 @@ class IntuitiveLayer(object):
             node.load(v, not_file=True)
             self._nodes[k] = (node, None)
             i += 1
-
-
-# class IntuitiveLayer(object):
-#     """ An abstration of the agent's Intuitive layer (i.e. layer two), which 
-#         represents the intutive "bubbling up" of "pertinent" information to 
-#         layers above it.
-#         Nodes at this level represent a single genetically evolving population
-#         of expressions. They are created dynamically, one for each unique 
-#         input the layer receives (from layer-one), with each node's ID then 
-#         being that unique input (as a string).
-#         A population's expressions represent a "mask" applied to the layer's 
-#         input as it passes through it.
-#         On init, each previously existing node is loaded from file iff PERSIST.
-#         Note: This layer is trained in an "online" fashion - as the agent runs,
-#         its model file is updated for every call to node.update() iff PERSIST.
-#     """ 
-#     def __init__(self, ID, id_prefix):
-#         """ Accepts:
-#             ID (str)            : This layer's unique ID
-#             id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_L2_'
-#         """
-#         self.ID = ID
-#         self.outputs = None      # Placeholder for current output
-#         self._curr_node = None  # The node for the current unique input
-#         self._nodes = {}        # Nodes, as: { nodeID: (obj_instance, output) }
-#         self.id_prefix = id_prefix + ID + '_node_'
-        
-#         f_save = "self._save('MODEL_FILE')"
-#         f_load = "self._load('MODEL_FILE')"
-#         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
-#                                   model_ext=L2_EXT,
-#                                   save_func=f_save,
-#                                   load_func=f_load)
-
-#     def __str__(self):
-#         str_out = '\nID = ' + self.ID
-#         str_out += '\nNodes = ' + str(len(self._nodes))
-#         return str_out
-
-#     def forward(self, data, is_seq):
-#         """ Returns the layer's output after moving the given input_data 
-#             through it and setting the currently active node according to it
-#             (the node is created first, if it doesn't already exist).
-#             Note: We leave it to the caller to set self.output, if desired.
-#         """
-#         if not self._nodes.get(data):
-#             # Init new node ("False", because we'll handle its persistence)
-#             sz = len(data)
-#             pop_sz = sz * 10
-#             node = Genetic(ID=data, 
-#                            kernel=2,
-#                            max_pop=pop_sz,
-#                            max_depth=L2_MAX_DEPTH,
-#                            max_inputs=sz,
-#                            tourn_sz=10,
-#                            console_out=CONSOLE_OUT, 
-#                            persist=False)
-#             self._nodes[data] = (node, None)
-#         else:
-#             node = self._nodes[data][0]
-
-#         self._curr_node = node
-#         return node.apply(list([data]), is_seq)
-
-#     def update(self, data):
-#         """ Updates the currently active node with the given fitness data dict.
-#         """
-#         self._curr_node.update(data)
-
-#     def _save(self, filename):
-#         """ Saves the layer to file. For use by ModelHandler.
-#         """
-#         # Write each node ID and asociated data as { "ID": ("save_string") }
-#         with open(filename, 'w') as f:
-#             f.write('{')
-#             for k, v in self._nodes.items():
-#                 savestr = v[0].save()
-#                 f.write('"' + k + '": """' + savestr + '""", ')
-#             f.write('}')
-
-#     def _load(self, filename):
-#         """ Loads the layer from file. For use by ModelHandler.
-#         """
-#         # Restore the layer nodes, one at a time
-#         self._nodes = {}
-#         i = 0
-
-#         with open(filename, 'r') as f:
-#             data = f.read()
-            
-#         for k, v in eval(data).items():
-#             ID = self.id_prefix + str(i)
-#             node = Genetic(ID, 0, 0, 0, CONSOLE_OUT, False)
-#             node.load(v, not_file=True)
-#             self._nodes[k] = (node, None)
-#             i += 1
 
 
 class LogicalLayer(object):
@@ -478,7 +402,7 @@ class Agent(threading.Thread):
         ID = id_prefix + 'L1'
         self.l1 = ConceptualLayer(ID, id_prefix, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = IntuitiveLayer(ID, id_prefix, self.depth, l2_dims)
+        self.l2 = AttentiveLayer(ID, id_prefix, self.depth, l2_dims)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_ADVISOR)
 

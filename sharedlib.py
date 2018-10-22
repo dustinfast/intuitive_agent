@@ -274,6 +274,9 @@ class AttributesIter(object):
     def __init__(self):
         self._results = {}  # {ID: {attr_1: [val_x], attr_n: [val_x]}, ..}
         
+    def __str__(self):
+        return str(self._results)
+
     def push(self, label, attr, value):
         """ Push the given results attribute to its stack for the given label. 
             Note: To keep stacks balanced, each push() for a labels's attribute
@@ -365,7 +368,7 @@ class WeightedValues(object):
         except KeyError:
             print("ERROR: Attempted to adjust a non-existent label.")
 
-    def weight(self, label, wt):
+    def set_wt(self, label, wt):
         """ Sets the given label's weight to the specified value.
         """
         try:
@@ -373,20 +376,32 @@ class WeightedValues(object):
         except KeyError:
             print("ERROR: Attempted to weight a non-existent label.")
 
+    def set_wts(self, wts):
+        """ Sets each weight according to the ordered list given, where
+            wts[i] maps to label_i: weight
+        """
+        try:
+            for k in self._values.keys():
+                self._values[k][1] = wts.pop(0)
+        except IndexError:
+            print("ERROR: Mismatched len(wts) to len(values).")
+
     def get(self, label):
-        """ Returns the value associated with the given label.
-        """
-        return self._values[label][0]
-
-    def get_list(self):
-        """ Returns a list of all values.
-        """
-        return [v[0] for v in self._values.values()]
-
-    def get_weighted(self, label):
         """ Returns the weighted value associated with specified label.
         """
         return self._values[label][0] * self._values[label][1]
+
+    def get_list(self, normalize=True):
+        """ Returns a list of all weighted values.
+        """
+        ps = [v[0] * v[1] for v in self._values.values()]
+
+        if normalize:
+            normmax = max(ps)
+            normmin = min(ps)
+            ps = [(p - normmin) / (normmax - normmin) for p in ps]
+
+        return ps
 
 
     
