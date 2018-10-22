@@ -338,6 +338,15 @@ class WeightedValues(object):
     def __init__(self):
         self._values = {}  # { label: [ value, weight ], ... }
 
+    def __str__(self):
+        str_out = ''
+        for k, v in self._values.items():
+            str_out += str(k) + ': ' + str(v) + '\n'
+        return str_out[:-1]
+
+    def __len__(self):
+        return len(self._values.keys())
+
     def set(self, label, value=0, default_weight=1.0):
         """ Sets the value for the given label. If the label does not already
             exist, it is created with the given value and default_weight.
@@ -374,11 +383,7 @@ class WeightedValues(object):
         """
         return self._values[label][0] * self._values[label][1]
 
-    def __str__(self):
-        str_out = ''
-        for k, v in self._values.items():
-            str_out += str(k) + ': ' + str(v) + '\n'
-        return str_out[:-1]
+    
 
 
 ################
