@@ -325,3 +325,23 @@ class AttributesIter(object):
         if not good_results:
             raise StopIteration
         return attributes
+
+
+class Heuristics(object):
+    """ A collection of heuristic values.
+    """
+    def __init__(self):
+        self.count = 0      # Num of times the input has been encountered
+        self.pos = 0        # Num times the input resulted in "fit" output
+        self.neg = 0        # Num times input resulted in "unfit" output
+        self.magn = 0       # Magnitude (if numeric) or ascii val (if str)
+        self.notprev = 0    # 1 if curr input doesn't match prev, else -1
+        # TODO: Other common heuristics
+
+    def __str__(self):
+        str_out = 'count: ' + str(self.count) + '\n'
+        str_out += 'pos: ' + str(self.pos) + '\n'
+        str_out += 'neg: ' + str(self.neg) + '\n'
+        str_out += 'magn: ' + str(self.magn) + '\n'
+        str_out += 'notprev: ' + str(self.notprev)
+        return str_out

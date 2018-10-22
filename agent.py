@@ -3,7 +3,7 @@
     See README.md for description of the agent and the application as a whole.
         
     If CONSOLE_OUT = True:
-        The Agent and its sub-modules write their output to stdout
+        Agent and its sub-modules output to stdout
 
     If PERSIST = True:
         Agent and its sub-module states persist between executions via file
@@ -38,7 +38,8 @@
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
-        Rename depth to nodes?
+        Rename classlib to shared
+        "provides feedback" connector - ex: True if the action returns a value
         
 
     Author: Dustin Fast, 2018
@@ -48,16 +49,15 @@ import logging
 import threading
 
 from ann import ANN
-from genetic import GPMask
+from genetic import Genetic
 from connector import Connector
-from classlib import ModelHandler, DataFrom
+from classlib import ModelHandler, DataFrom, Heuristics
 
 CONSOLE_OUT = True
 PERSIST = False
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
-L2_MODE = 2         # 1 = + operator only, 2 = + and negate operators
 L2_MAX_DEPTH = 10   # 10 is max, per Karoo user man. Has perf affect.
 L2_MAX_POP = 25     # Number of expressions to generate. Has perf affect.
 
@@ -107,28 +107,8 @@ class ConceptualLayer(object):
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self.nodes[i].validate(val_data[i], verbose=True)
 
-
-class Heuristics(object):
-    """ A collection of heuristics.
-    """
-    def __init__(self):
-        self.count = 0      # Num of times the input has been encountered
-        self.pos = 0        # Num times the input resulted in "fit" output
-        self.neg = 0        # Num times input resulted in "unfit" output
-        self.magn = 0       # Magnitude (if numeric) or ascii val (if str)
-        self.notprev = 0    # 1 if curr input doesn't match prev, else -1
-        # TODO: Others (search common heuristics)
-
-    def __str__(self):
-        str_out = 'count: ' + str(self.count) + '\n'
-        str_out += 'pos: ' +  str(self.pos) + '\n'
-        str_out += 'neg: ' +  str(self.neg) + '\n'
-        str_out += 'magn: ' + str(self.magn) + '\n'
-        str_out += 'notprev: ' + str(self.notprev)
-        return str_out
-
     
-class HeuristicsLayer(object):
+class IntuitiveLayer(object):
     """ An abstraction of the agents second layer, representing its ability to
         selectively focus it's attention on "pertinent" input. This layer is 
         implemented as sets of heuristics of each node's unique input applied 
@@ -159,24 +139,32 @@ class HeuristicsLayer(object):
             self.prev_inputs.append(None)
 
             # Init node optimizer (persist=False because this layer handles it)
-            self.optimizer = GPMask(self.id_prefix + str(i),
-                                    max_pop=L2_MAX_POP,
-                                    max_depth=L2_MAX_DEPTH,
-                                    max_inputs=dims[i],
-                                    console_out=CONSOLE_OUT,
-                                    persist=False,
-                                    op_mode=3,
-                                    tourn_sz=L2_MAX_POP / 2)
+            self.optimizer = Genetic(self.id_prefix + str(i),
+                                     mode=3,
+                                     max_pop=L2_MAX_POP,
+                                     max_depth=L2_MAX_DEPTH,
+                                     max_inputs=dims[i],
+                                     tourn_sz=L2_MAX_POP / 2,
+                                     console_out=CONSOLE_OUT,
+                                     persist=False)
 
         # Init the output mask (persist=False because this layer handles it)
-        self.outmasker = GPMask(ID + '_outmask',
-                                max_pop=L2_MAX_POP,
-                                max_depth=L2_MAX_DEPTH,
-                                max_inputs=sum(dims),
-                                console_out=CONSOLE_OUT,
-                                persist=False,
-                                op_mode=1,
-                                tourn_sz=L2_MAX_POP / 2)
+        self.outmasker = Genetic(ID + '_outmask',
+                                 mode=1,
+                                 max_pop=L2_MAX_POP,
+                                 max_depth=L2_MAX_DEPTH,
+                                 max_inputs=sum(dims),
+                                 tourn_sz=L2_MAX_POP / 2,
+                                 console_out=CONSOLE_OUT,
+                                 persist=False)
+
+        # Init the model handler
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
+        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+                                  model_ext=L2_EXT,
+                                  save_func=f_save,
+                                  load_func=f_load)
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
@@ -191,18 +179,18 @@ class HeuristicsLayer(object):
             Assumes:
                 Any strings in inputs are exactly one char in length
         """
-        # Iterate each node and its input (nodes[i] maps to inputs[i])
+        # Iterate each node and its input (note: nodes[i] maps to inputs[i])
         for i in range(self.depth):
             inp = inputs[i]
             
             try:
                 heurs = self.nodes[i][inp]
             except KeyError:
-                # Node hasn't encountered this input; add it now w/fresh heurs
+                # Node hasn't encountered this input: add it now w/fresh heurs
                 self.nodes[i][inp] = Heuristics()
                 heurs = self.nodes[i][inp]
 
-            # Update non-aggregate heuristics
+            # Update non-aggregate heuristics for current input
             if type(inp) is str:
                 heurs.magn = ord(inp)
             else:
@@ -212,17 +200,21 @@ class HeuristicsLayer(object):
             if (inp == self.prev_inputs[i]):
                 heurs.notprev = -1
 
+            # Get optimizer expression
+            optexp = self.nodes[i].forward(heurs)
+
+            # Apply mask
+
+            # Add results to return set
+        
             print(inp)
             print(heurs)
+            exit()
             self.outputs[i] = inp
 
-        exit()
-
-            # TODO: Get optimizer results
-            # opt = self.nodes[i][inp].forward()
-
-
+        # Remember curr inputs for next time anbd return results
         self.prev_inputs = inputs
+        return inputs
 
     def update(self, fitness_data):
         """ Update active node with the given fitness data dict.
@@ -261,101 +253,106 @@ class HeuristicsLayer(object):
 
         for k, v in eval(data).items():
             ID = self.id_prefix + str(i)
-            node = GPMask(ID, 0, 0, 0, CONSOLE_OUT, False)
+            node = Genetic(ID, 0, 0, 0, CONSOLE_OUT, False)
             node.load(v, not_file=True)
             self._nodes[k] = (node, None)
             i += 1
 
 
-class IntuitiveLayer(object):
-    """ An abstration of the agent's Intuitive layer (i.e. layer two), which 
-        represents the intutive "bubbling up" of "pertinent" information to 
-        layers above it.
-        Nodes at this level represent a single genetically evolving population
-        of expressions. They are created dynamically, one for each unique 
-        input the layer receives (from layer-one), with each node's ID then 
-        being that unique input (as a string).
-        A population's expressions represent a "mask" applied to the layer's 
-        input as it passes through it.
-        On init, each previously existing node is loaded from file iff PERSIST.
-        Note: This layer is trained in an "online" fashion - as the agent runs,
-        its model file is updated for every call to node.update() iff PERSIST.
-    """ 
-    def __init__(self, ID, id_prefix):
-        """ Accepts:
-            ID (str)            : This layer's unique ID
-            id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_L2_'
-        """
-        self.ID = ID
-        self.outputs = None      # Placeholder for current output
-        self._curr_node = None  # The node for the current unique input
-        self._nodes = {}        # Nodes, as: { nodeID: (obj_instance, output) }
-        self.id_prefix = id_prefix + ID + '_node_'
+# class IntuitiveLayer(object):
+#     """ An abstration of the agent's Intuitive layer (i.e. layer two), which 
+#         represents the intutive "bubbling up" of "pertinent" information to 
+#         layers above it.
+#         Nodes at this level represent a single genetically evolving population
+#         of expressions. They are created dynamically, one for each unique 
+#         input the layer receives (from layer-one), with each node's ID then 
+#         being that unique input (as a string).
+#         A population's expressions represent a "mask" applied to the layer's 
+#         input as it passes through it.
+#         On init, each previously existing node is loaded from file iff PERSIST.
+#         Note: This layer is trained in an "online" fashion - as the agent runs,
+#         its model file is updated for every call to node.update() iff PERSIST.
+#     """ 
+#     def __init__(self, ID, id_prefix):
+#         """ Accepts:
+#             ID (str)            : This layer's unique ID
+#             id_prefix (str)     : Each node's ID prefix. Ex: 'Agent1_L2_'
+#         """
+#         self.ID = ID
+#         self.outputs = None      # Placeholder for current output
+#         self._curr_node = None  # The node for the current unique input
+#         self._nodes = {}        # Nodes, as: { nodeID: (obj_instance, output) }
+#         self.id_prefix = id_prefix + ID + '_node_'
         
-        f_save = "self._save('MODEL_FILE')"
-        f_load = "self._load('MODEL_FILE')"
-        self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
-                                  model_ext=L2_EXT,
-                                  save_func=f_save,
-                                  load_func=f_load)
+#         f_save = "self._save('MODEL_FILE')"
+#         f_load = "self._load('MODEL_FILE')"
+#         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
+#                                   model_ext=L2_EXT,
+#                                   save_func=f_save,
+#                                   load_func=f_load)
 
-    def __str__(self):
-        str_out = '\nID = ' + self.ID
-        str_out += '\nNodes = ' + str(len(self._nodes))
-        return str_out
+#     def __str__(self):
+#         str_out = '\nID = ' + self.ID
+#         str_out += '\nNodes = ' + str(len(self._nodes))
+#         return str_out
 
-    def forward(self, data, is_seq):
-        """ Returns the layer's output after moving the given input_data 
-            through it and setting the currently active node according to it
-            (the node is created first, if it doesn't already exist).
-            Note: We leave it to the caller to set self.output, if desired.
-        """
-        if not self._nodes.get(data):
-            # Init new node ("False", because we'll handle its persistence)
-            sz = len(data)
-            pop_sz = sz * 10
-            node = GPMask(data, pop_sz, L2_MAX_DEPTH, sz, CONSOLE_OUT, False,
-                          model=False,
-                          op_mode=L2_MODE)
-            self._nodes[data] = (node, None)
-        else:
-            node = self._nodes[data][0]
+#     def forward(self, data, is_seq):
+#         """ Returns the layer's output after moving the given input_data 
+#             through it and setting the currently active node according to it
+#             (the node is created first, if it doesn't already exist).
+#             Note: We leave it to the caller to set self.output, if desired.
+#         """
+#         if not self._nodes.get(data):
+#             # Init new node ("False", because we'll handle its persistence)
+#             sz = len(data)
+#             pop_sz = sz * 10
+#             node = Genetic(ID=data, 
+#                            mode=2,
+#                            max_pop=pop_sz,
+#                            max_depth=L2_MAX_DEPTH,
+#                            max_inputs=sz,
+#                            tourn_sz=10,
+#                            console_out=CONSOLE_OUT, 
+#                            persist=False)
+#             self._nodes[data] = (node, None)
+#         else:
+#             node = self._nodes[data][0]
 
-        self._curr_node = node
-        return node.forward(list([data]), is_seq)
+#         self._curr_node = node
+#         return node.forward(list([data]), is_seq)
 
-    def update(self, data):
-        """ Updates the currently active node with the given fitness data dict.
-        """
-        self._curr_node.update(data)
+#     def update(self, data):
+#         """ Updates the currently active node with the given fitness data dict.
+#         """
+#         self._curr_node.update(data)
 
-    def _save(self, filename):
-        """ Saves the layer to file. For use by ModelHandler.
-        """
-        # Write each node ID and asociated data as { "ID": ("save_string") }
-        with open(filename, 'w') as f:
-            f.write('{')
-            for k, v in self._nodes.items():
-                savestr = v[0].save()
-                f.write('"' + k + '": """' + savestr + '""", ')
-            f.write('}')
+#     def _save(self, filename):
+#         """ Saves the layer to file. For use by ModelHandler.
+#         """
+#         # Write each node ID and asociated data as { "ID": ("save_string") }
+#         with open(filename, 'w') as f:
+#             f.write('{')
+#             for k, v in self._nodes.items():
+#                 savestr = v[0].save()
+#                 f.write('"' + k + '": """' + savestr + '""", ')
+#             f.write('}')
 
-    def _load(self, filename):
-        """ Loads the layer from file. For use by ModelHandler.
-        """
-        # Restore the layer nodes, one at a time
-        self._nodes = {}
-        i = 0
+#     def _load(self, filename):
+#         """ Loads the layer from file. For use by ModelHandler.
+#         """
+#         # Restore the layer nodes, one at a time
+#         self._nodes = {}
+#         i = 0
 
-        with open(filename, 'r') as f:
-            data = f.read()
+#         with open(filename, 'r') as f:
+#             data = f.read()
             
-        for k, v in eval(data).items():
-            ID = self.id_prefix + str(i)
-            node = GPMask(ID, 0, 0, 0, CONSOLE_OUT, False)
-            node.load(v, not_file=True)
-            self._nodes[k] = (node, None)
-            i += 1
+#         for k, v in eval(data).items():
+#             ID = self.id_prefix + str(i)
+#             node = Genetic(ID, 0, 0, 0, CONSOLE_OUT, False)
+#             node.load(v, not_file=True)
+#             self._nodes[k] = (node, None)
+#             i += 1
 
 
 class LogicalLayer(object):
@@ -465,7 +462,7 @@ class Agent(threading.Thread):
         ID = id_prefix + 'L1'
         self.l1 = ConceptualLayer(ID, id_prefix, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = HeuristicsLayer(ID, id_prefix, self.depth, l2_dims)
+        self.l2 = IntuitiveLayer(ID, id_prefix, self.depth, l2_dims)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_ADVISOR)
 
