@@ -143,6 +143,25 @@ class Genetic(karoo_gp.Base_GP):
 
         return trees
 
+    def _filtered_trees(self, get_expr, exclude_ops=[]):
+        """ Returns a list of the current population's expression, arranged by 
+            fitness (leftmost = most fit) after filtering trees with duplicate
+            expressions and unwanted operators.
+        """
+        # Get trees sorted by fitness
+        trees = self._trees_byfitness()
+
+        # Remove duplicates
+        added = set()
+        trees = [t for t in trees if str(get_expr(t)) not in added and
+                 (added.add(str(get_expr(t))) or True)]
+
+        # Remove unwanted oeprators
+        for op in exclude_ops:
+            trees = [t for t in trees if op not in str(get_expr(t))]
+
+        return trees
+
     def _symp_expr(self, treeID):
         """ Returns the sympified expression of the tree with the given ID
         """
@@ -226,29 +245,31 @@ class Genetic(karoo_gp.Base_GP):
                          data['evolve_branch'],
                          data['evolve_cross'])
 
-    # def hforward(self, heuristics):
+    # def forward_nomask(self, heuristics):
     #     """
     #     """
     #     trees = self._trees_byfitness()  # leftmost = most fit
     #     return trees[
 
-    def _filtered_trees(self, get_expr, exclude_ops=[]):
-        """ Returns a list of the current population's expression, arranged by 
-            fitness (leftmost = most fit) after filtering trees with duplicate
-            expressions and unwanted operators.
+    def _apply_gain(self, trees, max_results, gain):
+        """ Given a list of trees, returns the list containing only max_results
+            of fittest/random trees, as specified by the gain.
+            Accepts:
+                trees (list)      : Tree IDs (ints)
+                max_results (int) : Max results to return, 0=all (I.e. no gain)
+                gain (float)      : Ratio of fittest to randomly chosen
         """
-        # Get trees sorted by fitness
-        trees = self._trees_byfitness()
+        if max_results:
+            fit_count = int(max_results * gain)
+            gain_trees = trees[:fit_count]
+            rand_pool = trees[fit_count:]
 
-        # Remove duplicates
-        added = set()
-        trees = [t for t in trees if str(get_expr(t)) not in added and
-                 (added.add(str(get_expr(t))) or True)]
+            while len(gain_trees) < max_results and rand_pool:
+                idx = randint(0, len(rand_pool) - 1)
+                gain_trees.append(rand_pool.pop(idx))
 
-        # Remove unwanted oeprators
-        for op in exclude_ops:
-            trees = [t for t in trees if op not in str(get_expr(t))]
-
+            trees = gain_trees
+        
         return trees
 
     def forward(self, inputs, is_seq=False, max_results=0, gain=.8, 
@@ -258,7 +279,7 @@ class Genetic(karoo_gp.Base_GP):
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
                 is_seq (bool)     : Denotes row (in input) order must persist 
-                max_results (int) : Max results to return (0=population size)
+                max_results (int) : Max results to return (0=all)
                 gain (float)      : Ratio of fittest to randomly chosen exprs
                 expr_only (bool)  : Denotes to return only the expressions
             Returns:
@@ -285,23 +306,11 @@ class Genetic(karoo_gp.Base_GP):
 
         # print('Trees: ' + self._expr_strings(symp_expr=is_seq))  # debug
         
-        # Every tree is useable at this pt, so apply gain as specified
-        if max_results:
-            fit_count = int(max_results * gain)
-            gain_trees = trees[:fit_count]
-            rand_pool = trees[fit_count:]
-
-            while len(gain_trees) < max_results and rand_pool:
-                idx = randint(0, len(rand_pool) - 1)
-                gain_trees.append(rand_pool.pop(idx))
-
-            trees = gain_trees
-
-        if expr_only:
-            return trees
+        # At this point every tree is usable - apply gain and cap results
+        trees = self._apply_gain(trees, max_results, gain)
 
         # Iterate every tree that has made the cut
-        results = AttributesIter()
+        outputs = AttributesIter()
         for treeID in trees:
             orig_expr = str(f_getexpr(treeID))
 
@@ -350,14 +359,14 @@ class Genetic(karoo_gp.Base_GP):
                     output = ''.join(r)
 
                 # Associate output and its "in context" inputs with the tree's ID
-                results.push(treeID, ATTRIB_OUTPUT, output)
-                results.push(treeID, ATTRIB_INCONTEXT, in_context)
+                outputs.push(treeID, ATTRIB_OUTPUT, output)
+                outputs.push(treeID, ATTRIB_INCONTEXT, in_context)
 
         # Remove empty results and return
-        results.rm_empties(ATTRIB_OUTPUT)
-        return results
+        outputs.rm_empties(ATTRIB_OUTPUT)
+        return outputs
 
-    def update(self, fitness_results):
+    def update(self, fitness):
         """ Evolves a new population of trees after updating the fitness of 
         each existing tree's expression according to "fitness". 
         Accepts:
