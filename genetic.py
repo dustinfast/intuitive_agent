@@ -124,34 +124,18 @@ class Genetic(karoo_gp.Base_GP):
                   3: 'min'}
 
         # Update and Forward methods
-        f_forward = {1: mode1_forward,
-                     2: mode2_forward,
-                     3: mode2_forward}
+        f_forward = {1: self._mode1_forward,
+                     2: self._mode2_forward,
+                     3: self._mode2_forward}
 
-        f_update = {1: mode1_udpate,
-                    2: mode2_udpate,
-                    3: mode2_udpate}
+        # f_update = {1: mode1_udpate,
+        #             2: mode2_udpate,
+        #             3: mode2_udpate}
         self.f_forward = f_forward.get(mode)
-        self.f_update = f_update.get(mode)
+        # self.f_update = f_update.get(mode)
 
         self.functions = array(opers.get(mode))
         self.fitness_type = kernel.get(mode)
-
-    def forward(self, **kwargs):
-        """ Performs a forward, depending on the current mode.
-            Accepts the following optional key/value args (inputs required): 
-            inputs (list)     : A list of lists, one for each input "row"
-            max_results (int) : Max results to return (0=population size)
-            gain (float)      : Ratio of fittest to randomly chosen expressions
-            ordered (bool)    : Denotes row-input order must persist 
-        """
-        return self.f_forward(self, **kwargs)
-
-    def update(self, fitness_results):
-        """ Performs an update, depending on the current mode.
-            Accepts a single argument of type FitResults
-        """
-        return self.f_update(self, fitness_results)
 
     def _trees_byfitness(self):
         """ Returns a list of the current population's tree ID's, sorted by
@@ -202,6 +186,19 @@ class Genetic(karoo_gp.Base_GP):
 
         return exprs
 
+    @staticmethod
+    def _negate(x):
+        """ Returns a negated version of the given string or digit.
+        """
+        # String negate
+        if type(x) is str:
+            if x.isupper():
+                return x.lower()
+            return x.lower()
+
+        # Numerical negate
+        return (x * -1)
+
     def save(self, filename=None):
         """ Saves a model of the current population. For use by ModelHandler.
             Iff no filename given, does not save to file but instead returns
@@ -251,170 +248,156 @@ class Genetic(karoo_gp.Base_GP):
                          data['evolve_branch'],
                          data['evolve_cross'])
 
+    def forward(self, inputs, ordered=False, max_results=0, gain=.8):
+        """ Peforms each tree's expression on the given inputs and returns 
+            the results as a dict denoting the source tree ID
+            Accepts:
+                inputs (list)     : A list of lists, one for each input "row"
+                max_results (int) : Max results to return (0=population size)
+                gain (float)      : Ratio of fittest to randomly chosen expressions
+                ordered (bool)    : Denotes row-input order must persist 
+            Returns:
+                A dictionary of lists representing the masked inputs, by tree:
+                { treeID: { masked: [ ... ], in_context: [ ... ], ... } 
+        """
+        trees = self._trees_byfitness()  # leftmost = most fit
 
-#####################################
-# Forward/update methods (per mode) #
-#####################################
+        # If ordered, use order-preserving raw expression, else use simplified
+        if ordered:
+            f_expr = self._symp_expr
+        else:
+            f_expr = self._raw_expr
 
-def mode1_forward(obj, inputs, ordered=False, max_results=0, gain=.8):
-    pass
+        # print('Trees: ' + self._expr_strings(symp_expr=ordered))  # debug
 
+        # If strings in inputs, rm exprs w/neg operators - they're nonsensical
+        for inp in inputs:
+            if not [i for i in inp if type(i) is str]:
+                break
+        else:
+            trees = [t for t in trees if '-' not in str(f_expr(t))]
 
-def mode1_udpate(obj, fitness):
-    pass
+        # Filter trees having duplicate expressions
+        added = set()
+        trees = [t for t in trees if str(f_expr(t)) not in added and
+                 (added.add(str(f_expr(t))) or True)]
 
+        # Every tree is useable at this pt, so apply gain as specified
+        if max_results:
+            fit_count = int(max_results * gain)
+            gain_trees = trees[:fit_count]
+            rand_pool = trees[fit_count:]
 
-def mode2_forward(obj, inputs, ordered=False, max_results=0, gain=.8):
-    """ Peforms each tree's expression on the given inputs and returns 
-        the results as a dict denoting the source tree ID
-        Accepts:
-            inputs (list)     : A list of lists, one for each input "row"
-            max_results (int) : Max results to return (0=population size)
-            gain (float)      : Ratio of fittest to randomly chosen expressions
-            ordered (bool)    : Denotes row-input order must persist 
-        Returns:
-            A dictionary of lists representing the masked inputs, by tree:
-            { treeID: { masked: [ ... ], in_context: [ ... ], ... } 
-    """
-    trees = obj._trees_byfitness()  # leftmost = most fit
+            while len(gain_trees) < max_results and rand_pool:
+                idx = randint(0, len(rand_pool) - 1)
+                gain_trees.append(rand_pool.pop(idx))
 
-    # If ordered specified, use raw expression, else use sympified
-    if ordered:
-        f_expr = obj._symp_expr
-    else:
-        f_expr = obj._raw_expr
+            trees = gain_trees
 
-    # print('Trees: ' + obj._expr_strings(symp_expr=ordered))  # debug
+        # Iterate every tree that has made the cut
+        results = AttributesIter()
+        for treeID in trees:
+            orig_expr = str(f_expr(treeID))
 
-    # If strings in inputs, rm exprs w/neg operators - they're nonsensical
-    for inp in inputs:
-        if not [i for i in inp if type(i) is str]: 
-            break
-    else:
-        trees = [t for t in trees if '-' not in str(f_expr(t))]
+            # Reform the expr by mapping each operand to an input index
+            # At the same time, denote where negate operator gets applied,
+            # and also set "in_context", to denote which inputs are in result.
+            #   Ex: expr 'A + 2*D + B'-> 'row[0] + 2*row[3] + row[1]'
+            #   Ex: expr 'abs(A) + C'-> 'row[0] + row[3]' w/negate_at = [0]
+            new_expr = ''
+            negate_at = []
+            in_context = set()
+            i_ch = -1
+            i_term = -1
+            goback = len(OP_ABS_STR)
+            for ch in orig_expr:
+                i_ch += 1
+                if ch in self.terminals and ch != 's':
+                    i_term += 1
 
-    # Filter trees having duplicate expressions
-    added = set()
-    trees = [t for t in trees if str(f_expr(t)) not in added and
-             (added.add(str(f_expr(t))) or True)]
+                    # If term proceeds negate operator, denote and rm operator
+                    if orig_expr[i_ch - goback:i_ch] == OP_ABS_STR:
+                        negate_at.append(i_term)
+                        new_expr = new_expr[:-goback]
 
-    # Every tree is useable at this pt, so do apply gain if specified
-    if max_results: 
-        fit_count = int(max_results * gain)
-        gain_trees = trees[:fit_count]
-        rand_pool = trees[fit_count:]
+                    # Map term to idx, udpate in_context, & rowify for new_expr
+                    input_idx = self.terminals.index(ch)
+                    in_context.add(input_idx)
+                    new_expr += 'row[' + str(input_idx) + ']'
+                else:
+                    new_expr += ch
 
-        while len(gain_trees) < max_results and rand_pool:
-            idx = randint(0, len(rand_pool) - 1)
-            gain_trees.append(rand_pool.pop(idx))
-        
-        trees = gain_trees
+            # Clean up open/close parens - we may have left strays doing neg op
+            new_expr = new_expr.replace('(', '').replace(')', '')
 
-    # Iterate every tree that has made the cut
-    results = AttributesIter()
-    for treeID in trees:
-        orig_expr = str(f_expr(treeID))
+            # print(str(treeID) + ' - Mask n: ' + str(new_expr))  # debug
 
-        # Reform the expr by mapping each operand to an input index
-        # At the same time, denote where negate operator gets applied,
-        # and also set "in_context", to denote which inputs are in result.
-        #   Ex: expr 'A + 2*D + B'-> 'row[0] + 2*row[3] + row[1]'
-        #   Ex: expr 'abs(A) + C'-> 'row[0] + row[3]' w/negate_at = [0]
-        new_expr = ''
-        negate_at = []
-        in_context = set()
-        i_ch = -1
-        i_term = -1
-        goback = len(OP_ABS_STR)
-        for ch in orig_expr:
-            i_ch += 1
-            if ch in obj.terminals and ch != 's':
-                i_term += 1
+            # Eval expr against each input in inputs
+            for row in inputs:
+                output = eval(new_expr)
 
-                # If term proceeds negate operator, denote and rm operator
-                if orig_expr[i_ch - goback:i_ch] == OP_ABS_STR:
-                    negate_at.append(i_term)
-                    new_expr = new_expr[:-goback]
-                
-                # Map term to idx, udpate in_context, & rowify for new_expr
-                input_idx = obj.terminals.index(ch)
-                in_context.add(input_idx)
-                new_expr += 'row[' + str(input_idx) + ']'
-            else:
-                new_expr += ch
+                # Apply negate operators if needed, as previously denoted
+                if negate_at:
+                    r = [c for c in output]
+                    for i in negate_at:
+                        r[i] = self._negate(r[i])
+                    output = ''.join(r)
 
-        # Clean up open/close parens - we may have left strays doing neg op
-        new_expr = new_expr.replace('(', '').replace(')', '')
+                # Associate output and its "in context" inputs with the tree's ID
+                results.push(treeID, ATTRIB_OUTPUT, output)
+                results.push(treeID, ATTRIB_INCONTEXT, in_context)
+                # results[treeID]['masked'].append(output)
 
-        # print(str(treeID) + ' - Mask n: ' + str(new_expr))  # debug
+            # Add the inputs used in this tree's results, to the results
+            # results[treeID]['in_context'] = in_context
 
-        # Eval expr against each input in inputs
-        for row in inputs:
-            output = eval(new_expr)
-            
-            # Apply negate operators if needed, as previously denoted
-            if negate_at:
-                r = [c for c in output]
-                for i in negate_at:
-                    r[i] = obj._negate(r[i])
-                output = ''.join(r)
-            
-            # Associate output and its "in context" inputs with the tree's ID
-            results.push(treeID, ATTRIB_OUTPUT, output)
-            results.push(treeID, ATTRIB_INCONTEXT, in_context)
-            # results[treeID]['masked'].append(output)
-        
-        # Add the inputs used in this tree's results, to the results
-        # results[treeID]['in_context'] = in_context
+            results.rm_empties(ATTRIB_OUTPUT)
 
-        results.rm_empties(ATTRIB_OUTPUT)
+        return results
 
-    return results
+    def _mode1_forward(self, expr):
+        pass
 
-def mode2_udpate(obj, fitness):
-    """ Evolves a new population of trees after updating the fitness of 
+    def _mode2_forward(self, expr):
+        pass
+
+    def update(self, fitness_results):
+        """ Evolves a new population of trees after updating the fitness of 
         each existing tree's expression according to "fitness". 
         Accepts:
             fitness (dict)    : Each key (int) is a tree ID and each value
                                 denotes it's new fitness value
-    """
-    # Give each tree a baseline fitness score
-    for treeID in range(1, len(obj.population_a)):
-            obj.population_a[treeID][12][1] = 0.0
-            
-    # Update tree's fitness as given by "fitness" arg
-    for k, v in fitness.items():
-        obj.population_a[k][12][1] = v
+        """
+        # Give each tree a baseline fitness score
+        for treeID in range(1, len(self.population_a)):
+                self.population_a[treeID][12][1] = 0.0
 
-    # Build the new gene pool
-    obj.gene_pool = [t for t in range(1, len(obj.population_a))
-                     if obj._symp_expr(t)]
+        # Update tree's fitness as given by "fitness" arg
+        for k, v in fitness.items():
+            self.population_a[k][12][1] = v
 
-    # Evolve a new population
-    obj.population_b = []
-    obj.fx_karoo_reproduce()
-    obj.fx_karoo_point_mutate()
-    obj.fx_karoo_branch_mutate()
-    obj.fx_karoo_crossover()
-    obj.generation_id += 1
-    obj.population_a = obj.fx_evolve_pop_copy(
-        obj.population_b, 'Generation ' + str(obj.generation_id))
+        # Build the new gene pool
+        self.gene_pool = [t for t in range(1, len(self.population_a))
+                          if self._symp_expr(t)]
 
-    if obj.persist:
-        obj.model.save()
+        # Evolve a new population
+        self.population_b = []
+        self.fx_karoo_reproduce()
+        self.fx_karoo_point_mutate()
+        self.fx_karoo_branch_mutate()
+        self.fx_karoo_crossover()
+        self.generation_id += 1
+        self.population_a = self.fx_evolve_pop_copy(
+            self.population_b, 'Generation ' + str(self.generation_id))
 
+        if self.persist:
+            self.model.save()
 
-def _negate(x):
-    """ Returns a negated version of the given string/digit.
-    """
-    # String negate
-    if type(x) is str:
-        if x.isupper():
-            return x.lower()
-        return x.lower()
-    
-    # Numerical negate
-    return (x * -1)
+    def _mode1_update(self, expr):
+        pass
+
+    def _mode2_update(self, expr):
+        pass
 
 
 if __name__ == '__main__':
@@ -425,7 +408,7 @@ if __name__ == '__main__':
 
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']]
     is_seq = False   # Denote inputs should not be considered sequential
-    epochs = 25          # Learning epochs
+    epochs = 30          # Learning epochs
 
     # Init the genetically evolving expression trees (mode 2)
     lengs = [len(inputs[i]) for i in range(len(inputs))]
@@ -450,7 +433,7 @@ if __name__ == '__main__':
             # pprint(trees)
             for treeID, attrs in trees.items():
                 output = attrs[ATTRIB_OUTPUT]
-                print('Tree %d: %s' % (treeID, output))
+                pprint('Tree %d: %s' % (treeID, output))
 
                 # Evaluate fitness
                 if len(output) > 2:
