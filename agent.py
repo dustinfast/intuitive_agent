@@ -12,8 +12,8 @@
 
     Module Structure:
         Agent() is the main interface. It expects training/validation data as
-        an instance obj of type classlib.DataFrom(). 
-        Persistence and output is handled by classlib.ModelHandler().
+        an instance obj of type sharedlib.DataFrom(). 
+        Persistence and output is handled by sharedlib.ModelHandler().
 
     Dependencies:
         PyTorch
@@ -38,7 +38,6 @@
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
-        Rename classlib to shared
         "provides feedback" connector - ex: True if the action returns a value
         
 
@@ -51,7 +50,7 @@ import threading
 from ann import ANN
 from genetic import Genetic
 from connector import Connector
-from classlib import ModelHandler, DataFrom, Heuristics
+from sharedlib import ModelHandler, DataFrom, Heuristics
 
 CONSOLE_OUT = True
 PERSIST = False

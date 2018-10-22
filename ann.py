@@ -10,8 +10,8 @@
     
     Module Structure:
         ANN() is the main interface. It expects training/validation data as
-        an instance object of type classlib.DataFrom(). 
-        ANN persistence and output is handled by classlib.ModelHandler().
+        an instance object of type sharedlib.DataFrom(). 
+        ANN persistence and output is handled by sharedlib.ModelHandler().
 
     External ependencies:
         PyTorch (see https://pytorch.org)
@@ -33,7 +33,7 @@ import logging
 import torch
 import torch.nn as nn
 
-from classlib import ModelHandler, DataFrom
+from sharedlib import ModelHandler, DataFrom
 
 MODEL_EXT = '.pt'   # ANN model file extension
 

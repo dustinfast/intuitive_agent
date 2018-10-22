@@ -4,7 +4,7 @@
 
     Module Structure:
         GPM is the main interface.
-        Persistence and output handled by classlib.ModelHandler.
+        Persistence and output handled by sharedlib.ModelHandler.
         
     Karoo GP Version Info: 
         Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
@@ -26,7 +26,7 @@ import sys; sys.path.append('lib')
 from numpy import array
 import karoo_gp.karoo_gp_base_class as karoo_gp
 
-from classlib import ModelHandler, AttributesIter
+from sharedlib import ModelHandler, AttributesIter
 
 MODEL_EXT = '.ev'       # File extensions for model file save/load
 OP_ABS_STR = ' abs('    # Negate operator in string form
