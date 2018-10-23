@@ -110,7 +110,7 @@ class ConceptualLayer(object):
             self.nodes[i].validate(val_data[i], verbose=True)
 
     
-class AttentiveLayer(object):
+class IntuitiveLayer(object):
     """ An abstraction of the agents second layer, representing the ability to
         learn which information to devote attention to. This layer is 
         implemented as sets of heuristics for each node's unique input applied 
@@ -187,6 +187,8 @@ class AttentiveLayer(object):
                 inputs (list)       : Data elements, one for each node
                 is_seq (bool)       : Denotes inputs order is significant
         """
+        results = []
+
         # Iterate the input for each node
         for i in range(self.depth):
             inp = inputs[i]
@@ -221,21 +223,28 @@ class AttentiveLayer(object):
                 heurs.set('notprev', -1)
 
             # The sum of all weighted heuristics is the grand node weight
-            print(heurs)  # debug
             wtd_heurs = heurs.get_list(normalize=False)
             node_wt = sum(wtd_heurs)
 
             # debug
             node_wt = 0
-            # node_wt += heurs.get('count')
+            node_wt += heurs.get('count')
             # node_wt += heurs.get('pos')
             # node_wt += heurs.get('neg')
             node_wt += heurs.get('mag')
-            node_wt += heurs.get('notprev')
-            print(wtd_heurs)
-            print(node_wt)
+            # node_wt += heurs.get('notprev')
+            print('Input: ' + inp)
+            print('Heurs: ' + str(heurs))
+            print('WtdHeurs: ' + str(wtd_heurs))
+            print('NodeWt: ' + str(node_wt))
 
-            exit()
+            TODO: Each node needs more optimizers - one per heuristic.
+            Otherwise were not really learning a weight for that heuristic.
+            if node_wt > 1:
+                results.append(inp)
+
+        print(res ults)
+        exit()
 
         self.prev_inputs = inputs  # Denote curr inputs for next time
         return inputs
@@ -402,7 +411,7 @@ class Agent(threading.Thread):
         ID = id_prefix + 'L1'
         self.l1 = ConceptualLayer(ID, id_prefix, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = AttentiveLayer(ID, id_prefix, self.depth, l2_dims)
+        self.l2 = IntuitiveLayer(ID, id_prefix, self.depth, l2_dims)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_ADVISOR)
 
