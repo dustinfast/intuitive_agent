@@ -392,7 +392,7 @@ class WeightedValues(object):
         return self._values[label][0] * self._values[label][1]
 
     def get_list(self, normalize=True):
-        """ Returns a list of all weighted values.
+        """ Returns a new list of all weighted values.
         """
         ps = [v[0] * v[1] for v in self._values.values()]
 
@@ -403,8 +403,10 @@ class WeightedValues(object):
 
         return ps
 
-
-    
+    def labels(self):
+        """ Returns a ref to the list of labels
+        """
+        return self._values.keys()
 
 
 ################
