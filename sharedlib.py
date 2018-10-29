@@ -7,6 +7,7 @@
         Requests (pip install requests)
 
     # TODO: 
+        Change DataFrom to look at rightmost col for labels
 
     Author: Dustin Fast, 2018
 """
@@ -386,6 +387,11 @@ class WeightedValues(object):
         except IndexError:
             print("ERROR: Mismatched len(wts) to len(values).")
 
+    def labels(self):
+        """ Returns a ref to the list of labels
+        """
+        return self._values.keys()
+
     def get(self, label):
         """ Returns the weighted value associated with specified label.
         """
@@ -402,11 +408,6 @@ class WeightedValues(object):
             ps = [(p - normmin) / (normmax - normmin) for p in ps]
 
         return ps
-
-    def labels(self):
-        """ Returns a ref to the list of labels
-        """
-        return self._values.keys()
 
 
 ################
