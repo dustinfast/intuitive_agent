@@ -367,7 +367,6 @@ class Genetic(karoo_gp.Base_GP):
         # Setup new population and gene pool
         self.population_b = []
         gene_pool = self._new_genepool(self.tourn_size, gain)
-        print(gene_pool)
         rtree = randtree(gene_pool)
 
         # Perform reproductions/mutations according to current ratios
@@ -419,7 +418,7 @@ if __name__ == '__main__':
     input_lengths = [len(inputs[i]) for i in range(len(inputs))]
 
     # Init the genetically evolving expression trees
-    gp = Genetic(ID='gp_demo', 
+    gp = Genetic(ID='gp_demo',
                  kernel=1,
                  max_pop=40, 
                  max_depth=6, 
