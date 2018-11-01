@@ -21,7 +21,8 @@
 """
 
 import re
-from numpy import array
+import random
+import numpy as np
 import sys; sys.path.append('lib')
 
 import karoo_gp.karoo_gp_base_class as karoo_gp
@@ -65,7 +66,7 @@ class Genetic(karoo_gp.Base_GP):
         self.display = 's'          # Silence Karoo GP menus/output
         self.precision = 6          # Tourney fitness floating points
         self.fitness_type = 'max'   # Maximizing kernel function
-        self.functions = array(KERNEL_OPERATORS.get(kernel))
+        self.functions = np.array(KERNEL_OPERATORS.get(kernel))
         self._set_mratio()  # Set initial mutation ratios
         
         # Init terminal symbols - We work with string inputs so terminals
@@ -112,12 +113,12 @@ class Genetic(karoo_gp.Base_GP):
         str_out += 'evolver_cross: ' + str(self.evolve_cross) + '\n)'
         return str_out
 
-    def _set_mratio(self, repro=0.15, point=0.15, branch=0.0, cross=0.70):
+    def _set_mratio(self, repro=0.10, point=0.40, branch=0.10, cross=0.40):
         """ Sets the mutation ratios, based on the given max population metric.
         """
         # If not already initialized, assume a ratio, else assume integer
         try:
-            self.evolve_repro  # throws except if not exists
+            self.evolve_repro  # throws exception if not exists
             self.evolve_repro = repro
             self.evolve_point = point
             self.evolve_branch = branch
@@ -145,14 +146,18 @@ class Genetic(karoo_gp.Base_GP):
             If no trees, raises Attribute Error
         """
         rev = {'min': False, 'max': True}.get(self.fitness_type)
-        trees = self._trees_IDs()
-        trees = sorted(
-            trees, key=lambda x: self.population_a[x][12][1], reverse=rev)
-
+        trees = self._tree_IDs()
         if not trees:
             raise AttributeError('Population has no trees.')
 
-        return trees
+        ftrees = sorted(
+            trees, key=lambda x: self.population_a[x][12][1], reverse=rev)
+
+        # If list is unchanged, assume trees have same fitness & randomize
+        if ftrees == trees:
+            random.shuffle(ftrees)
+
+        return ftrees
 
     def _symp_expr(self, treeID):
         """ Returns the sympified expression of the tree with the given ID
@@ -251,22 +256,20 @@ class Genetic(karoo_gp.Base_GP):
         """ Applies each tree's expression to the given inputs.
             Accepts:
                 inputs (list)     : A list of lists, one for each input "row"
-                is_seq (bool)     : Denotes row (in input) order must persist 
+                is_seq (bool)     : Denotes input row-order must persist 
             Returns:
                 A dictionary, by tree ID, of lists representing the inputs
                 after masking, as well as the unmasked input indexes, as:
                     { treeID: { output: [ ... ], from_inps: [ ... ], ... } 
         """
-        # Denote use of order-preserving raw expression, or simplified
-        f_getexpr = self._symp_expr
-        if is_seq:
-            f_getexpr = self._raw_expr
-
-        trees = self._tree_IDs()
-
-        # Iterate every tree that has made the cut
         outputs = AttrIter()
-        for treeID in trees:
+
+        # Denote use of either order-preserving sympy expression or raw expr
+        f_getexpr = self._raw_expr
+        if is_seq:
+            f_getexpr = self._symp_expr
+
+        for treeID in self._tree_IDs():
             # Get current tree's expression. Ex: expr 'A + D'
             expression = self._expr_to_lst(str(f_getexpr(treeID)))
 
@@ -309,32 +312,95 @@ class Genetic(karoo_gp.Base_GP):
                 outputs.push(treeID, 'from_inputs', list(in_context))
 
         # Remove empty results and return
-        outputs.rm_empties('output')
+        # outputs.rm_empties('output')
         return outputs
 
-    def update(self, fitness):
+    def _new_genepool(self, max_results, gain):
+        """ Rreturns a list of "max_results" trees, a mix of fittest and random
+            trees, as specified by the gain parameter.
+            Accepts:
+                max_results (int) : Max results to return, 0=all (I.e. no gain)
+                gain (float)      : Ratio of fittest to randomly chosen
+        """
+        trees = self._trees_byfitness()
+        trees = [t for t in trees if self._symp_expr(t)]  # exclude nulls
+
+        if max_results:
+            fit_count = int(max_results * gain)
+            gain_trees = trees[:fit_count]
+            rand_pool = trees[fit_count:]
+
+            while len(gain_trees) < max_results and rand_pool:
+                idx = random.randint(0, len(rand_pool) - 1)
+                gain_trees.append(rand_pool.pop(idx))
+
+            # TODO: skew according to gain if unbalanced.
+
+            trees = gain_trees
+
+        return trees
+
+    def update(self, fitness, gain=.75):
         """ Evolves a new population of trees after updating tree fitness. 
         Accepts:
             fitness (dict)    : { treeID: fitness }
+            gain (float)      : Variance gain
         """
-        # Rest each trees baseline fitness
-        for treeID in range(1, len(self.population_a)):
-                self.population_a[treeID][12][1] = 0.0
 
-        # Update tree fitness as given by "fitness"
+        def randtree(trees):
+            """ Generator for returning a random tree ID from a list of trees.
+            """
+            ubound = len(trees) - 1
+            while True:
+                rand_index = random.randint(0, ubound)
+                yield trees[rand_index]
+
+        # Reset each tree's baseline fitness
+        for treeID in range(1, len(self.population_a)):
+            self.population_a[treeID][12][1] = 0.0
+
+        # Update tree fitnesses given by fitness arg, then get new genepool
         for k, v in fitness.items():
             self.population_a[k][12][1] = v
+        self.population_a[2][12][1] = 1.0
 
-        # Build the new gene pool
-        self.gene_pool = [t for t in range(1, len(self.population_a))
-                          if self._symp_expr(t)]
-
-        # Evolve a new population
+        # Setup new population and gene pool
         self.population_b = []
-        self.fx_karoo_reproduce()
-        self.fx_karoo_point_mutate()
-        self.fx_karoo_branch_mutate()
-        self.fx_karoo_crossover()
+        gene_pool = self._new_genepool(self.tourn_size, gain)
+        print(gene_pool)
+        rtree = randtree(gene_pool)
+
+        # Perform reproductions/mutations according to current ratios
+        for _ in range(self.evolve_repro):
+            tree = np.copy(self.population_a[next(rtree)])
+            self.population_b.append(tree)  # Reproduction is a straight copy
+
+        for _ in range(self.evolve_point):
+            tree = np.copy(self.population_a[next(rtree)])
+            tree, _ = self.fx_evolve_point_mutate(tree)
+            self.population_b.append(tree)
+
+        for _ in range(self.evolve_branch):
+            tree = np.copy(self.population_a[next(rtree)])
+            branch = self.fx_evolve_branch_select(tree)
+            tree = self.fx_evolve_grow_mutate(tree, branch)
+            self.population_b.append(tree)
+
+        for _ in range(self.evolve_cross // 2):
+            tree_a = np.copy(self.population_a[next(rtree)])
+            tree_b = np.copy(self.population_a[next(rtree)])
+            brnch_a = self.fx_evolve_branch_select(tree_a)
+            brnch_b = self.fx_evolve_branch_select(tree_b)
+            tree_c = np.copy(tree_a)
+            brnch_c = np.copy(brnch_a)
+            tree_d = np.copy(tree_b)
+            brnch_d = np.copy(brnch_b)
+            child1 = self.fx_evolve_crossover(tree_a, brnch_a, tree_b, brnch_b)
+            self.population_b.append(child1)
+            child2 = self.fx_evolve_crossover(tree_d, brnch_d, tree_c, brnch_c)
+            self.population_b.append(child2) 
+
+        # New generation takes place of the current
         self.generation_id += 1
         self.population_a = self.fx_evolve_pop_copy(
             self.population_b, 'Generation ' + str(self.generation_id))
@@ -348,27 +414,25 @@ if __name__ == '__main__':
     """
     from pprint import pprint  # For pretty-printing demo output
 
-    # Define inputs
+    # Define inputs (may contain more than one inner list)
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']]
-    is_seq = False   # Denote inputs should not be considered sequential
+    input_lengths = [len(inputs[i]) for i in range(len(inputs))]
 
-    # Init the genetically evolving expression trees (mode 2)
-    lengs = [len(inputs[i]) for i in range(len(inputs))]  # max inputs length
-    gp = Genetic(ID='treegp', 
+    # Init the genetically evolving expression trees
+    gp = Genetic(ID='gp_demo', 
                  kernel=1,
-                 max_pop=15, 
-                 max_depth=4, 
-                 max_inputs=max(lengs),
-                 tourn_sz=min(lengs),
+                 max_pop=40, 
+                 max_depth=6, 
+                 max_inputs=max(input_lengths),
                  console_out=True, 
                  persist=False)
 
     # Get results, eval fitness, and backprogate fitness
-    iterations = 100
+    iterations = 49
     for z in range(1, iterations + 1):
         print('\n*** Epoch %d ***' % z)
 
-        results = gp.apply(inputs=inputs, is_seq=False)
+        results = gp.apply(inputs=inputs)
         fitness = {k: 0.0 for k in results.keys()}  # init
         
         print('Results:')
@@ -378,14 +442,16 @@ if __name__ == '__main__':
                 pprint('Tree %d: %s' % (treeID, output))
 
                 # Evaluate fitness
-                if len(output) > 2:
+                length = len(output)
+                if length < 2:
                     continue
                 if output[:1] == 'A':
-                    fitness[treeID] += 1
-                if output[1:2] == 'K':
-                    fitness[treeID] += 1
-                if output == 'AK':
-                    fitness[treeID] += 10
+                    fitness[treeID] += 40
+                    if output[1:2] == 'K':
+                        fitness[treeID] += 9
+                    while fitness[treeID] > 1 and length:
+                            length -= 1
+                            fitness[treeID] -= 1
 
         # Evolve a new population with the new fitness values
-        gp.update(fitness)
+        gp.update(fitness, gain=1)  # gain=1 because we want specific solution
