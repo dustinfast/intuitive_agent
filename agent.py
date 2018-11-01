@@ -252,20 +252,25 @@ class LogicalLayer(object):
 
         #         fitness[treeID] = score
 
+        t_len = 0
+        t = 0
         for trees in results:
             for treeID, attrs in trees.items():
                 tryme = attrs['output']
+                t += 1           # debug
+                t_len += len(tryme)  # debug
                 self.model.log('L3 TRYING: ' + tryme)
                 if self._kernel(tryme):
-                    fitness[treeID] += 1
                     self.model.log('TRUE!')
 
-                    # debug output
                     if tryme not in self.kb:
                         self.kb.append(tryme)
-                        print('L3 Learned: ' + tryme)
+                        fitness[treeID] += 1
+                        print('L3 Learned: ' + tryme)  # debug
                     else:
-                        print('L3 Encountered: ' + tryme)
+                        fitness[treeID] += .01
+                        print('L3 Encountered: ' + tryme)  # debug
+        print('Avg length: ' + str(t_len / t))
 
         return fitness
 

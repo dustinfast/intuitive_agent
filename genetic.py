@@ -191,7 +191,11 @@ class Genetic(karoo_gp.Base_GP):
     def _expr_to_lst(self, string):
         """ Given an expression in string form, returns it as a list.
         """
-        lst = re.split('[()]', string)[:-1]
+        lst = re.split('[()]', string)[:-1]  # raw_expr
+        if not lst:
+            # If regex failed to split, assume sympy exr
+            string = string.replace('*', ' * ')  # So * op splits correctly
+            return re.split(' ', string)
         return lst[1:]
 
     def save(self, filename=None):
@@ -254,9 +258,9 @@ class Genetic(karoo_gp.Base_GP):
                     { treeID: { output: [ ... ], from_inps: [ ... ], ... } 
         """
         # Denote use of order-preserving raw expression, or simplified
-        f_getexpr = self._raw_expr
+        f_getexpr = self._symp_expr
         if is_seq:
-            f_getexpr = self._symp_expr
+            f_getexpr = self._raw_expr
 
         trees = self._tree_IDs()
 
@@ -264,7 +268,7 @@ class Genetic(karoo_gp.Base_GP):
         outputs = AttrIter()
         for treeID in trees:
             # Get current tree's expression. Ex: expr 'A + D'
-            expression = self._expr_to_lst(f_getexpr(treeID))
+            expression = self._expr_to_lst(str(f_getexpr(treeID)))
 
             # Build expr str by mapping inputs to terms. Ex: 'row[0]+row[3]'
             expr_str = ''
@@ -322,8 +326,8 @@ class Genetic(karoo_gp.Base_GP):
             self.population_a[k][12][1] = v
 
         # Build the new gene pool
-        self.gene_pool = [t for t in range(1, len(self.population_a))]
-                        #   if self._symp_expr(t)]
+        self.gene_pool = [t for t in range(1, len(self.population_a))
+                          if self._symp_expr(t)]
 
         # Evolve a new population
         self.population_b = []
@@ -357,14 +361,14 @@ if __name__ == '__main__':
                  max_inputs=max(lengs),
                  tourn_sz=min(lengs),
                  console_out=True, 
-                 persist=True)
+                 persist=False)
 
     # Get results, eval fitness, and backprogate fitness
-    iterations = 30
+    iterations = 100
     for z in range(1, iterations + 1):
         print('\n*** Epoch %d ***' % z)
 
-        results = gp.apply(inputs=inputs)
+        results = gp.apply(inputs=inputs, is_seq=False)
         fitness = {k: 0.0 for k in results.keys()}  # init
         
         print('Results:')
