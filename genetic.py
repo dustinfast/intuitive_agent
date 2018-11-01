@@ -16,6 +16,7 @@
         Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
 
     # TODO: 
+        Trim mutation for paring down large trees when acc is low
 
     Author: Dustin Fast, 2018
 """

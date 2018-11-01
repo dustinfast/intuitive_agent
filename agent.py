@@ -43,14 +43,16 @@
         L2 does not output node count in multimode
         Seperate log output option and persist
         L3 kb save/load w/decaying fitness if already seen to encourage newness
-
+        Expand l2 nodes - one for each sub-class (ex: py func, py kwd, etc) as
+        Expand l2 nodes - as soon as some local mimima reached
     Author: Dustin Fast, 2018
 """
 
 import logging
 import threading
 
-import datetime             # debug
+from datetime import datetime    # debug
+import time                 # debug
 from pprint import pprint   # debug
 
 from ann import ANN
@@ -64,11 +66,11 @@ MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
-L2_MAX_DEPTH = 2    # 10 is max, per Karoo user manual. Has perf affect.
-L2_MAX_POP = 15     # Number of expressions to generate. Has perf affect.
-L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random fitness tourney selection pool sz
-L2_TOURNYSZ = 10  # Random fitness tourney selection pool sz
+L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual. Has perf affect.
+L2_MAX_POP = 40     # Number of expressions to generate. Has perf affect.
+L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
 L2_MEMDEPTH = 2     # Agent's "recurrent" memory, a multiple of L1's input sz
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
 
 L3_EXT = '.lyr3'
 L3_ADVISOR = Connector.is_python_kwd
@@ -137,10 +139,10 @@ class IntuitiveLayer(object):
     def __init__(self, ID, size):
         """ Accepts:
                 ID (str)        : This layers unique ID
-                size (int)      : Num nodes this layer contains
+                size (int)      : Node input size
         """
-        self.ID = ID            # This layer's unique ID
-        self._size = size       # This layer's size. I.e., it's input count
+        self.ID = ID            
+        self._size = size       
         self._node = None       # The GP element
         self._prev_inputs = []  # Previous input values, one for each node
         self._nodeID = ID + '_node'  # GP node's unique ID
@@ -150,7 +152,7 @@ class IntuitiveLayer(object):
                              kernel=L2_KERNEL_MODE,
                              max_pop=L2_MAX_POP,
                              max_depth=L2_MAX_DEPTH,
-                             max_inputs=3,  # debug
+                             max_inputs=5,  # debug
                              tourn_sz=L2_TOURNYSZ,
                              console_out=CONSOLE_OUT,
                              persist=False)
@@ -191,7 +193,7 @@ class IntuitiveLayer(object):
         node.load(loadme, not_file=True)
         self._node = node
 
-    def forward(self, inputs, is_seq=False):
+    def forward(self, inputs):
         """ Moves the given inputs through the layer and returns the output.
             Accepts: 
                 inputs (list)       : Data elements, one for each node
@@ -200,7 +202,7 @@ class IntuitiveLayer(object):
                 dict: { TreeID: {'output': [], 'in_context':[]}, ... }
         """
         self._prev_inputs = inputs  # Note curr inputs for next time
-        return self._node.apply(inputs=list([inputs]), is_seq=is_seq)
+        return self._node.apply(inputs=list([inputs]), is_seq=False)
 
     def update(self, fitness):
         """ Updates the layer's node according to the given fitness data.
@@ -222,7 +224,15 @@ class LogicalLayer(object):
         """
         self.ID = ID
         self._kernel = kernel
-        self.kb = []  # TODO: Expand kb/move to L2?
+        self.kb = []            # Learned items  # TODO: Persist
+
+        # Learning statitistics
+        self.last_learnhit = datetime.now()
+        self.last_encounter = datetime.now()
+        self.learnhits = []
+        self.encounterhits = []
+        self.len_total = 0
+        self.len_count = 0
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=L3_EXT,
                                   save_func='MODEL_FILE',  # i.e. unused
@@ -242,37 +252,77 @@ class LogicalLayer(object):
         """
         fitness = {k: 0.0 for k in results.keys()}
 
-        # for trees in results:
-        #     for treeID, attrs in trees.items():
-        #         score = 0.0
-        #         if len(attrs['output']) <= 3:
-        #             score = 1
-        #         if len(attrs['output']) <= 2:
-        #             score = 3
-
-        #         fitness[treeID] = score
-
-        t_len = 0
-        t = 0
         for trees in results:
             for treeID, attrs in trees.items():
                 tryme = attrs['output']
-                t += 1           # debug
-                t_len += len(tryme)  # debug
+                self.len_count += 1
+                self.len_total += len(tryme)
+
                 self.model.log('L3 TRYING: ' + tryme)
                 if self._kernel(tryme):
                     self.model.log('TRUE!')
 
                     if tryme not in self.kb:
                         self.kb.append(tryme)
-                        fitness[treeID] += 1
-                        print('L3 Learned: ' + tryme)  # debug
+                        fitness[treeID] += L2_MAX_POP
+                        print('\nL3 LEARNED: ' + tryme)  # debug
+                        lasthit = (datetime.now() - self.last_learnhit).seconds
+                        self.learnhits.append(lasthit)
+                        print('(Last hit: ' + str(lasthit) + 's ago)')
+                        self.last_learnhit = datetime.now()
+                        self.last_encounter = datetime.now()
                     else:
-                        fitness[treeID] += .01
-                        print('L3 Encountered: ' + tryme)  # debug
-        print('Avg length: ' + str(t_len / t))
+                        fitness[treeID] += .5
+                        # print('\nL3 Encountered: ' + tryme)  # debug
+                        lasthit = (datetime.now() - self.last_encounter).seconds
+                        self.encounterhits.append(lasthit)
+                        # print('(Last encounter: ' + lasthit + 's ago)')
+                        self.last_encounter = datetime.now()
 
         return fitness
+
+    def get_stats(self, clear=False):
+        """ Returns a string representing performance statistics.
+            Accepts:
+                clear (bool)    : Denotes stats to be reset after generating
+        """
+        iters = self.len_count / L2_MAX_POP
+        l_hits = len(self.learnhits)
+        e_hits = len(self.encounterhits)
+
+        l_hits_time = 0
+        avg_hit_len = 0
+        if l_hits:
+            l_hits_time = sum(self.learnhits) / l_hits
+            avg_hit_len = sum([len(h) for h in self.kb]) / l_hits
+
+        e_hits_time = 0
+        if e_hits:
+            e_hits_time = sum(self.encounterhits) / e_hits
+
+        avg_len = 0
+        if self.len_count:
+            avg_len = str(self.len_total / self.len_count)
+
+        ret_str = 'Total iterations: ' + str(iters) + '\n'
+        ret_str += ' Avg try length: ' + str(avg_len) + '\n'
+
+        ret_str += 'Total learn hits: ' + str(l_hits) + '\n'
+        ret_str += ' Avg time btwn learn hits: ' + str(l_hits_time) + '\n'
+        ret_str += ' Avg learn hit length: ' + str(avg_hit_len) + '\n'
+
+        ret_str += 'Total encounters: ' + str(e_hits) + '\n'
+        ret_str += ' Avg time btwn encounters: ' + str(e_hits_time) + '\n'
+
+        ret_str += 'Learned: \n' + str(self.kb) + '\n'
+
+        if clear:
+            self.learnhits = []
+            self.encounterhits = []
+            self.len_total = 0
+            self.len_count = 0
+
+        return ret_str
 
 
 class Agent(threading.Thread):
@@ -419,7 +469,9 @@ class Agent(threading.Thread):
         
                 self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
                 self._step(row)
-                
+
+            print(self.l3.get_stats(clear=True))
+
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1
@@ -470,12 +522,12 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters1.csv', normalize=True),
                DataFrom('static/datasets/letters2.csv', normalize=True),
                DataFrom('static/datasets/letters3.csv', normalize=True),
-               DataFrom('static/datasets/letters4.csv', normalize=True),
-               DataFrom('static/datasets/letters5.csv', normalize=True),
-               DataFrom('static/datasets/letters6.csv', normalize=True),
-               DataFrom('static/datasets/letters7.csv', normalize=True),
-               DataFrom('static/datasets/letters8.csv', normalize=True),
-               DataFrom('static/datasets/letters9.csv', normalize=True)]
+               DataFrom('static/datasets/letters4.csv', normalize=True)]
+            #    DataFrom('static/datasets/letters5.csv', normalize=True),
+            #    DataFrom('static/datasets/letters6.csv', normalize=True),
+            #    DataFrom('static/datasets/letters7.csv', normalize=True),
+            #    DataFrom('static/datasets/letters8.csv', normalize=True),
+            #    DataFrom('static/datasets/letters9.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -496,4 +548,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=10)
+    agent.start(max_iters=5)
