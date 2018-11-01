@@ -267,7 +267,7 @@ class Logger(logging.Logger):
             self.addHandler(console_handler)
 
 
-class AttributesIter(object):
+class AttrIter(object):
     """ An iterable set of parrallel attribute stacks (one set per label).
         The iterator returns the next set of all attributes for every label
         as a dict: { ID_1: {attr_1: val, attr_n: val}, ... }
@@ -334,80 +334,6 @@ class AttributesIter(object):
         if not good_results:
             raise StopIteration
         return attributes
-
-
-class WeightedValues(object):
-    """ A collection of weighted numeric values, by label.
-    """
-    def __init__(self):
-        self._values = {}  # { label: [ value, weight ], ... }
-
-    def __str__(self):
-        str_out = ''
-        for k, v in self._values.items():
-            str_out += str(k) + ': ' + str(v) + '\n'
-        return str_out[:-1]
-
-    def __len__(self):
-        return len(self._values.keys())
-
-    def set(self, label, value=0, default_weight=1.0):
-        """ Sets the value for the given label. If the label does not already
-            exist, it is created with the given value and default_weight.
-        """
-        try:
-            self._values[label][0] = value
-        except KeyError:
-            new_pair = [value, default_weight]
-            self._values[label] = new_pair
-    
-    def adjust(self, label, value):
-        """ Updates the given label's value by adding the given value to it.
-        """
-        try:
-            self._values[label][0] += value
-        except KeyError:
-            print("ERROR: Attempted to adjust a non-existent label.")
-
-    def set_wt(self, label, wt):
-        """ Sets the given label's weight to the specified value.
-        """
-        try:
-            self._values[label][1] = wt
-        except KeyError:
-            print("ERROR: Attempted to weight a non-existent label.")
-
-    def set_wts(self, wts):
-        """ Sets each weight according to the ordered list given, where
-            wts[i] maps to label_i: weight
-        """
-        try:
-            for k in self._values.keys():
-                self._values[k][1] = wts.pop(0)
-        except IndexError:
-            print("ERROR: Mismatched len(wts) to len(values).")
-
-    def keys(self):
-        """ Returns a list of heuristics labels
-        """
-        return [label for label in self._values.keys()]
-
-    def get(self, label):
-        """ Returns the weighted value associated with specified label.
-        """
-        return self._values[label][0] * self._values[label][1]
-
-    def get_list(self, normalize=True):
-        """ Returns a new list of all weighted values.
-        """
-        ps = [v[0] * v[1] for v in self._values.values()]
-
-        if normalize:
-            normmax = max(ps)
-            normmin = min(ps)
-            ps = [(p - normmin) / (normmax - normmin) for p in ps]
-
-        return ps
 
 
 ################
