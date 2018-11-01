@@ -38,28 +38,32 @@
         Accuracy: Print on stop, Check against kb
         GP tunables - mutation ratios, pop sizes, etc
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
-        Refactor save/loads into ModelHandler.get_savestring?
+        Refactor all save/load funcs into ModelHandler.get_savestring?
         "provides feedback" connector - ex: True if the action returns a value
         L2 does not output node count in multimode
         Seperate log output option and persist
+        L3 kb save/load w/decaying fitness if already seen to encourage newness
 
     Author: Dustin Fast, 2018
 """
 
 import logging
 import threading
-from pprint import pprint
+
+import datetime             # debug
+from pprint import pprint   # debug
 
 from ann import ANN
 from genetic import Genetic
 from connector import Connector
 from sharedlib import ModelHandler, DataFrom
 
-CONSOLE_OUT = True
+CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
+L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
 L2_MAX_DEPTH = 2    # 10 is max, per Karoo user manual. Has perf affect.
 L2_MAX_POP = 15     # Number of expressions to generate. Has perf affect.
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random fitness tourney selection pool sz
@@ -143,7 +147,7 @@ class IntuitiveLayer(object):
 
         # Init the layer's node - a genetically evolving tree of expressions
         self._node = Genetic(ID=self._nodeID,
-                             kernel=2,
+                             kernel=L2_KERNEL_MODE,
                              max_pop=L2_MAX_POP,
                              max_depth=L2_MAX_DEPTH,
                              max_inputs=3,  # debug
@@ -214,8 +218,7 @@ class LogicalLayer(object):
     def __init__(self, ID, kernel):
         """ Accepts:
                 ID (str)            : This layers unique ID
-                kernel (function)   : Any func returning True or false when
-                                      given some layer-two output
+                kernel (function)   : A bool-returning func accepting L2 output
         """
         self.ID = ID
         self._kernel = kernel
@@ -231,40 +234,40 @@ class LogicalLayer(object):
         return str_out
 
     def forward(self, results):
-        """ Checks each result in results and appends a fitness score as
-            determined by self._kernel to the results dict.
+        """ Checks each result in results and determines fitness.
             Accepts:
-                fitness (AttrIter) : An AttrIter obj with 'ouput' key
+                fitness (AttrIter) : Keyed by tree ID with 'ouput' label
             Returns:
                 dict: { treeID: FitnessScore }
         """
         fitness = {k: 0.0 for k in results.keys()}
 
+        # for trees in results:
+        #     for treeID, attrs in trees.items():
+        #         score = 0.0
+        #         if len(attrs['output']) <= 3:
+        #             score = 1
+        #         if len(attrs['output']) <= 2:
+        #             score = 3
+
+        #         fitness[treeID] = score
+
         for trees in results:
             for treeID, attrs in trees.items():
-                score = 0.0
-                if len(attrs['output']) <= 3:
-                    score = 1
-                if len(attrs['output']) <= 2:
-                    score = 3
+                tryme = attrs['output']
+                self.model.log('L3 TRYING: ' + tryme)
+                if self._kernel(tryme):
+                    fitness[treeID] += 1
+                    self.model.log('TRUE!')
 
-                fitness[treeID] = score
+                    # debug output
+                    if tryme not in self.kb:
+                        self.kb.append(tryme)
+                        print('L3 Learned: ' + tryme)
+                    else:
+                        print('L3 Encountered: ' + tryme)
 
         return fitness
-
-        # for k, v in results.items():
-        #     for j in v['output']:
-        #         self.model.log('L3 TRYING: ' + j)
-        #         if self._kernel(j):
-        #             fitness[k] += 1
-        #             self.model.log('TRUE!')
-
-        #             # debug output
-        #             if j not in self.kb:
-        #                 self.kb.append(j)
-        #                 print('L3 Learned: ' + j)
-        #             else:
-        #                 print('L3 Encountered: ' + j)
 
 
 class Agent(threading.Thread):
@@ -454,20 +457,20 @@ class Agent(threading.Thread):
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
-    in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
-    # in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
-    #            DataFrom('static/datasets/letters1.csv', normalize=True),
-    #            DataFrom('static/datasets/letters2.csv', normalize=True),
-    #            DataFrom('static/datasets/letters3.csv', normalize=True)]
-    #            DataFrom('static/datasets/letters4.csv', normalize=True),
-    #            DataFrom('static/datasets/letters5.csv', normalize=True),
-    #            DataFrom('static/datasets/letters6.csv', normalize=True),
-    #            DataFrom('static/datasets/letters7.csv', normalize=True),
-    #            DataFrom('static/datasets/letters8.csv', normalize=True),
-    #            DataFrom('static/datasets/letters9.csv', normalize=True)]
+    # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
+    #            DataFrom('static/datasets/letters.csv', normalize=True),
+    #            DataFrom('static/datasets/letters.csv', normalize=True),
+    #            DataFrom('static/datasets/letters.csv', normalize=True)]
+    in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
+               DataFrom('static/datasets/letters1.csv', normalize=True),
+               DataFrom('static/datasets/letters2.csv', normalize=True),
+               DataFrom('static/datasets/letters3.csv', normalize=True),
+               DataFrom('static/datasets/letters4.csv', normalize=True),
+               DataFrom('static/datasets/letters5.csv', normalize=True),
+               DataFrom('static/datasets/letters6.csv', normalize=True),
+               DataFrom('static/datasets/letters7.csv', normalize=True),
+               DataFrom('static/datasets/letters8.csv', normalize=True),
+               DataFrom('static/datasets/letters9.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -488,4 +491,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=1)
+    agent.start(max_iters=10)
