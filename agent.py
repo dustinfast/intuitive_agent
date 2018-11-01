@@ -40,12 +40,12 @@
         Adapt ann.py to accept dataloader and use MNIST (or similiar)
         Refactor save/loads into ModelHandler.get_savestring?
         "provides feedback" connector - ex: True if the action returns a value
-        Add other common heuristics to layer 2
+        L2 does not output node count in multimode
+        Seperate log output option and persist
 
     Author: Dustin Fast, 2018
 """
 
-import copy
 import logging
 import threading
 from pprint import pprint
@@ -53,17 +53,18 @@ from pprint import pprint
 from ann import ANN
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom, WeightedValues
+from sharedlib import ModelHandler, DataFrom
 
-CONSOLE_OUT = False
-PERSIST = False
+CONSOLE_OUT = True
+PERSIST = True
 MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
-L2_KERNEL = 2       # Kernel for the L2 mask
-L2_MAX_DEPTH = 4    # 10 is max, per Karoo user man. Has perf affect.
-L2_MAX_POP = 12     # Number of expressions to generate. Has perf affect.
-L2_TOURNYSZ = int(L2_MAX_POP / 2)
+L2_MAX_DEPTH = 2    # 10 is max, per Karoo user manual. Has perf affect.
+L2_MAX_POP = 15     # Number of expressions to generate. Has perf affect.
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random fitness tourney selection pool sz
+L2_TOURNYSZ = 10  # Random fitness tourney selection pool sz
+L2_MEMDEPTH = 2     # Agent's "recurrent" memory, a multiple of L1's input sz
 
 L3_EXT = '.lyr3'
 L3_ADVISOR = Connector.is_python_kwd
@@ -125,50 +126,30 @@ class ConceptualLayer(object):
 
     
 class IntuitiveLayer(object):
-    """ An abstraction of the agents second layer, representing the ability to
-        learn which information to devote attention to. This layer is 
-        implemented as sets of heuristics for each node's unique input applied 
-        to genetically evolving weights. In this way, we're attempt to optimize
-        heuristic usage. The heuristics are ultimitely used to determine which
-        inputs get passed through the layer and which are discarded.
+    """ An abstraction of the agent's second layer, representing the ability to
+        intuitively form new connections between symbols, as well as its
+        recurrent memory (i.e. it's last L2_MEMDEPTH
     """
-    def __init__(self, ID, depth):
+    def __init__(self, ID, size):
         """ Accepts:
                 ID (str)        : This layers unique ID
-                depth (int)     : Num nodes this layer contains
+                size (int)      : Num nodes this layer contains
         """
         self.ID = ID            # This layer's unique ID
-        self._depth = depth     # This layer's depth. I.e., its node count
-        self._nodes = []        # A list of nodes, one at each depth
-        self._optimizers = []   # Heuristics optimizer lists, one list per node
-        self._t_heur = None     # A template of fresh heuristics
+        self._size = size       # This layer's size. I.e., it's input count
+        self._node = None       # The GP element
         self._prev_inputs = []  # Previous input values, one for each node
-        self._id_prefix = ID + '_node_'  # Optimizer ID prefixes
+        self._nodeID = ID + '_node'  # GP node's unique ID
 
-        # Init heuristics template
-        self._t_heur = WeightedValues()
-        self._t_heur.set('count')    # Curr input encountered count
-        self._t_heur.set('pos')      # Input resulted in "fit" output count
-        self._t_heur.set('neg')      # Input resulted in "unfit" output count
-        self._t_heur.set('diff')     # Diff btwn prev and curr input
-       
-        # Init each node and its helpers
-        for i in range(depth):
-            self._nodes.append({})       # {'UNIQUEINPUT': WeightedValuesObj }
-            self._prev_inputs.append(None)
-
-        # Init heuristic optimizers - one per heuristic
-        for h in self._t_heur.keys():
-            optID = self._id_prefix + '_' + h
-            self._optimizers.append(
-                Genetic(ID=optID,
-                        kernel=1,
-                        max_pop=L2_MAX_POP,
-                        max_depth=L2_MAX_DEPTH,
-                        max_inputs=L2_MAX_POP,
-                        tourn_sz=L2_TOURNYSZ,
-                        console_out=CONSOLE_OUT,
-                        persist=PERSIST))
+        # Init the layer's node - a genetically evolving tree of expressions
+        self._node = Genetic(ID=self._nodeID,
+                             kernel=2,
+                             max_pop=L2_MAX_POP,
+                             max_depth=L2_MAX_DEPTH,
+                             max_inputs=3,  # debug
+                             tourn_sz=L2_TOURNYSZ,
+                             console_out=CONSOLE_OUT,
+                             persist=False)
 
         # Init the model handler
         f_save = "self._save('MODEL_FILE')"
@@ -180,37 +161,31 @@ class IntuitiveLayer(object):
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
-        str_out += '\nNodes = ' + str(len(self._nodes))
+        str_out += '\nSize = ' + str(self._size)
         return str_out
 
     def _save(self, filename):
         """ Saves the layer to file. For use by ModelHandler.
         """
-        # Write each node ID and asociated data as { "ID": ("save_string") }
+        # Write the node's ID and asociated data as { "ID": ("save_string") }
         with open(filename, 'w') as f:
             f.write('{')
-            for node in self._nodes:
-                key = node.optimizer.ID
-                savestr = node.save()
-                f.write('"' + key + '": """' + savestr + '""", ')
+            savestr = self._node.save()
+            f.write('"' + self._nodeID + '": """' + savestr + '""", ')
             f.write('}')
 
     def _load(self, filename):
         """ Loads the layer from file. For use by ModelHandler.
+            Note: The node ID in the file is ignored
         """
-        # Restore the layer nodes, one at a time
-        self._nodes = {}
-        i = 0
-
         with open(filename, 'r') as f:
             data = f.read()
 
-        for k, v in eval(data).items():
-            ID = self._id_prefix + str(i)
-            node = Genetic(ID, 0, 0, 0, CONSOLE_OUT, False)
-            node.load(v, not_file=True)
-            self._nodes[k] = (node, None)
-            i += 1
+        loadme = next(iter(eval(data).values()))
+        ID = self._nodeID
+        node = Genetic(ID, 2, 0, 0, 0, 0, CONSOLE_OUT, False)
+        node.load(loadme, not_file=True)
+        self._node = node
 
     def forward(self, inputs, is_seq=False):
         """ Moves the given inputs through the layer and returns the output.
@@ -220,103 +195,15 @@ class IntuitiveLayer(object):
             Returns:
                 dict: { TreeID: {'output': [], 'in_context':[]}, ... }
         """
-        outputs = {}
+        self._prev_inputs = inputs  # Note curr inputs for next time
+        return self._node.apply(inputs=list([inputs]), is_seq=is_seq)
 
-        # Get heuristic weight "tries" - i.e. all results from each optimizer
-        # [ [ heuristic1 tries ... ], [ heuristic tries...], ... ]
-        weights = []
-        for opt in self._optimizers:
-            w = opt.apply()
-            weights.append(w)
-        weights = list(list(zip(*weights)))  # Transpose
-
-        # Update heuristics for each depth's current unique input
-        for i in range(self._depth):
-            node = self._nodes[i]
-            node_input = inputs[i]
-            
-            # Get heuristics for the node's current unique input
-            try:
-                heurs = node[node_input]
-            except KeyError:
-                # None found - init w/fresh heuristics
-                node[node_input] = copy.deepcopy(self._t_heur)
-                heurs = node[node_input]
-
-            # Increment count heuristic
-            heurs.adjust('count', 1)
-            
-            # Set diff heuristic
-            if node_input == self._prev_inputs[i] or not self._prev_inputs[i]:
-                diff = 0  # no last input, or same as last input
-            else:
-                # If char input
-                if type(node_input) is str and len(node_input) == 1:
-                    diff = ord(self._prev_inputs[i]) - ord(node_input)
-                # If numeric input
-                elif isinstance(node_input, (int, float, complex)):
-                    diff = self._prev_inputs[i] - node_input
-                # Else, can't determine diff for curr input type
-                else:
-                    diff = 0
-            heurs.set('diff', diff)
-
-            # Append node's input to results if heurs dictates to do so
-            for j, w in enumerate(weights):
-                heurs.set_wts(list(w))
-                wtd_heurs = heurs.get_list(normalize=False)
-                # print(str(j+1) + ': ' + str(list(w)))
-                # print(str(j+1) + ': ' + str(wtd_heurs))
-
-                # If at least one heur >= 1, add node's input to tree's results
-                # if [k for k in wtd_heurs if k >= 1]:
-                if sum(wtd_heurs) >= 1:
-                    treeID = j + 1
-                    if not outputs.get(treeID):
-                        outputs[treeID] = {'output': [], 'in_context': []}
-                    outputs[treeID]['output'].append(node_input)
-                    outputs[treeID]['in_context'].append(i)
-
-            # debug
-            # print('Input: ' + node_input)
-            # print('WtdHeurs: ' + str(wtd_heurs))
-            # print('NodeWt: ' + str(node_wt))
-
-        pprint(outputs)
-        print('\n')
-        self._prev_inputs = inputs  # Denote curr inputs for next time
-        return outputs
-
-    def update(self, results):
-        """ Updates each node according to the given fitness data.
+    def update(self, fitness):
+        """ Updates the layer's node according to the given fitness data.
             Accepts:
                 fitness (dict) : { treeID: {'fitness': x, 'in_context':[]} }
         """
-        fitness = {k: 0.0 for k in results.keys()}
-        
-        for i in range(self._depth):
-            node = self._nodes[i]
-            node_input = self._prev_inputs[i]
-            heurs = node[node_input]
-            
-            # Examine fitness scores for each output this node contributed to
-            for treeID, attrs in results.items():
-                if i in attrs['in_context']:
-                    score = attrs['fitness']
-
-                    # Update fitness for backpropagation
-                    fitness[treeID] += score
-
-                    # Update heuristics
-                    if score:
-                        heurs.adjust('pos', 1)
-                    else:
-                        heurs.adjust('neg', 1)
-
-        # Backpropagate fitness scores
-        pprint(fitness)
-        for optimizer in self._optimizers:
-            optimizer.update(fitness)
+        self._node.update(fitness)
 
 
 class LogicalLayer(object):
@@ -332,11 +219,11 @@ class LogicalLayer(object):
         """
         self.ID = ID
         self._kernel = kernel
-        self.kb = []  # debug
+        self.kb = []  # TODO: Expand kb/move to L2?
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=L3_EXT,
-                                  save_func='MODEL_FILE',  # i.e., unused
-                                  load_func='MODEL_FILE')  # i.e., unused
+                                  save_func='MODEL_FILE',  # i.e. unused
+                                  load_func='MODEL_FILE')  # i.e. unused
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
@@ -344,26 +231,26 @@ class LogicalLayer(object):
         return str_out
 
     def forward(self, results):
-        """ Checks each result in results and appends a fitness score (as
-            determined by self._kernel) to the results dict.
+        """ Checks each result in results and appends a fitness score as
+            determined by self._kernel to the results dict.
             Accepts:
-                results (dict) : { treeID: {'output': [], 'in_context':[]} }
+                fitness (AttrIter) : An AttrIter obj with 'ouput' key
             Returns:
-                The results parameter with a 'fitness' key added.
+                dict: { treeID: FitnessScore }
         """
+        fitness = {k: 0.0 for k in results.keys()}
 
-        for treeID, attrs in results.items():
-            score = 0.0
-            # for i in attrs['output']:
-            #     if i == 'u':
-            #         score += 1
-            if len(attrs['output']) <= 3:
-                score = 1
-            if len(attrs['output']) <= 2:
-                score = 3
+        for trees in results:
+            for treeID, attrs in trees.items():
+                score = 0.0
+                if len(attrs['output']) <= 3:
+                    score = 1
+                if len(attrs['output']) <= 2:
+                    score = 3
 
-            results[treeID]['fitness'] = score
-        return results
+                fitness[treeID] = score
+
+        return fitness
 
         # for k, v in results.items():
         #     for j in v['output']:
@@ -417,8 +304,9 @@ class Agent(threading.Thread):
                                   save_func=f_save,
                                   load_func=f_load)
 
-        # Determine agent shape from given input data TODO: Move to l1 class?
+        # Determine agent shape from input data
         l1_dims = []
+        l2_size = 0
         self.depth = len(inputs)
 
         for i in range(self.depth):
@@ -428,13 +316,14 @@ class Agent(threading.Thread):
             l1_dims[i].append(in_data[i].class_count)       # y sz
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
+        l2_size = self.depth + (self.depth * L2_MEMDEPTH)
 
         # Init layers
         id_prefix = self.ID + '_'
         ID = id_prefix + 'L1'
         self.l1 = ConceptualLayer(ID, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = IntuitiveLayer(ID, self.depth)
+        self.l2 = IntuitiveLayer(ID, l2_size)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_ADVISOR)
 
@@ -446,14 +335,14 @@ class Agent(threading.Thread):
             Also causes saves to occur for each agent layer (and associated
             nodes) that perform online learning.
         """
-        self.l2.model.save()
+        self.l2.model.save()  # L1 does own persistence, L3 does no peristence
 
     def _load(self, filename):
         """ Loads the agent model from file. For use by ModelHandler.
             Also causes loads to occur for each agent layer (and associated
             nodes) that perform online learning.
         """
-        self.l2.model.load()
+        self.l2.model.load()  # L1 does own persistence, L3 does no peristence
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -471,7 +360,7 @@ class Agent(threading.Thread):
             return
 
         # --------------------- Step Layer 1 -------------------------------
-        # L1.outputs[i] becomes L1.nodes[i]'s classification of data_row[i]
+        # L1_outputs[i] becomes L1._nodes[i]'s classification of data_row[i]
         # ------------------------------------------------------------------
         l1_row = [d[0] for d in data_row]  # TODO: Fix [0] in run()
 
@@ -481,7 +370,7 @@ class Agent(threading.Thread):
         l1_outputs = self.l1.forward(l1_row)
         
         # --------------------- Step Layer 2 -------------------------------
-        # L2.outputs becomes the "masked" versions of all L1.outputs
+        # L2.outputs are the "masked" versions of all L1.outputs w/recurrance
         # ------------------------------------------------------------------
         self.model.log('-- Feeding L2:\n %s' % (l1_outputs))
         l2_outputs = self.l2.forward(l1_outputs)
@@ -494,7 +383,7 @@ class Agent(threading.Thread):
 
         self.model.log('-- L2 Backprop:\n%s' % str(l3_outputs))
         self.l2.update(l3_outputs)
-        # TODO: Send feedback/noise/"in context" to level 1
+        # TODO: Send feedback/noise/"in context" to level 1 ?
 
     def start(self, max_iters=10):
         """ Starts the agent thread.
@@ -599,4 +488,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=20)
+    agent.start(max_iters=1)
