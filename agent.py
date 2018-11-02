@@ -66,7 +66,7 @@ L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
 L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
 L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
-L2_MEMDEPTH = 2     # Agent's "recurrent" memory, a multiple of L1's input sz
+L2_MEMDEPTH = 3     # Agent's "recurrent" memory, a multiple of L1's input sz
 L2_MAX_POP = 40     # Genetic population sz; has perf affect
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
 

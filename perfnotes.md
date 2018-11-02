@@ -111,7 +111,7 @@ Learned:
 ['as', 'is', 'or', 'if', 'in', 'del', 'and', 'pass', 'not', 'def', 'for', 'try']
 ```
 
-## L2_ex_recurrant
+## L2_ex_recurrant @ memdepth 2
 
 #### Init at
 
@@ -215,7 +215,7 @@ Total encounters: 139
 Learned:
 ['as', 'or', 'in', 'if', 'is']
 
-#### run 3:
+#### run 4:
 
 L3 LEARNED: or
 (Last hit: 82s ago)
@@ -247,4 +247,16 @@ Total encounters: 145
 Learned:
 ['or', 'in', 'as', 'if', 'is', 'and', 'try']
 
+
+## L2_ex_recurrant @ memdepth 3
+
+#### Init at
+
+``` python
+PERSISTx = True
+L2_KERNEL = 1
+L2_MEMDEPTH = 3
+agent.start(max_iters=4)
+repro=0.10, point=0.40, branch=0.10, cross=0.40
+```
 
