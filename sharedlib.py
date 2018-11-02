@@ -336,6 +336,92 @@ class AttrIter(object):
         return attributes
 
 
+class Queue:
+    """ A Queue data structure.
+        Exposes reset, push, pop, shove, cut, peek, top, is_empty, item_count, 
+        and get_items.
+        TODO: contains. use list.pop()
+    """
+
+    def __init__(self, maxsize=None):
+        self.items = []             # Container
+        self.maxsize = maxsize      # Max size of self.items
+
+        # Validate maxsize and populate with defaultdata
+        if maxsize and maxsize < 0:
+                raise Exception('Invalid maxsize parameter.')
+
+    def __len__(self):
+        return len(self.items)
+
+    def reset(self):
+        """ Clear/reset queue items.
+        """
+        self.items = []
+
+    def push(self, item):
+        """ Adds an item to the back of queue.
+        """
+        if self.is_full():
+            raise Exception('Attempted to push item to a full queue.')
+        self.items.append(item)
+
+    def shove(self, item):
+        """ Adds an item to the back of queue. If queue already full, makes
+            room for it by removing the item at front. If an item is removed
+            in this way, is returned.
+        """
+        removed = None
+        if self.is_full():
+            removed = self.pop()
+        self.items.append(item)
+        return removed
+
+    def cut(self, n, item):
+        """ Inserts an item at the nth position from queue front. Existing
+            items are moved back to accomodate it.
+        """
+        length = len(self)
+        if length < n + 1:
+            raise Exception('Attempted to cut at an out of bounds position.')
+        if length >= self.maxsize:
+            raise Exception('Attempted to cut into a full queue.')
+        self.items = self.items[:n] + item + self.items[n:]  # TODO: Test cut
+
+    def pop(self):
+        """ Removes front item from queue and returns it.
+        """
+        if self.is_empty():
+            raise Exception('Attempted to pop from an empty queue.')
+        d = self.items[0]
+        self.items = self.items[1:]
+        return d
+
+    def peek(self, n=0):  # TODO: Test safety of peek
+        """ Returns the nth item from queue front. Leaves queue unchanged.
+        """
+        if len(self) < n + 1:
+            raise Exception('Attempted to peek at an out of bounds position.')
+        if self.is_empty():
+            raise Exception('Attempted to peek at an empty.')
+        return self.items[n]
+
+    def is_empty(self):
+        """ Returns true iff queue empty.
+        """
+        return len(self) == 0
+
+    def is_full(self):
+        """ Returns true iff queue at max capacity.
+        """
+        return self.maxsize and len(self) >= self.maxsize
+
+    def get_items(self):
+        """ Returns queue contents as a new list.
+        """
+        return [item for item in self.items]
+
+
 ################
 # Function Lib #
 ################

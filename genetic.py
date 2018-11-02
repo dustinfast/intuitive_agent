@@ -17,6 +17,7 @@
 
     # TODO: 
         Trim mutation for paring down large trees when acc is low
+        Remove is_seq and dep sympy
 
     Author: Dustin Fast, 2018
 """
@@ -28,7 +29,7 @@ from numpy import array
 import sys; sys.path.append('lib')
 
 import karoo_gp.karoo_gp_base_class as karoo_gp
-from sharedlib import ModelHandler, AttrIter, negate
+from sharedlib import ModelHandler, AttrIter, Queue, negate
 
 
 MODEL_EXT = '.ev'           # File extensions for model file save/load
@@ -45,8 +46,8 @@ class Genetic(karoo_gp.Base_GP):
         Kernel 1: String masking kernel with + operator
         Kernel 3: String masking kernel with + and "case flip" operators
     """
-    def __init__(self, ID, kernel, max_pop, max_depth, max_inputs, tourn_sz=10,
-                 console_out=True, persist=False):
+    def __init__(self, ID, kernel, max_pop, max_depth, max_inputs, mem_depth=1,
+                 tourn_sz=10, console_out=True, persist=False):
         """ ID (str)                : This object's unique ID number
             kernel (int)            : Operation kernel (see class docstring)
             max_pop (int)           : Max num expression trees (< 11 not ideal)
@@ -70,14 +71,22 @@ class Genetic(karoo_gp.Base_GP):
         self.fitness_type = 'max'   # Maximizing kernel function
         self.functions = np.array(KERNEL_OPERATORS.get(kernel))
         self._set_mratio()  # Set initial mutation ratios
+
+        # Apply mem depth - 
+        #  Mem depth 1 is our "input" size, where mem depth 2 is input fed as
+        #  feedback rom the last input to mem depth 1. Mem depth 3 is then mem
+        #  depth 2's prev feedback. Prev_deepmem implemented as a shove queue
+        self.mem_width = max_inputs * mem_depth
+        self.mem = Queue(self.mem_width)
         
-        # Init terminal symbols - We work with string inputs so terminals
-        # must be non-numeric (or sympy will simplify them) and not sympy
-        # func names (or sympy will try to call them). Ex: 'bzzz', 'gh', etc.
+        # Init terminal symbols (i.e. genetic expression leaf-nodes) - 
+        #  We work with string inputs, so our terminals must be non-numeric 
+        #  (or sympy will simplify them) and not sympy func names (or sympy will
+        #  try to call them). Acceptable terminals ex: 'bzzz', 'gh', etc.
         self.terminals = []
         trailing_chars = 1
         curr_char = 0
-        for _ in range(1, max_inputs + 1):
+        for _ in range(1, self.mem_width + 1):
             curr_char += 1
             if curr_char >= 26:
                 trailing_chars += 1
@@ -215,6 +224,7 @@ class Genetic(karoo_gp.Base_GP):
         writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
         writestr += ", 'tourn_size': " + str(self.tourn_size)
         writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
+        writestr += ", 'mem_width': " + str(self.mem_width)
         writestr += ", 'generation_id': " + str(self.generation_id)
         writestr += ", 'pop_tree_type': '" + str(self.pop_tree_type) + "'"
         writestr += ", 'evolve_repro': \"" + str(self.evolve_repro) + "\""
@@ -246,6 +256,7 @@ class Genetic(karoo_gp.Base_GP):
         self.tree_depth_max = data['tree_depth_max']
         self.tourn_size = data['tourn_size']
         self.tree_pop_max = data['tree_pop_max']
+        self.tourn_size = data['tourn_size']
         self.generation_id = data['generation_id']
         self.pop_tree_type = data['pop_tree_type']
         self.population_a = eval(data['population'])
@@ -253,6 +264,9 @@ class Genetic(karoo_gp.Base_GP):
                          int(data['evolve_point']),
                          int(data['evolve_branch']),
                          int(data['evolve_cross']))
+
+        self.mem_width = data['mem_width']
+        self.mem = Queue(self.mem_width)
 
     def apply(self, inputs, is_seq=False):
         """ Applies each tree's expression to the given inputs.
@@ -270,6 +284,38 @@ class Genetic(karoo_gp.Base_GP):
         f_getexpr = self._raw_expr
         if is_seq:
             f_getexpr = self._symp_expr
+
+        # Restructure inputs into current inputs plus prev mem depths
+        new_inputs = []
+        # print('--')
+        # Trim any existing padding from last iter
+
+        for row in inputs:
+            # print('row: ' + str(row))
+            # print('prev: ' + str(self.mem.get_items()))
+
+            # new_row = inputs(current) + inputs(all but oldest)
+            self.mem.items = [m for m in self.mem.get_items() if m != '']
+            for r in row:
+                self.mem.shove(r)
+            new_row = self.mem.get_items()
+            # print('new row: ' + str(new_row))
+            # print('new prev: ' + str(self.mem.get_items()))
+
+            # Pad up to mem width w/ emptry string elements
+            for i in range(len(new_row) + 1, self.mem_width + 1):
+                new_row.append('')
+                self.mem.shove('')
+            # print('post_pad row: ' + str(new_row))
+            # print('post pad prev: ' + str(self.mem.get_items()))
+
+            new_inputs.append(new_row)
+        inputs = new_inputs
+        # print(inputs)
+
+        # Do not evaluate anything until mem is full
+        if [s for s in inputs if '' in s]:
+            return outputs
 
         for treeID in self._tree_IDs():
             # Get current tree's expression. Ex: expr 'A + D'
@@ -417,6 +463,7 @@ if __name__ == '__main__':
 
     # Define inputs (may contain more than one inner list)
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']]
+    # inputs = [['1', '2', '3', '4', '5'], ['6', '7', '8', '9', '10'], ['11', '12', '13', '14', '15']]
     input_lengths = [len(inputs[i]) for i in range(len(inputs))]
 
     # Init the genetically evolving expression trees
@@ -425,6 +472,7 @@ if __name__ == '__main__':
                  max_pop=40, 
                  max_depth=6, 
                  max_inputs=max(input_lengths),
+                 mem_depth=2,
                  console_out=True, 
                  persist=False)
 

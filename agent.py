@@ -51,10 +51,7 @@
 
 import logging
 import threading
-
-from datetime import datetime    # debug
-import time                 # debug
-from pprint import pprint   # debug
+from datetime import datetime
 
 from ann import ANN
 from genetic import Genetic
@@ -67,10 +64,10 @@ MODEL_EXT = '.agnt'
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
-L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual. Has perf affect.
-L2_MAX_POP = 40     # Number of expressions to generate. Has perf affect.
+L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
 L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
 L2_MEMDEPTH = 2     # Agent's "recurrent" memory, a multiple of L1's input sz
+L2_MAX_POP = 40     # Genetic population sz; has perf affect
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
 
 L3_EXT = '.lyr3'
@@ -137,23 +134,24 @@ class IntuitiveLayer(object):
         intuitively form new connections between symbols, as well as its
         recurrent memory (i.e. it's last L2_MEMDEPTH
     """
-    def __init__(self, ID, size):
+    def __init__(self, ID, size, mem_depth):
         """ Accepts:
                 ID (str)        : This layers unique ID
                 size (int)      : Node input size
         """
         self.ID = ID            
-        self._size = size       
-        self._node = None       # The GP element
-        self._prev_inputs = []  # Previous input values, one for each node
-        self._nodeID = ID + '_node'  # GP node's unique ID
+        self._size = size
+        self._mem_depth = mem_depth       
+        self._node = None               # The GP element
+        self._nodeID = ID + '_node'     # GP node's unique ID
 
         # Init the layer's node - a genetically evolving tree of expressions
         self._node = Genetic(ID=self._nodeID,
                              kernel=L2_KERNEL_MODE,
                              max_pop=L2_MAX_POP,
                              max_depth=L2_MAX_DEPTH,
-                             max_inputs=5,  # debug
+                             max_inputs=self._size,
+                             mem_depth=self._mem_depth,
                              tourn_sz=L2_TOURNYSZ,
                              console_out=CONSOLE_OUT,
                              persist=False)
@@ -169,6 +167,7 @@ class IntuitiveLayer(object):
     def __str__(self):
         str_out = '\nID = ' + self.ID
         str_out += '\nSize = ' + str(self._size)
+        str_out += '\nMem Depth = ' + str(self._mem_depth)
         return str_out
 
     def _save(self, filename):
@@ -190,7 +189,7 @@ class IntuitiveLayer(object):
 
         loadme = next(iter(eval(data).values()))
         ID = self._nodeID
-        node = Genetic(ID, 2, 0, 0, 0, 0, CONSOLE_OUT, False)
+        node = Genetic(ID, 2, 0, 0, 0, 0, 0, CONSOLE_OUT, False)  # skeleton
         node.load(loadme, not_file=True)
         self._node = node
 
@@ -202,7 +201,6 @@ class IntuitiveLayer(object):
             Returns:
                 dict: { TreeID: {'output': [], 'in_context':[]}, ... }
         """
-        self._prev_inputs = inputs  # Note curr inputs for next time
         return self._node.apply(inputs=list([inputs]), is_seq=False)
 
     def update(self, fitness):
@@ -375,15 +373,13 @@ class Agent(threading.Thread):
             l1_dims[i].append(in_data[i].class_count)       # y sz
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-        l2_size = self.depth + (self.depth * L2_MEMDEPTH)
 
         # Init layers
         id_prefix = self.ID + '_'
         ID = id_prefix + 'L1'
-        self.model.log('HERE')
         self.l1 = ConceptualLayer(ID, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = IntuitiveLayer(ID, l2_size)
+        self.l2 = IntuitiveLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_ADVISOR)
 
@@ -527,11 +523,6 @@ if __name__ == '__main__':
                DataFrom('static/datasets/letters2.csv', normalize=True),
                DataFrom('static/datasets/letters3.csv', normalize=True),
                DataFrom('static/datasets/letters4.csv', normalize=True)]
-            #    DataFrom('static/datasets/letters5.csv', normalize=True),
-            #    DataFrom('static/datasets/letters6.csv', normalize=True),
-            #    DataFrom('static/datasets/letters7.csv', normalize=True),
-            #    DataFrom('static/datasets/letters8.csv', normalize=True),
-            #    DataFrom('static/datasets/letters9.csv', normalize=True)]
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
@@ -552,4 +543,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=3)
+    agent.start(max_iters=2)
