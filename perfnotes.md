@@ -111,14 +111,7 @@ Learned:
 ['as', 'is', 'or', 'if', 'in', 'del', 'and', 'pass', 'not', 'def', 'for', 'try']
 ```
 
-#### run 2:
-Total run time:
-agent.start(max_iters=3)
-
-
-
 ## L2_ex_recurrant
-
 
 #### Init at
 
@@ -126,12 +119,64 @@ agent.start(max_iters=3)
 PERSISTx = True
 L2_KERNEL = 1
 L2_MEMDEPTH = 2
-agent.start(max_iters=5)
+agent.start(max_iters=2)
 repro=0.10, point=0.40, branch=0.10, cross=0.40
 ```
 
 ### run 1
 Total run time:
+
+L3 LEARNED: as
+(Last hit: 47s ago)
+
+L3 LEARNED: or
+(Last hit: 0s ago)
+
+L3 LEARNED: in
+(Last hit: 4s ago)
+
+L3 LEARNED: is
+(Last hit: 7s ago)
+
+L3 LEARNED: if
+(Last hit: 0s ago)
+
+L3 LEARNED: del
+(Last hit: 192s ago)
+
+L3 LEARNED: def
+(Last hit: 19s ago)
+
+L3 LEARNED: from
+(Last hit: 144s ago)
+
+L3 LEARNED: and
+(Last hit: 1140s ago)
+Total iterations: 4874.025
+ Avg try length: 6.395945855837835
+Total learn hits: 9
+ Avg time btwn learn hits: 172.55555555555554
+ Avg learn hit length: 2.5555555555555554
+Total encounters: 407
+ Avg time btwn encounters: 4.176904176904177
+Learned:
+['as', 'or', 'in', 'is', 'if', 'del', 'def', 'from', 'and']
+
+
+L3 LEARNED: not
+(Last hit: 962s ago)
+
+L3 LEARNED: for
+(Last hit: 434s ago)
+Total iterations: 4875.0
+ Avg try length: 5.636805128205128
+Total learn hits: 2
+ Avg time btwn learn hits: 698.0
+ Avg learn hit length: 14.5
+Total encounters: 450
+ Avg time btwn encounters: 5.815555555555555
+Learned:
+['as', 'or', 'in', 'is', 'if', 'del', 'def', 'from', 'and', 'not', 'for']
 
 #### run 2:
 Total run time:

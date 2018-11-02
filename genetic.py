@@ -18,6 +18,7 @@
     # TODO: 
         Trim mutation for paring down large trees when acc is low
         Remove is_seq and dep sympy
+        L2 feedback only if in context
 
     Author: Dustin Fast, 2018
 """
