@@ -25,7 +25,7 @@ OUT_PATH = 'var/models'
 
 LOGFILE_EXT = '.log'
 LOG_LEVEL = logging.DEBUG
-LOG_SIZE = 10 * 1048576  # x * bytes in a mb
+LOG_SIZE = 1 * 1048576  # x * bytes in a mb
 LOG_FILES = 2
 
 # Global logger

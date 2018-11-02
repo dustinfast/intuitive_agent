@@ -24,6 +24,7 @@
 import re
 import random
 import numpy as np
+from numpy import array
 import sys; sys.path.append('lib')
 
 import karoo_gp.karoo_gp_base_class as karoo_gp

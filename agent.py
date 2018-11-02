@@ -45,6 +45,7 @@
         L3 kb save/load w/decaying fitness if already seen to encourage newness
         Expand l2 nodes - one for each sub-class (ex: py func, py kwd, etc) as
         Expand l2 nodes - as soon as some local mimima reached
+        L2 - One node per input, but only the first dimension
     Author: Dustin Fast, 2018
 """
 
@@ -96,7 +97,7 @@ class ConceptualLayer(object):
         """
         self._nodes = []        # A list of nodes, one for each layer 1 depth
         self._depth = depth     # This layer's depth. I.e., it's node count
-
+        
         for i in range(depth):
             nodeID = ID + '_node_' + str(i)
             self._nodes.append(ANN(nodeID, dims[i], CONSOLE_OUT, PERSIST))
@@ -379,6 +380,7 @@ class Agent(threading.Thread):
         # Init layers
         id_prefix = self.ID + '_'
         ID = id_prefix + 'L1'
+        self.model.log('HERE')
         self.l1 = ConceptualLayer(ID, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
         self.l2 = IntuitiveLayer(ID, l2_size)
@@ -473,8 +475,13 @@ class Agent(threading.Thread):
             print(self.l3.get_stats(clear=True))
 
             if self.max_iters and iters >= self.max_iters - 1:
+                if PERSIST:
+                    self.model.save()
                 self.stop('Agent stopped: max_iters reached.')
             iters += 1
+
+            if PERSIST:
+                self.model.save()
 
     def stop(self, output_str='Agent stopped.'):
         """ Stops the thread. May be called from the REPL, for example.
@@ -483,9 +490,6 @@ class Agent(threading.Thread):
         """
         self.running = False
         self.model.log(output_str)
-
-        if PERSIST:
-            self.model.save()
 
     @staticmethod
     def _shape_fromdata(in_data):
@@ -548,4 +552,4 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=5)
+    agent.start(max_iters=3)
