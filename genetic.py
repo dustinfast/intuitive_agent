@@ -504,4 +504,4 @@ if __name__ == '__main__':
                             fitness[treeID] -= 1
 
         # Evolve a new population with the new fitness values
-        gp.update(fitness, gain=1)  # gain=1 because we want specific solution
+        gp.update(fitness, gain=10)  # gain=1 because we want specific solution
