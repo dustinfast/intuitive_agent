@@ -25,21 +25,6 @@ in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
 Total run time:
 
 ```
-L3 LEARNED: as
-(Last hit: 23s ago)
-
-L3 LEARNED: is
-(Last hit: 4s ago)
-
-L3 LEARNED: or
-(Last hit: 74s ago)
-
-L3 LEARNED: if
-(Last hit: 3s ago)
-
-L3 LEARNED: in
-(Last hit: 2s ago)
-
 L3 LEARNED: del
 (Last hit: 2050s ago)
 Total iterations: 4875.025
@@ -113,7 +98,7 @@ Learned:
 
 ## L2_ex_recurrant @ memdepth 2
 
-#### Init at
+### Init at
 
 ``` python
 PERSISTx = True
@@ -123,7 +108,7 @@ agent.start(max_iters=2)
 repro=0.10, point=0.40, branch=0.10, cross=0.40
 ```
 
-### run 1 / 2
+#### run 1 / 2
 Total run time:
 
 L3 LEARNED: as
@@ -250,13 +235,103 @@ Learned:
 
 ## L2_ex_recurrant @ memdepth 3
 
-#### Init at
+### Init at
 
 ``` python
 PERSISTx = True
-L2_KERNEL = 1
+L2_KERNEL_MODE = 1
 L2_MEMDEPTH = 3
-agent.start(max_iters=4)
+L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
+L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
+L2_MEMDEPTH = 3     # Agent's "recurrent" memory, a multiple of L1's input sz
+L2_MAX_POP = 40     # Genetic population sz; has perf affect
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
+agent.start(max_iters=5)
 repro=0.10, point=0.40, branch=0.10, cross=0.40
 ```
+#### run 1 - 5
+L3 LEARNED: as
+(Last hit: 0s ago)
+
+L3 LEARNED: in
+(Last hit: 8s ago)
+
+L3 LEARNED: is
+(Last hit: 10s ago)
+
+L3 LEARNED: if
+(Last hit: 7s ago)
+
+L3 LEARNED: not
+(Last hit: 38s ago)
+
+L3 LEARNED: or
+(Last hit: 37s ago)
+
+L3 LEARNED: def
+(Last hit: 1121s ago)
+Total iterations: 4873.05
+ Avg try length: 7.017930249022686
+Total learn hits: 7
+ Avg time btwn learn hits: 174.42857142857142
+ Avg learn hit length: 2.2857142857142856
+Total encounters: 403
+ Avg time btwn encounters: 5.200992555831266
+Learned:
+['as', 'in', 'is', 'if', 'not', 'or', 'def']
+
+
+L3 LEARNED: and
+(Last hit: 2777s ago)
+
+L3 LEARNED: for
+(Last hit: 56s ago)
+Total iterations: 4875.0
+ Avg try length: 6.269748717948718
+Total learn hits: 2
+ Avg time btwn learn hits: 1416.5
+ Avg learn hit length: 11.0
+Total encounters: 408
+ Avg time btwn encounters: 4.852941176470588
+Learned:
+['as', 'in', 'is', 'if', 'not', 'or', 'def', 'and', 'for']
+
+
+L3 LEARNED: del
+(Last hit: 1204s ago)
+
+L3 LEARNED: try
+(Last hit: 1333s ago)
+Total iterations: 4875.0
+ Avg try length: 6.149133333333333
+Total learn hits: 2
+ Avg time btwn learn hits: 1268.5
+ Avg learn hit length: 14.0
+Total encounters: 418
+ Avg time btwn encounters: 4.636363636363637
+Learned:
+['as', 'in', 'is', 'if', 'not', 'or', 'def', 'and', 'for', 'del', 'try']
+
+Total iterations: 4875.0
+ Avg try length: 7.420123076923077
+Total learn hits: 0
+ Avg time btwn learn hits: 0
+ Avg learn hit length: 0
+Total encounters: 263
+ Avg time btwn encounters: 8.463878326996198
+Learned:
+['as', 'in', 'is', 'if', 'not', 'or', 'def', 'and', 'for', 'del', 'try']
+
+
+L3 LEARNED: pass
+(Last hit: 3979s ago)
+Total iterations: 4875.0
+ Avg try length: 6.321476923076923
+Total learn hits: 1
+ Avg time btwn learn hits: 3979.0
+ Avg learn hit length: 32.0
+Total encounters: 330
+ Avg time btwn encounters: 5.927272727272728
+Learned:
+['as', 'in', 'is', 'if', 'not', 'or', 'def', 'and', 'for', 'del', 'try', 'pass']
 

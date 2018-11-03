@@ -422,6 +422,18 @@ class Queue:
         return [item for item in self.items]
 
 
+# TODO: class Persist(object):
+#     """ A collection of helpers to save/load a model to/from file.
+#     """
+# def dict_saveto(obj_dict, filename=None):
+#     """ Saves the given dictionary to a file in a format able to be loaded
+#         later by dict_loadfrom.
+#         Accepts:
+#             obj_dict (dict)     : { ObjectProperty: PropertyValue }
+#             filename (str)      : Output filename
+#     """
+#     ### Convert the dictionary to a string
+
 ################
 # Function Lib #
 ################
@@ -437,3 +449,4 @@ def negate(x):
 
     # Numerical negate
     return (x * -1)
+

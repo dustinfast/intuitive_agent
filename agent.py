@@ -42,6 +42,7 @@
         "provides feedback" connector - ex: True if the action returns a value
         L2 does not output node count in multimode
         Seperate log output option and persist
+        Add heuristics output to log handler
         L3 kb save/load w/decaying fitness if already seen to encourage newness
         Expand l2 nodes - one for each sub-class (ex: py func, py kwd, etc) as
         Expand l2 nodes - as soon as some local mimima reached
@@ -201,6 +202,8 @@ class IntuitiveLayer(object):
             Returns:
                 dict: { TreeID: {'output': [], 'in_context':[]}, ... }
         """
+        # TODO: Check the inputs for existence of items already in agent.l3.kb?
+        #       Or does that defeat the purpose?
         return self._node.apply(inputs=list([inputs]), is_seq=False)
 
     def update(self, fitness):
@@ -214,7 +217,6 @@ class IntuitiveLayer(object):
 class LogicalLayer(object):
     """ An abstraction of the agent's Logical layer (i.e. layer three), which
         evaluates the fitness of it's input according to the given kernel.
-        This layer does no persistence or logging at this time.
     """
     def __init__(self, ID, kernel):
         """ Accepts:
@@ -222,25 +224,68 @@ class LogicalLayer(object):
                 kernel (function)   : A bool-returning func accepting L2 output
         """
         self.ID = ID
-        self._kernel = kernel
-        self.kb = []            # Learned items  # TODO: Persist
+        self._kernel = kernel  # TODO: kernels - a list w/ els of type kernel
 
-        # Learning statitistics
-        self.last_learnhit = datetime.now()
-        self.last_encounter = datetime.now()
-        self.learnhits = []
-        self.encounterhits = []
-        self.len_total = 0
-        self.len_count = 0
+        # Heuristics variables
+        self.last_learnhit = datetime.now()     # New item learned event time
+        self.last_encounter = datetime.now()    # Last saw a prev learned item
+        self.learnhits = []                     # Number of new items learned
+        self.encounterhits = []                 # Num encounters w/items in kb 
+        self.len_total = 0                      # Cumulative len of inputs fed
+        self.len_count = 0                      # Count of all inputs fed
+
+        # Persistent containers and metrics
+        self.kb = []                # Lifetime list of all learned items
+        self._total_encounters = 0  # Lifetime encounters w/items in kb
+        self._total_learnhits = 0   # Lifetime "new item learned" hits count
+
+        # Save/Load/Loghandler
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
                                   model_ext=L3_EXT,
-                                  save_func='MODEL_FILE',  # i.e. unused
-                                  load_func='MODEL_FILE')  # i.e. unused
+                                  save_func=f_save,
+                                  load_func=f_load)
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
         str_out += '\nMode = ' + self._kernel.__name__
         return str_out
+
+    def _save(self, filename):
+        """ Saves a model of the current population. For use by ModelHandler.
+            Iff no filename given, does not save to file but instead returns
+            the string that would have otherwise been written.
+        """
+        # Build model params in dict form
+        writestr = "{ 'kernel': " + self._kernel.__name__
+        writestr += ", 'kb': " + str(self._kb)
+        writestr += ", '_total_encounters': " + str(self._total_encounters)
+        writestr += ", '_total_learnhits': " + str(self.__total_learnhits)
+        writestr += "}"
+
+        if not filename:
+            return writestr
+
+        with open(filename, 'w') as f:
+            f.write(writestr)
+
+    def _load(self, filename, not_file=False):
+        """ Loads model from file. For use by ModelHandler.
+            Iff not_file, does not load from file but instead loads from the
+            given string as if it were file contents.
+        """
+        if not_file:
+            loadfrom = filename
+        else:
+            with open(filename, 'r') as f:
+                loadfrom = f.read()
+
+        data = eval(loadfrom.replace('\n', ''))
+        self._kernel = eval(data['_kernel'])
+        self.kb = data['_kb']
+        self._total_learnhits = data['_total_learnhits']
+        self._total_encounters = data['_total_encounters']
 
     def forward(self, results):
         """ Checks each result in results and determines fitness.
@@ -264,10 +309,10 @@ class LogicalLayer(object):
                     if tryme not in self.kb:
                         self.kb.append(tryme)
                         fitness[treeID] += L2_MAX_POP
-                        print('\nL3 LEARNED: ' + tryme)  # debug
+                        # print('\nL3 LEARNED: ' + tryme)  # debug
                         lasthit = (datetime.now() - self.last_learnhit).seconds
                         self.learnhits.append(lasthit)
-                        print('(Last hit: ' + str(lasthit) + 's ago)')
+                        # print('(Last hit: ' + str(lasthit) + 's ago)')
                         self.last_learnhit = datetime.now()
                         self.last_encounter = datetime.now()
                     else:
@@ -284,8 +329,10 @@ class LogicalLayer(object):
         """ Returns a string representing performance statistics.
             Accepts:
                 clear (bool)    : Denotes stats to be reset after generating
+                # TODO: (dict)  : Denotes results returned as dict vs str
         """
-        iters = self.len_count / L2_MAX_POP
+        # Build statistics
+        iters = self.len_count / L2_MAX_POP     # 
         l_hits = len(self.learnhits)
         e_hits = len(self.encounterhits)
 
@@ -302,6 +349,15 @@ class LogicalLayer(object):
         avg_len = 0
         if self.len_count:
             avg_len = str(self.len_total / self.len_count)
+
+        # TODO: Create graph of distributions 
+        # (https://stackoverflow.com/questions/3550264/python-create-a-distribution-from-a-list-based-on-number-of-items-that-fall-wit)
+
+        # import pandas as pd
+        
+        # data = [['Alex', 10], ['Bob', 12], ['Clarke', 13]]
+        # df = pd.DataFrame(data, columns=['Name', 'Age'])
+        # print df
 
         ret_str = 'Total iterations: ' + str(iters) + '\n'
         ret_str += ' Avg try length: ' + str(avg_len) + '\n'
@@ -543,4 +599,8 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    agent.start(max_iters=2)
+    stime = datetime.now()
+    agent.start(max_iters=10)
+    agent.join()
+    print('Run time: ' + str((datetime.now() - stime).seconds) + 's')
+

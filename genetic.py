@@ -125,6 +125,60 @@ class Genetic(karoo_gp.Base_GP):
         str_out += 'evolver_cross: ' + str(self.evolve_cross) + '\n)'
         return str_out
 
+    def _save(self, filename=None):
+        """ Saves a model of the current population. For use by ModelHandler.
+            Iff no filename given, does not save to file but instead returns
+            the string that would have otherwise been written.
+        """
+        # Build model params in dict form
+        writestr = "{ 'operands': " + str(self.terminals)
+        writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
+        writestr += ", 'tourn_size': " + str(self.tourn_size)
+        writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
+        writestr += ", 'mem_width': " + str(self.mem_width)
+        writestr += ", 'generation_id': " + str(self.generation_id)
+        writestr += ", 'pop_tree_type': '" + str(self.pop_tree_type) + "'"
+        writestr += ", 'evolve_repro': \"" + str(self.evolve_repro) + "\""
+        writestr += ", 'evolve_point': \"" + str(self.evolve_point) + "\""
+        writestr += ", 'evolve_branch': \"" + str(self.evolve_branch) + "\""
+        writestr += ", 'evolve_cross': \"" + str(self.evolve_cross) + "\""
+        writestr += ", 'population': \"" + str(self.population_a) + "\""
+        writestr += "}"
+
+        if not filename:
+            return writestr
+
+        with open(filename, 'w') as f:
+            f.write(writestr)
+
+    def _load(self, filename, not_file=False):
+        """ Loads model from file. For use by ModelHandler.
+            Iff not_file, does not load from file but instead loads from the
+            given string as if it were file contents.
+        """
+        if not_file:
+            loadfrom = filename
+        else:
+            with open(filename, 'r') as f:
+                loadfrom = f.read()
+
+        data = eval(loadfrom.replace('\n', ''))
+        self.terminals = data['operands']
+        self.tree_depth_max = data['tree_depth_max']
+        self.tourn_size = data['tourn_size']
+        self.tree_pop_max = data['tree_pop_max']
+        self.tourn_size = data['tourn_size']
+        self.generation_id = data['generation_id']
+        self.pop_tree_type = data['pop_tree_type']
+        self.population_a = eval(data['population'])
+        self._set_mratio(int(data['evolve_repro']),
+                         int(data['evolve_point']),
+                         int(data['evolve_branch']),
+                         int(data['evolve_cross']))
+
+        self.mem_width = data['mem_width']
+        self.mem = Queue(self.mem_width)
+
     def _set_mratio(self, repro=0.10, point=0.40, branch=0.10, cross=0.40):
         """ Sets the mutation ratios, based on the given max population metric.
         """
@@ -214,60 +268,6 @@ class Genetic(karoo_gp.Base_GP):
             string = string.replace('*', ' * ')  # So * op splits correctly
             return re.split(' ', string)
         return lst[1:]
-
-    def save(self, filename=None):
-        """ Saves a model of the current population. For use by ModelHandler.
-            Iff no filename given, does not save to file but instead returns
-            the string that would have otherwise been written.
-        """
-        # Build model params in dict form
-        writestr = "{ 'operands': " + str(self.terminals)
-        writestr += ", 'tree_depth_max': " + str(self.tree_depth_max)
-        writestr += ", 'tourn_size': " + str(self.tourn_size)
-        writestr += ", 'tree_pop_max': " + str(self.tree_pop_max)
-        writestr += ", 'mem_width': " + str(self.mem_width)
-        writestr += ", 'generation_id': " + str(self.generation_id)
-        writestr += ", 'pop_tree_type': '" + str(self.pop_tree_type) + "'"
-        writestr += ", 'evolve_repro': \"" + str(self.evolve_repro) + "\""
-        writestr += ", 'evolve_point': \"" + str(self.evolve_point) + "\""
-        writestr += ", 'evolve_branch': \"" + str(self.evolve_branch) + "\""
-        writestr += ", 'evolve_cross': \"" + str(self.evolve_cross) + "\""
-        writestr += ", 'population': \"" + str(self.population_a) + "\""
-        writestr += "}"
-
-        if not filename:
-            return writestr
-
-        with open(filename, 'w') as f:
-            f.write(writestr)
-            
-    def load(self, filename, not_file=False):
-        """ Loads model from file. For use by ModelHandler.
-            Iff not_file, does not load from file but instead loads from the
-            given string as if it were file contents.
-        """
-        if not_file:
-            loadfrom = filename
-        else:
-            with open(filename, 'r') as f:
-                loadfrom = f.read()
-
-        data = eval(loadfrom.replace('\n', ''))
-        self.terminals = data['operands']
-        self.tree_depth_max = data['tree_depth_max']
-        self.tourn_size = data['tourn_size']
-        self.tree_pop_max = data['tree_pop_max']
-        self.tourn_size = data['tourn_size']
-        self.generation_id = data['generation_id']
-        self.pop_tree_type = data['pop_tree_type']
-        self.population_a = eval(data['population'])
-        self._set_mratio(int(data['evolve_repro']),
-                         int(data['evolve_point']),
-                         int(data['evolve_branch']),
-                         int(data['evolve_cross']))
-
-        self.mem_width = data['mem_width']
-        self.mem = Queue(self.mem_width)
 
     def apply(self, inputs, is_seq=False):
         """ Applies each tree's expression to the given inputs.
