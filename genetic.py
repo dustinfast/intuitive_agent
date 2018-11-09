@@ -97,8 +97,8 @@ class Genetic(karoo_gp.Base_GP):
         self.terminals += ['s']  # 's' label unused but required by KarooGP
 
         # Init the load, save, log, and console output handler
-        f_save = "self.save('MODEL_FILE')"
-        f_load = "self.load('MODEL_FILE')"
+        f_save = "self._save('MODEL_FILE')"
+        f_load = "self._load('MODEL_FILE')"
         self.model = ModelHandler(self, console_out, persist,
                                   model_ext=MODEL_EXT,
                                   save_func=f_save,
@@ -268,6 +268,11 @@ class Genetic(karoo_gp.Base_GP):
             string = string.replace('*', ' * ')  # So * op splits correctly
             return re.split(' ', string)
         return lst[1:]
+
+    def clear_mem(self):
+        """ Clears the memory at each depth.
+        """
+        self.mem.reset()
 
     def apply(self, inputs, is_seq=False):
         """ Applies each tree's expression to the given inputs.

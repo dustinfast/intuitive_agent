@@ -67,9 +67,9 @@ L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
 L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
 L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
-L2_MEMDEPTH = 3     # Agent's "recurrent" memory, a multiple of L1's input sz
-L2_MAX_POP = 40     # Genetic population sz; has perf affect
-L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
+L2_MEMDEPTH = 2     # Agent's "recurrent" memory, an iplier of L1's input sz
+L2_MAX_POP = 50     # Genetic population sz; has perf affect
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool sz
 
 L3_EXT = '.lyr3'
 L3_ADVISOR = Connector.is_python_kwd
@@ -177,7 +177,7 @@ class IntuitiveLayer(object):
         # Write the node's ID and asociated data as { "ID": ("save_string") }
         with open(filename, 'w') as f:
             f.write('{')
-            savestr = self._node.save()
+            savestr = self._node._save()
             f.write('"' + self._nodeID + '": """' + savestr + '""", ')
             f.write('}')
 
@@ -191,7 +191,7 @@ class IntuitiveLayer(object):
         loadme = next(iter(eval(data).values()))
         ID = self._nodeID
         node = Genetic(ID, 2, 0, 0, 0, 0, 0, CONSOLE_OUT, False)  # skeleton
-        node.load(loadme, not_file=True)
+        node._load(loadme, not_file=True)
         self._node = node
 
     def forward(self, inputs):
@@ -236,8 +236,10 @@ class LogicalLayer(object):
 
         # Persistent containers and metrics
         self.kb = []                # Lifetime list of all learned items
-        self._total_encounters = 0  # Lifetime encounters w/items in kb
-        self._total_learnhits = 0   # Lifetime "new item learned" hits count
+        self._life_learnhits = 0    # Lifetime "new item learned" hits count
+        self._life_encounters = 0   # Lifetime encounters w/items in kb
+        self._life_learn_t = 0      # Lifetime "new item learned" hits count
+        self._life_enc_t = 0        # Lifetime avg time btwn encounters
 
         # Save/Load/Loghandler
         f_save = "self._save('MODEL_FILE')"
@@ -250,6 +252,10 @@ class LogicalLayer(object):
     def __str__(self):
         str_out = '\nID = ' + self.ID
         str_out += '\nMode = ' + self._kernel.__name__
+        str_out += '\nLifetime learning hits: ' + str(self._life_learnhits)
+        str_out += '\n  Avg time between learn hits: ' + str(self._life_learn_t)
+        str_out += '\nLifetime encounters: ' + str(self._life_encounters)
+        str_out += '\n  Avg time between encounters: ' + str(self._life_enc_t)
         return str_out
 
     def _save(self, filename):
@@ -258,10 +264,12 @@ class LogicalLayer(object):
             the string that would have otherwise been written.
         """
         # Build model params in dict form
-        writestr = "{ 'kernel': " + self._kernel.__name__
-        writestr += ", 'kb': " + str(self._kb)
-        writestr += ", '_total_encounters': " + str(self._total_encounters)
-        writestr += ", '_total_learnhits': " + str(self.__total_learnhits)
+        writestr = "{ '_kernel': 'Connector." + self._kernel.__name__ + "'"
+        writestr += ", 'kb': " + str(self.kb)
+        writestr += ", '_life_learnhits': " + str(self._life_learnhits)
+        writestr += ", '_life_learn_t': " + str(self._life_learn_t)
+        writestr += ", '_life_encounters': " + str(self._life_encounters)
+        writestr += ", '_life_enc_t': " + str(self._life_enc_t)
         writestr += "}"
 
         if not filename:
@@ -282,10 +290,12 @@ class LogicalLayer(object):
                 loadfrom = f.read()
 
         data = eval(loadfrom.replace('\n', ''))
+        self.kb = data['kb']
         self._kernel = eval(data['_kernel'])
-        self.kb = data['_kb']
-        self._total_learnhits = data['_total_learnhits']
-        self._total_encounters = data['_total_encounters']
+        self._life_learnhits = data['_life_learnhits']
+        self._life_learn_t = data['_life_learn_t']
+        self._life_encounters = data['_life_encounters']
+        self._life_enc_t = data['_life_enc_t']
 
     def forward(self, results):
         """ Checks each result in results and determines fitness.
@@ -304,35 +314,36 @@ class LogicalLayer(object):
 
                 self.model.log('L3 TRYING: ' + tryme)
                 if self._kernel(tryme):
-                    self.model.log('TRUE!')
 
                     if tryme not in self.kb:
-                        self.kb.append(tryme)
-                        fitness[treeID] += L2_MAX_POP
-                        # print('\nL3 LEARNED: ' + tryme)  # debug
                         lasthit = (datetime.now() - self.last_learnhit).seconds
+                        self.model.log('L3 LEARNED: ' + tryme)
+                        self.model.log('(Last was: ' + str(lasthit) + 's ago)')
+                        self.kb.append(tryme)
                         self.learnhits.append(lasthit)
-                        # print('(Last hit: ' + str(lasthit) + 's ago)')
+                        self.encounterhits.append(lasthit)
                         self.last_learnhit = datetime.now()
                         self.last_encounter = datetime.now()
+                        fitness[treeID] += 10
                     else:
-                        fitness[treeID] += .5
-                        # print('\nL3 Encountered: ' + tryme)  # debug
                         lasthit = (datetime.now() - self.last_encounter).seconds
+                        self.model.log('L3 Encountered: ' + tryme)
+                        self.model.log('(Last was: ' + str(lasthit) + 's ago)')
                         self.encounterhits.append(lasthit)
-                        # print('(Last encounter: ' + lasthit + 's ago)')
                         self.last_encounter = datetime.now()
+                        fitness[treeID] += .5
 
         return fitness
 
-    def get_stats(self, clear=False):
-        """ Returns a string representing performance statistics.
+    def stats(self, clear=False):
+        """ Updates the lifetime statistics and returns a string representing 
+            performance statistics.
             Accepts:
                 clear (bool)    : Denotes stats to be reset after generating
-                # TODO: (dict)  : Denotes results returned as dict vs str
+                # TODO: (bool)  : Denotes results returned as dict vs str
         """
         # Build statistics
-        iters = self.len_count / L2_MAX_POP     # 
+        iters = self.len_count / L2_MAX_POP
         l_hits = len(self.learnhits)
         e_hits = len(self.encounterhits)
 
@@ -350,7 +361,13 @@ class LogicalLayer(object):
         if self.len_count:
             avg_len = str(self.len_total / self.len_count)
 
-        # TODO: Create graph of distributions 
+        # Update lifetime stats
+        self._life_learnhits += l_hits
+        self._life_learn_t += l_hits_time
+        self._life_encounters += e_hits
+        self._life_enc_t += e_hits_time
+
+        # TODO: Create graph of distributions
         # (https://stackoverflow.com/questions/3550264/python-create-a-distribution-from-a-list-based-on-number-of-items-that-fall-wit)
 
         # import pandas as pd
@@ -363,11 +380,13 @@ class LogicalLayer(object):
         ret_str += ' Avg try length: ' + str(avg_len) + '\n'
 
         ret_str += 'Total learn hits: ' + str(l_hits) + '\n'
-        ret_str += ' Avg time btwn learn hits: ' + str(l_hits_time) + '\n'
         ret_str += ' Avg learn hit length: ' + str(avg_hit_len) + '\n'
+        ret_str += ' Avg time btwn learn hits -\n'
+        ret_str += '    This run: ' + str(l_hits_time) + '\n'
+        ret_str += '    Lifetime (NEEDS FIXED): ' + str(self._life_learn_t) + '\n'
 
         ret_str += 'Total encounters: ' + str(e_hits) + '\n'
-        ret_str += ' Avg time btwn encounters: ' + str(e_hits_time) + '\n'
+        ret_str += ' Avg time btwn encounters (NEEDS FIXED): ' + str(e_hits_time) + '\n'
 
         ret_str += 'Learned: \n' + str(self.kb) + '\n'
 
@@ -419,7 +438,6 @@ class Agent(threading.Thread):
 
         # Determine agent shape from input data
         l1_dims = []
-        l2_size = 0
         self.depth = len(inputs)
 
         for i in range(self.depth):
@@ -447,14 +465,18 @@ class Agent(threading.Thread):
             Also causes saves to occur for each agent layer (and associated
             nodes) that perform online learning.
         """
-        self.l2.model.save()  # L1 does own persistence, L3 does no peristence
+        # Note: L1 handles its own persistence
+        self.l2.model.save() 
+        self.l3.model.save() 
 
     def _load(self, filename):
         """ Loads the agent model from file. For use by ModelHandler.
             Also causes loads to occur for each agent layer (and associated
             nodes) that perform online learning.
         """
-        self.l2.model.load()  # L1 does own persistence, L3 does no peristence
+        # Note: L1 handles its own persistence
+        self.l2.model.load() 
+        self.l3.model.load()
 
     def _step(self, data_row):
         """ Steps the agent forward one step with the given data row: A list
@@ -512,6 +534,7 @@ class Agent(threading.Thread):
         self.model.log('Agent thread started.')
         min_rows = min([data.row_count for data in self.inputs])
         self.running = True
+        stime = datetime.now()
         iters = 0
 
         # Step the agent forward with each row of each dataset
@@ -524,16 +547,19 @@ class Agent(threading.Thread):
                 self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
                 self._step(row)
 
-            print(self.l3.get_stats(clear=True))
-
-            if self.max_iters and iters >= self.max_iters - 1:
-                if PERSIST:
-                    self.model.save()
-                self.stop('Agent stopped: max_iters reached.')
-            iters += 1
+            # debug outoput
+            print('-- Epoch', iters, 'complete --')
+            print(self.l3.stats(clear=True))
+            print('Run time: ' + str((datetime.now() - stime).seconds) + 's\n')
+            self.l2._node.clear_mem()
 
             if PERSIST:
                 self.model.save()
+
+            if self.max_iters and iters >= self.max_iters - 1:
+                self.stop('Agent stopped: max_iters reached.')
+            
+            iters += 1
 
     def stop(self, output_str='Agent stopped.'):
         """ Stops the thread. May be called from the REPL, for example.
@@ -599,8 +625,6 @@ if __name__ == '__main__':
     # agent.l1.train(l1_train, l1_vald)
 
     # Start the agent thread in_data as input data
-    stime = datetime.now()
-    agent.start(max_iters=10)
+    agent.start(max_iters=15)
     agent.join()
-    print('Run time: ' + str((datetime.now() - stime).seconds) + 's')
 
