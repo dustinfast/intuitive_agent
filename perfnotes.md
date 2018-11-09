@@ -335,3 +335,21 @@ Total encounters: 330
 Learned:
 ['as', 'in', 'is', 'if', 'not', 'or', 'def', 'and', 'for', 'del', 'try', 'pass']
 
+
+## L2_ex_recurrant @ memdepth 2 LONGRUN
+
+### Init at
+
+``` python
+PERSISTx = True
+L2_KERNEL_MODE = 1
+L2_MEMDEPTH = 2
+L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
+L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
+L2_MEMDEPTH = 3     # Agent's "recurrent" memory, a multiple of L1's input sz
+L2_MAX_POP = 50     # Genetic population sz; has perf affect
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Random genetic pool sz
+agent.start(max_iters=15)
+repro=0.10, point=0.40, branch=0.10, cross=0.40
+```
+#### run 1 - 15
