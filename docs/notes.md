@@ -14,6 +14,8 @@ Intuition - black box, selects current context. May lead to "aha" moments or sim
 * Add a "recent connection beween two sub-ann's give'sadjacent ann's higher priority"
 * The evoling string is a tensor of floats. Tee floatsrepresent connectoins between each sub-ann. i.e."adjacent anns"
 
+Why only 3 systems? – Can we use two under one umbrella system? After all, we can only go one layer up (it appears we can only go one level "up" - a person has the ability to think about themselves, but they cannot think about themselves thinking, therefore, there appears again to be two two primary "systems" at work - the data "filter", or "pattern recognizer" and the analytical agent.)
+
 
  ## Prev model, w/ANN's at both ends
 * Each queue, q_i, receives input from ANN a_i. The queue implementation represents the limited working memory of a human as each element in the queue is used as input to each ANN. A set of n FIFO queues of depth d.
