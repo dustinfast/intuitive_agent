@@ -210,7 +210,6 @@ class ANN(nn.Module):
 
 if __name__ == '__main__':
     # Load the training and validation data sets
-    'static/datasets/test/test3x2.csv'
     trainfile = 'static/datasets/letter_train.csv'
     # trainfile = 'static/datasets/test/test3x2.csv'  # debug
     valfile = 'static/datasets/letter_val.csv'
@@ -224,10 +223,10 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_test3layer_e2000@.001', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_test1', (x_sz, h_sz, y_sz), console_out=True, persist=False)
     
     # Train the ann with the training set
-    ann.train(train_data, epochs=1000, lr=.001, alpha=.9, stats_at=10, noise=None)
+    ann.train(train_data, epochs=500, lr=.001, alpha=.9, stats_at=10)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
