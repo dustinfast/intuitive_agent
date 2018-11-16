@@ -63,6 +63,25 @@ CONSOLE_OUT = False
 PERSIST = True
 MODEL_EXT = '.agnt'
 
+AGENT_NAME = 'agent1'
+AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv', normalize=True),
+                    DataFrom('static/datasets/letters1.csv', normalize=True),
+                    DataFrom('static/datasets/letters2.csv', normalize=True),
+                    DataFrom('static/datasets/letters3.csv', normalize=True),
+                    DataFrom('static/datasets/letters4.csv', normalize=True)]
+
+L1_EPOCHS = 1000  # Num learning epochs per training instance
+L1_LR = .001      # ANN learning rate
+L1_ALPHA = .9     # ANN learning rate momentum
+L1_TRAINFILES = [DataFrom('static/datasets/letters_train.csv', normalize=True),
+                 DataFrom('static/datasets/letters_train.csv', normalize=True),
+                 DataFrom('static/datasets/letters_train.csv', normalize=True),
+                 DataFrom('static/datasets/letters_train.csv', normalize=True)]
+L1_VALFILES = [DataFrom('static/datasets/letters_val.csv', normalize=True),
+               DataFrom('static/datasets/letters_val.csv', normalize=True),
+               DataFrom('static/datasets/letters_val.csv', normalize=True),
+               DataFrom('static/datasets/letters_val.csv', normalize=True)]
+
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
 L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
@@ -72,7 +91,7 @@ L2_MAX_POP = 50     # Genetic population sz; has perf affect
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool sz
 
 L3_EXT = '.lyr3'
-L3_ADVISOR = Connector.is_python_kwd
+L3_CONTEXTMODE = Connector.is_python_func
 
 
 class ConceptualLayer(object):
@@ -101,7 +120,8 @@ class ConceptualLayer(object):
             self._nodes.append(ANN(nodeID, dims[i], CONSOLE_OUT, PERSIST))
             self._nodes[i].set_labels(inputs[i].class_labels)
     
-    def train(self, train_data, val_data, epochs=500, lr=.01, alpha=.9):
+    def train(self, train_data, val_data, epochs=L1_EPOCHS,
+              lr=L1_LR, alpha=L1_ALPHA):
         """ Trains each node from the given training/validation data.
             Accepts:
                 train_data (list)       : A list of DataFrom objects
@@ -455,7 +475,7 @@ class Agent(threading.Thread):
         ID = id_prefix + 'L2'
         self.l2 = IntuitiveLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
-        self.l3 = LogicalLayer(ID, L3_ADVISOR)
+        self.l3 = LogicalLayer(ID, L3_CONTEXTMODE)
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -600,26 +620,16 @@ if __name__ == '__main__':
     #            DataFrom('static/datasets/letters.csv', normalize=True),
     #            DataFrom('static/datasets/letters.csv', normalize=True),
     #            DataFrom('static/datasets/letters.csv', normalize=True)]
-    in_data = [DataFrom('static/datasets/letters0.csv', normalize=True),
-               DataFrom('static/datasets/letters1.csv', normalize=True),
-               DataFrom('static/datasets/letters2.csv', normalize=True),
-               DataFrom('static/datasets/letters3.csv', normalize=True),
-               DataFrom('static/datasets/letters4.csv', normalize=True)]
+    in_data = AGENT_INPUTFILES
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
-    l1_train = [DataFrom('static/datasets/letters.csv', normalize=True),
-                DataFrom('static/datasets/letters.csv', normalize=True),
-                DataFrom('static/datasets/letters.csv', normalize=True),
-                DataFrom('static/datasets/letters.csv', normalize=True)]
+    l1_train = L1_TRAINFILES
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
-    l1_vald = [DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True),
-               DataFrom('static/datasets/letters.csv', normalize=True)]
+    l1_vald = L1_VALFILES
 
     # Instantiate the agent (agent shape is derived automatically from in_data)
-    agent = Agent('agent1', in_data, is_seq=False)
+    agent = Agent(AGENT_NAME, in_data, is_seq=False)
 
     # Train and validate the agent
     # agent.l1.train(l1_train, l1_vald)
