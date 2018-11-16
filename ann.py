@@ -37,10 +37,9 @@ from sharedlib import ModelHandler, DataFrom
 
 MODEL_EXT = '.pt'       # ANN model file extension
 
-TRAINING_EPOCHS = 1000
-TRAINING_LR = .001
-TRAINING_ALPHA = .9
-TRAINING_STATS_AT = 10
+TRAINING_EPOCHS = 1000  # Num learning epochs per training instance
+TRAINING_LR = .001      # ANN learning rate
+TRAINING_ALPHA = .9     # ANN learning rate momentum
 
 
 class ANN(nn.Module):
@@ -235,8 +234,7 @@ if __name__ == '__main__':
     ann.train(train_data,
               epochs=TRAINING_EPOCHS,
               lr=TRAINING_LR,
-              alpha=TRAINING_ALPHA,
-              stats_at=TRAINING_STATS_AT)
+              alpha=TRAINING_ALPHA)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
