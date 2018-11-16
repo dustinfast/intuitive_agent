@@ -77,10 +77,10 @@ L1_TRAINFILES = [DataFrom('static/datasets/letters_train.csv', normalize=True),
                  DataFrom('static/datasets/letters_train.csv', normalize=True),
                  DataFrom('static/datasets/letters_train.csv', normalize=True),
                  DataFrom('static/datasets/letters_train.csv', normalize=True)]
-L1_VALFILES = [DataFrom('static/datasets/letters_val.csv', normalize=True),
-               DataFrom('static/datasets/letters_val.csv', normalize=True),
-               DataFrom('static/datasets/letters_val.csv', normalize=True),
-               DataFrom('static/datasets/letters_val.csv', normalize=True)]
+L1_VALIDFILES = [DataFrom('static/datasets/letters_val.csv', normalize=True),
+                 DataFrom('static/datasets/letters_val.csv', normalize=True),
+                 DataFrom('static/datasets/letters_val.csv', normalize=True),
+                 DataFrom('static/datasets/letters_val.csv', normalize=True)]
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
