@@ -35,11 +35,7 @@ import torch.nn as nn
 
 from sharedlib import ModelHandler, DataFrom
 
-MODEL_EXT = '.pt'       # ANN model file extension
-
-TRAINING_EPOCHS = 1000  # Num learning epochs per training instance
-TRAINING_LR = .001      # ANN learning rate
-TRAINING_ALPHA = .9     # ANN learning rate momentum
+MODEL_EXT = '.pt'   # ANN model file extension
 
 
 class ANN(nn.Module):
@@ -231,10 +227,7 @@ if __name__ == '__main__':
     ann = ANN('ann_test3layer_e2000@.001', (x_sz, h_sz, y_sz), console_out=True, persist=True)
     
     # Train the ann with the training set
-    ann.train(train_data,
-              epochs=TRAINING_EPOCHS,
-              lr=TRAINING_LR,
-              alpha=TRAINING_ALPHA)
+    ann.train(train_data, epochs=1000, lr=.001, alpha=.9, stats_at=10, noise=None)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
