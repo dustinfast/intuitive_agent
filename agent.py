@@ -84,11 +84,11 @@ L1_VALFILES = [DataFrom('static/datasets/letters_val.csv', normalize=True),
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
-L2_MAX_DEPTH = 6    # 10 is max, per Karoo user manual; has perf affect
+L2_MAX_DEPTH = 6    # 10 is max per Karoo user manual, has perf affect
 L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
 L2_MEMDEPTH = 2     # Agent's "recurrent" memory, an iplier of L1's input sz
-L2_MAX_POP = 50     # Genetic population sz; has perf affect
-L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool sz
+L2_MAX_POP = 50     # Genetic population size, has perf affect
+L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_func
