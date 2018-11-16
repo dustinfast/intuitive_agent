@@ -35,7 +35,12 @@ import torch.nn as nn
 
 from sharedlib import ModelHandler, DataFrom
 
-MODEL_EXT = '.pt'   # ANN model file extension
+MODEL_EXT = '.pt'       # ANN model file extension
+
+TRAINING_EPOCHS = 1000
+TRAINING_LR = .001
+TRAINING_ALPHA = .9
+TRAINING_STATS_AT = 10
 
 
 class ANN(nn.Module):
@@ -69,9 +74,11 @@ class ANN(nn.Module):
         # Define sequential layers: Linear->ReLU->Linear->Sigmoid
         self.seq_layers = nn.Sequential(
             nn.Linear(dims[0], dims[1]),
-                      nn.ReLU(),
-                      nn.Linear(dims[1], dims[2]),
-                      nn.Sigmoid())
+            nn.ReLU(),
+            nn.Linear(dims[1], dims[1]),
+            nn.ReLU(),
+            nn.Linear(dims[1], dims[2]),
+            nn.Sigmoid())
 
         # Init the load, save, log, and console output handler
         f_save = "torch.save(self.state_dict(), 'MODEL_FILE')"
@@ -210,9 +217,9 @@ if __name__ == '__main__':
     # Load the training and validation data sets
     'static/datasets/test/test3x2.csv'
     trainfile = 'static/datasets/letter_train.csv'
-    trainfile = 'static/datasets/test/test3x2.csv'  # debug
+    # trainfile = 'static/datasets/test/test3x2.csv'  # debug
     valfile = 'static/datasets/letter_val.csv'
-    valfile = 'static/datasets/test/test3x2.csv'  # debug
+    # valfile = 'static/datasets/test/test3x2.csv'  # debug
     train_data = DataFrom(trainfile, normalize=True)
     val_data = DataFrom(valfile, normalize=True)
 
@@ -222,10 +229,14 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_test', (x_sz, h_sz, y_sz), console_out=True, persist=True)
+    ann = ANN('ann_test3layer_e2000@.001', (x_sz, h_sz, y_sz), console_out=True, persist=True)
     
     # Train the ann with the training set
-    ann.train(train_data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None)
+    ann.train(train_data,
+              epochs=TRAINING_EPOCHS,
+              lr=TRAINING_LR,
+              alpha=TRAINING_ALPHA,
+              stats_at=TRAINING_STATS_AT)
     
     # Set the classifier labels (only really necessary if loading pre-trained)
     ann.set_labels(train_data.class_labels)
