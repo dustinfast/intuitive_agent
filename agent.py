@@ -59,28 +59,29 @@ from genetic import Genetic
 from connector import Connector
 from sharedlib import ModelHandler, DataFrom
 
+MODEL_EXT = '.agnt'
 CONSOLE_OUT = False
 PERSIST = True
-MODEL_EXT = '.agnt'
 
 AGENT_NAME = 'agent1'
-AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv', normalize=True),
-                    DataFrom('static/datasets/letters1.csv', normalize=True),
-                    DataFrom('static/datasets/letters2.csv', normalize=True),
-                    DataFrom('static/datasets/letters3.csv', normalize=True),
-                    DataFrom('static/datasets/letters4.csv', normalize=True)]
+AGENT_DATA_ITERS = 1  # Num times to iterate all input rows
+AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
+                    DataFrom('static/datasets/letters1.csv'),
+                    DataFrom('static/datasets/letters2.csv'),
+                    DataFrom('static/datasets/letters3.csv'),
+                    DataFrom('static/datasets/letters4.csv')]
 
-L1_EPOCHS = 1000  # Num learning epochs per training instance
-L1_LR = .001      # ANN learning rate
-L1_ALPHA = .9     # ANN learning rate momentum
-L1_TRAINFILES = [DataFrom('static/datasets/letters_train.csv', normalize=True),
-                 DataFrom('static/datasets/letters_train.csv', normalize=True),
-                 DataFrom('static/datasets/letters_train.csv', normalize=True),
-                 DataFrom('static/datasets/letters_train.csv', normalize=True)]
-L1_VALIDFILES = [DataFrom('static/datasets/letters_val.csv', normalize=True),
-                 DataFrom('static/datasets/letters_val.csv', normalize=True),
-                 DataFrom('static/datasets/letters_val.csv', normalize=True),
-                 DataFrom('static/datasets/letters_val.csv', normalize=True)]
+L1_EPOCHS = 500  # Num learning epochs (per L1 node) per training instance
+L1_LR = .001     # ANN learning rate
+L1_ALPHA = .9    # ANN learning rate momentum
+L1_TRAINFILES = [DataFrom('static/datasets/letters_train.csv'),
+                 DataFrom('static/datasets/letters_train.csv'),
+                 DataFrom('static/datasets/letters_train.csv'),
+                 DataFrom('static/datasets/letters_train.csv')]
+L1_VALIDFILES = [DataFrom('static/datasets/letters_val.csv'),
+                 DataFrom('static/datasets/letters_val.csv'),
+                 DataFrom('static/datasets/letters_val.csv'),
+                 DataFrom('static/datasets/letters_val.csv')]
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
@@ -153,7 +154,7 @@ class ConceptualLayer(object):
 class IntuitiveLayer(object):
     """ An abstraction of the agent's second layer, representing the ability to
         intuitively form new connections between symbols, as well as its
-        recurrent memory (i.e. it's last L2_MEMDEPTH
+        recurrent memory (i.e. it's last L2_MEMDEPTH)
     """
     def __init__(self, ID, size, mem_depth):
         """ Accepts:
@@ -218,13 +219,10 @@ class IntuitiveLayer(object):
         """ Moves the given inputs through the layer and returns the output.
             Accepts: 
                 inputs (list)       : Data elements, one for each node
-                is_seq (bool)       : Denotes inputs order is significant
             Returns:
                 dict: { TreeID: {'output': [], 'in_context':[]}, ... }
         """
-        # TODO: Check the inputs for existence of items already in agent.l3.kb?
-        #       Or does that defeat the purpose?
-        return self._node.apply(inputs=list([inputs]), is_seq=False)
+        return self._node.apply(inputs=list([inputs]))
 
     def update(self, fitness):
         """ Updates the layer's node according to the given fitness data.
@@ -236,15 +234,15 @@ class IntuitiveLayer(object):
 
 class LogicalLayer(object):
     """ An abstraction of the agent's Logical layer (i.e. layer three), which
-        evaluates the fitness of it's input according to the given kernel.
+        evaluates the fitness of it's input according to the given context mode.
     """
-    def __init__(self, ID, kernel):
+    def __init__(self, ID, mode):
         """ Accepts:
                 ID (str)            : This layers unique ID
-                kernel (function)   : A bool-returning func accepting L2 output
+                mode (function)     : A bool-returning func accepting L2 output
         """
         self.ID = ID
-        self._kernel = kernel  # TODO: kernels - a list w/ els of type kernel
+        self._mode = mode
 
         # Heuristics variables
         self.last_learnhit = datetime.now()     # New item learned event time
@@ -271,7 +269,7 @@ class LogicalLayer(object):
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
-        str_out += '\nMode = ' + self._kernel.__name__
+        str_out += '\nMode = ' + self._mode.__name__
         str_out += '\nLifetime learning hits: ' + str(self._life_learnhits)
         str_out += '\n  Avg time between learn hits: ' + str(self._life_learn_t)
         str_out += '\nLifetime encounters: ' + str(self._life_encounters)
@@ -284,7 +282,7 @@ class LogicalLayer(object):
             the string that would have otherwise been written.
         """
         # Build model params in dict form
-        writestr = "{ '_kernel': 'Connector." + self._kernel.__name__ + "'"
+        writestr = "{ '_mode': 'Connector." + self._mode.__name__ + "'"
         writestr += ", 'kb': " + str(self.kb)
         writestr += ", '_life_learnhits': " + str(self._life_learnhits)
         writestr += ", '_life_learn_t': " + str(self._life_learn_t)
@@ -311,7 +309,7 @@ class LogicalLayer(object):
 
         data = eval(loadfrom.replace('\n', ''))
         self.kb = data['kb']
-        self._kernel = eval(data['_kernel'])
+        self._mode = eval(data['_mode'])
         self._life_learnhits = data['_life_learnhits']
         self._life_learn_t = data['_life_learn_t']
         self._life_encounters = data['_life_encounters']
@@ -333,7 +331,7 @@ class LogicalLayer(object):
                 self.len_total += len(tryme)
 
                 self.model.log('L3 TRYING: ' + tryme)
-                if self._kernel(tryme):
+                if self._mode(tryme):
 
                     if tryme not in self.kb:
                         lasthit = (datetime.now() - self.last_learnhit).seconds
@@ -429,14 +427,10 @@ class Agent(threading.Thread):
         Persistence: On each iteration of the input data, the agent is saved 
         to a file.
     """
-    def __init__(self, ID, inputs, is_seq):
+    def __init__(self, ID, inputs):
         """ Accepts the following parameters:
             ID (str)            : The agent's unique ID
             inputs (list)       : Agent input data, one for each L1 node
-            is_seq (bool)       : Denotes input data is sequential in nature,
-                                  i.e., the layer 2 mask will use only ordered
-                                  expressions, such as 'A + C + E', as opposed
-                                  to something like 'C + E + A'
         """
         threading.Thread.__init__(self)
         self.ID = ID
@@ -444,7 +438,6 @@ class Agent(threading.Thread):
         self.model = None           # The model handler
         self.running = False        # Agent thread running flag (set on start)
         self.inputs = inputs        # The agent's "sensory input" data
-        self.is_seq = is_seq        # Denote inputs is sequential in nature
         self.max_iters = None       # Num inputs iters, set on self.start
         self.L2_nodemap = None      # Pop via ModelHandler, for loading L2
 
@@ -537,7 +530,6 @@ class Agent(threading.Thread):
 
         self.model.log('-- L2 Backprop:\n%s' % str(l3_outputs))
         self.l2.update(l3_outputs)
-        # TODO: Send feedback/noise/"in context" to level 1 ?
 
     def start(self, max_iters=10):
         """ Starts the agent thread.
@@ -567,7 +559,7 @@ class Agent(threading.Thread):
                 self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
                 self._step(row)
 
-            # debug outoput
+            # Minimal console output
             print('-- Epoch', iters, 'complete --')
             print(self.l3.stats(clear=True))
             print('Run time: ' + str((datetime.now() - stime).seconds) + 's\n')
@@ -589,52 +581,36 @@ class Agent(threading.Thread):
         self.running = False
         self.model.log(output_str)
 
-    @staticmethod
-    def _shape_fromdata(in_data):
-        """ Determines agent's shape from the given list of input data sets.
-            Assumes each layer 1 node has 3 layers (x, h, and y).
-            Accepts:
-                in_data (list)     : A list of input data, as DataFrom objects
-            Returns:
-                2-tuple: L1 depth and L1 dims, as (int, [int, int, int]) 
-        """
-        depth = len(in_data)
-        l1_dims = []
-        l2_dims = []
-
-        for i in range(depth):
-            l1_dims.append([])                              # New L1 dimension
-            l1_dims[i].append(in_data[i].feature_count)     # x node count
-            l1_dims[i].append(0)                            # h sz placeholder
-            l1_dims[i].append(in_data[i].class_count)       # y node count
-            l1_dims[i][1] = int(     
-                (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
-            l2_dims.append(in_data[i].class_count)          # y node counts
-            
-        return depth, l1_dims, l2_dims
-
 
 if __name__ == '__main__':
     # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
-    # in_data = [DataFrom('static/datasets/letters.csv', normalize=True),
-    #            DataFrom('static/datasets/letters.csv', normalize=True),
-    #            DataFrom('static/datasets/letters.csv', normalize=True),
-    #            DataFrom('static/datasets/letters.csv', normalize=True)]
     in_data = AGENT_INPUTFILES
+    in_data = [DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv')]  # debug
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = L1_TRAINFILES
+    l1_train = [DataFrom('static/datasets/letters.csv'),
+                DataFrom('static/datasets/letters.csv'),
+                DataFrom('static/datasets/letters.csv'),
+                DataFrom('static/datasets/letters.csv')]  # debug
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
-    l1_vald = L1_VALFILES
+    l1_vald = L1_VALIDFILES
+    l1_vald = [DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv'),
+               DataFrom('static/datasets/letters.csv')]  # debug
 
-    # Instantiate the agent (agent shape is derived automatically from in_data)
-    agent = Agent(AGENT_NAME, in_data, is_seq=False)
+    # Instantiate the agent (agent shape derived automatically from input data)
+    agent = Agent(AGENT_NAME, in_data)
 
-    # Train and validate the agent
-    # agent.l1.train(l1_train, l1_vald)
+    # Train and validate the nodes at layer 1
+    agent.l1.train(l1_train, l1_vald)
 
-    # Start the agent thread in_data as input data
-    agent.start(max_iters=15)
+    # Start the agent thread
+    agent.start(AGENT_DATA_ITERS)
     agent.join()
 

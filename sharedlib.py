@@ -162,8 +162,7 @@ class DataFrom(Dataset):
         self.targets = torch.FloatTensors, converted from str->float if needed.
         Assumes CSV file w/no header with format: label, feat_1, ... , feat_n
     """
-
-    def __init__(self, csvfile, normalize=False):
+    def __init__(self, csvfile, normalize=True):
         """ Accepts the following parameters:
             csvfile (str)       : CSV filename
             normalize           : If True, inputs data is normalized

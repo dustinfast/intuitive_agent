@@ -37,7 +37,6 @@ from sharedlib import ModelHandler, DataFrom
 
 MODEL_EXT = '.pt'   # ANN model file extension
 
-
 class ANN(nn.Module):
     """ An artificial neural network with 3 fully connected layers x, y, and z,
         with each layer represented as a tensor.
