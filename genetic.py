@@ -293,31 +293,29 @@ class Genetic(karoo_gp.Base_GP):
 
         # Restructure inputs into current inputs plus prev mem depths
         new_inputs = []
-        # print('--')
-        # Trim any existing padding from last iter
 
         for row in inputs:
-            # print('row: ' + str(row))
-            # print('prev: ' + str(self.mem.get_items()))
+            # print('row: ' + str(row))  # debug
+            # print('prev: ' + str(self.mem.get_items()))  # debug
 
-            # new_row = inputs(current) + inputs(all but oldest)
+            # new_row becomes inputs(current) + inputs(all but oldest)
             self.mem.items = [m for m in self.mem.get_items() if m != '']
             for r in row:
                 self.mem.shove(r)
             new_row = self.mem.get_items()
-            # print('new row: ' + str(new_row))
-            # print('new prev: ' + str(self.mem.get_items()))
+            # print('new row: ' + str(new_row))  # debug
+            # print('new prev: ' + str(self.mem.get_items()))  # debug
 
             # Pad up to mem width w/ emptry string elements
             for i in range(len(new_row) + 1, self.mem_width + 1):
                 new_row.append('')
                 self.mem.shove('')
-            # print('post_pad row: ' + str(new_row))
-            # print('post pad prev: ' + str(self.mem.get_items()))
+            # print('post_pad row: ' + str(new_row))  # debug
+            # print('post pad prev: ' + str(self.mem.get_items()))  # debug
 
             new_inputs.append(new_row)
         inputs = new_inputs
-        # print(inputs)
+        # print(inputs)  # debug
 
         # Do not evaluate anything until mem is full
         if [s for s in inputs if '' in s]:

@@ -28,6 +28,7 @@
 
     Usage: 
         Run from the terminal with './agent.py'.
+        To pre-train layer 1, run with './agent.py -l1_train'.
 
     # TODO: 
         Check private notation for each class member
@@ -50,6 +51,7 @@
     Author: Dustin Fast, 2018
 """
 
+import sys
 import logging
 import threading
 from datetime import datetime
@@ -60,10 +62,10 @@ from connector import Connector
 from sharedlib import ModelHandler, DataFrom
 
 MODEL_EXT = '.agnt'
-CONSOLE_OUT = False
+CONSOLE_OUT = True
 PERSIST = True
 
-AGENT_NAME = 'agent1'
+AGENT_NAME = 'testagent1'
 AGENT_DATA_ITERS = 1  # Num times to iterate all input rows
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
                     DataFrom('static/datasets/letters1.csv'),
@@ -71,17 +73,17 @@ AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
                     DataFrom('static/datasets/letters3.csv'),
                     DataFrom('static/datasets/letters4.csv')]
 
-L1_EPOCHS = 500  # Num learning epochs (per L1 node) per training instance
+L1_EPOCHS = 300  # Num learning epochs (per L1 node) per training instance
 L1_LR = .001     # ANN learning rate
 L1_ALPHA = .9    # ANN learning rate momentum
-L1_TRAINFILES = [DataFrom('static/datasets/letters_train.csv'),
-                 DataFrom('static/datasets/letters_train.csv'),
-                 DataFrom('static/datasets/letters_train.csv'),
-                 DataFrom('static/datasets/letters_train.csv')]
-L1_VALIDFILES = [DataFrom('static/datasets/letters_val.csv'),
-                 DataFrom('static/datasets/letters_val.csv'),
-                 DataFrom('static/datasets/letters_val.csv'),
-                 DataFrom('static/datasets/letters_val.csv')]
+L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv')]
+L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv')]
 
 L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
@@ -592,25 +594,21 @@ if __name__ == '__main__':
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = L1_TRAINFILES
-    l1_train = [DataFrom('static/datasets/letters.csv'),
-                DataFrom('static/datasets/letters.csv'),
-                DataFrom('static/datasets/letters.csv'),
-                DataFrom('static/datasets/letters.csv')]  # debug
 
     # Layer 1 validation data (one per node) - length must match len(in_data)
     l1_vald = L1_VALIDFILES
-    l1_vald = [DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv')]  # debug
 
     # Instantiate the agent (agent shape derived automatically from input data)
     agent = Agent(AGENT_NAME, in_data)
 
-    # Train and validate the nodes at layer 1
-    agent.l1.train(l1_train, l1_vald)
+    # Train and validate the nodes at layer 1, if specified by cmd line arg
+    if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
+            print('Training layer 1...', sep=' ')
+            agent.l1.train(l1_train, l1_vald)
+            print('Done.')
 
     # Start the agent thread
+    print('Running' + AGENT_NAME)
     agent.start(AGENT_DATA_ITERS)
     agent.join()
 
