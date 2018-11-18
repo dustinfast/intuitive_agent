@@ -1,81 +1,80 @@
 #!/usr/bin/env python
 """ The top-level module for the intuitive agent application. 
-    See README.md for description of the agent and the application as a whole.
-        
-    If CONSOLE_OUT = True:
-        Agent and its sub-modules output to stdout
+    See README.md for a description of the agent/application as a whole.
 
-    If PERSIST = True:
-        Agent and its sub-module states persist between executions via file
-        PERSIST_PATH/ID.MODEL_EXT (saved each time the agent thread stops).
-        Output is also logged to PERSIST_PATH/ID.LOG_EXT. 
-
-    Module Structure:
+    Interface:
         Agent() is the main interface. It expects training/validation data as
         an instance obj of type sharedlib.DataFrom(). 
         Persistence and output is handled by sharedlib.ModelHandler().
 
-    Dependencies:
-        PyTorch
-        Requests
-        Scikit-learn
-        Matplotlib
-        TensorFlow
-        Sympy
-        Numpy
-        Scipy
-        Pandas
+        If PERSIST = True:
+            Agent saves to file PERSIST_PATH/ID.AGENT_FILE_EXT between runs.
+            Log statments are logged to PERSIST_PATH/ID.LOG_EXT. 
+
+        If CONSOLE_OUT = True:
+        Agent (and its sub-modules) output log statements to stdout.
 
     Usage: 
         Run from the terminal with './agent.py'.
         To pre-train layer 1, run with './agent.py -l1_train'.
+    
+    Dependencies:
+        KarooGP         (lib/karoo_gp)
+        Matplotlib      (pip install matplotlib)
+        Numpy           (pip install numpy)
+        Pandas          (pip install pandas)
+        PyTorch         (see https://pytorch.org)
+        Requests        (pip install requests
+        Scikit-learn    (pip install scikit-learn)
+        Sympy           (pip install sympy)
+        TensorFlow      (See https://www.tensorflow.org/install)
+        Scipy           (pip install scipy)
 
     # TODO: 
-        Check private notation for each class member
-        L2.node_map[].weight (logarithmic decay over time/frequency)
-        L2.node_map[].kb/correct/solution strings
-        REPL vs. Flask interface?
-        in_data must contain all labels, otherwise ANN inits break 
-        Accuracy: Print on stop, Check against kb
-        GP tunables - mutation ratios, pop sizes, etc
-        Adapt ann.py to accept dataloader and use MNIST (or similiar)
-        Refactor all save/load funcs into ModelHandler.get_savestring?
-        "provides feedback" connector - ex: True if the action returns a value
+        Log file does not auto-rotate
+        Brute force benchmark
+        Add usage instr to readme, including dep installation
+        Check private notation for all members
+        Statistic graph output through model obj
         L2 does not output node count in multimode
-        Seperate log output option and persist
-        Add heuristics output to log handler
-        L3 kb save/load w/decaying fitness if already seen to encourage newness
-        Expand l2 nodes - one for each sub-class (ex: py func, py kwd, etc) as
-        Expand l2 nodes - as soon as some local mimima reached
-        L2 - One node per input, but only the first dimension
-    Author: Dustin Fast, 2018
+        in_data must contain all labels, otherwise ANN inits break 
+        
 """
+__author__ = "Dustin Fast"
+__email__ = "dustin.fast@outlook.com"
+__license__ = "GPLv3"
 
+
+# Std lib
 import sys
 import logging
 import threading
 from datetime import datetime
 
+# Custom
 from ann import ANN
 from genetic import Genetic
 from connector import Connector
 from sharedlib import ModelHandler, DataFrom
 
-MODEL_EXT = '.agnt'
-CONSOLE_OUT = False
 PERSIST = True
+CONSOLE_OUT = False
 
-AGENT_NAME = 'test_agent1_memdepth1'
-AGENT_DATA_ITERS = 20  # Num times to iterate all input rows through model
+# Agent user-configurables
+AGENT_NAME = 'agent1_memdepth2'  # Log file prefix
+AGENT_FILE_EXT = '.agnt'    # Log file extension
+AGENT_ITERS = 2             # Num times to iterate AGENT_INPUTFILES as input
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
                     DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters2.csv'),
-                    DataFrom('static/datasets/letters3.csv'),
-                    DataFrom('static/datasets/letters4.csv')]
+                    DataFrom('static/datasets/letters3.csv')]
 
-L1_EPOCHS = 1000  # Num learning epochs (per L1 node) per training instance
-L1_LR = .001      # ANN learning rate
-L1_ALPHA = .9     # ANN learning rate momentum
+# Layer 1 user-configurables
+L1_EPOCHS = 1000            # Num L1 training epochs (per node)
+L1_LR = .001                # ANN learning rate (all nodes)
+L1_ALPHA = .9               # ANN learning rate momentum (all nodes)
+
+# Layer 1 Training/Validation sets, indexed by L1 node
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
@@ -86,24 +85,30 @@ L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 L2_EXT = '.lyr2'
-L2_KERNEL_MODE = 1     # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
-L2_MAX_DEPTH = 6       # 10 is max per Karoo user manual (has perf affect)
-L2_GAIN = .75          # A measure of the fit/random variance in the gene pool
-L2_MEMDEPTH = 1        # Agent's "recurrent" memory, an iplier of L1's input sz
-L2_MAX_POP = 50        # Genetic population size (has perf affect)
+L2_KERNEL_MODE = 1          # 1 = no case flip, 2 = w/case flip
+L2_MAX_DEPTH = 5            # Max is 10, per KarooGP (has perf affect)
+L2_GAIN = .75               # Fit/random ratio of the genetic pool
+L2_MEMDEPTH = 2             # Working mem depth, an iplier of L1's input sz
+L2_MAX_POP = 50             # Genetic population size (has perf affect)
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 L2_MUT_REPRO = 0.10    # Genetic mutation ration: Reproduction
 L2_MUT_POINT = 0.40    # Genetic mutation ration: Point
-L2_MUT_BRANCH = 0.10   # Genetic mutation ration: Branch
-L2_MUT_CROSS = 0.40    # Genetic mutation ration: Crossover
+L2_MUT_BRANCH = 0.00   # Genetic mutation ration: Branch
+L2_MUT_CROSS = 0.50    # Genetic mutation ration: Crossover
+
+# L2_MUT_REPRO = 0.10    # Genetic mutation ration: Reproduction
+# L2_MUT_POINT = 0.40    # Genetic mutation ration: Point
+# L2_MUT_BRANCH = 0.10   # Genetic mutation ration: Branch
+# L2_MUT_CROSS = 0.40    # Genetic mutation ration: Crossover
+
 # DEFAULT_MREPRO = 0.15   # Default genetic mutation ration: Reproduction
 # DEFAULT_MPOINT = 0.15   # Default genetic mutation ration: Point
 # DEFAULT_MBRANCH = 0.0   # Default genetic mutation ration: Branch
 # DEFAULT_MCROSS = 0.7    # Default genetic mutation ration: Crossover
 
 L3_EXT = '.lyr3'
-L3_CONTEXTMODE = Connector.is_python_func
+L3_CONTEXTMODE = Connector.is_python_kwd
 
 
 class ConceptualLayer(object):
@@ -170,7 +175,7 @@ class IntuitiveLayer(object):
     def __init__(self, ID, size, mem_depth):
         """ Accepts:
                 ID (str)        : This layers unique ID
-                size (int)      : Node input size
+                size (int)      : Num input terminals
         """
         self.ID = ID            
         self._size = size
@@ -190,10 +195,10 @@ class IntuitiveLayer(object):
                              persist=False)
 
         # Set default node mutation ratios (overwritten if loading from file)
-        self._node._set_mratio(repro=L2_MUT_REPRO,
-                               point=L2_MUT_POINT,
-                               branch=L2_MUT_BRANCH,
-                               cross=L2_MUT_CROSS)
+        self._node.set_mratio(repro=L2_MUT_REPRO,
+                              point=L2_MUT_POINT,
+                              branch=L2_MUT_BRANCH,
+                              cross=L2_MUT_CROSS)
 
         # Init the model handler
         f_save = "self._save('MODEL_FILE')"
@@ -354,6 +359,8 @@ class LogicalLayer(object):
                         lasthit = (datetime.now() - self.last_learnhit).seconds
                         self.model.log('L3 LEARNED: ' + tryme)
                         self.model.log('(Last was: ' + str(lasthit) + 's ago)')
+                        print('L3 LEARNED: ' + tryme)
+                        print('(Last was: ' + str(lasthit) + 's ago)')
                         self.kb.append(tryme)
                         self.learnhits.append(lasthit)
                         self.encounterhits.append(lasthit)
@@ -401,15 +408,6 @@ class LogicalLayer(object):
         self._life_learn_t += l_hits_time
         self._life_encounters += e_hits
         self._life_enc_t += e_hits_time
-
-        # TODO: Create graph of distributions
-        # (https://stackoverflow.com/questions/3550264/python-create-a-distribution-from-a-list-based-on-number-of-items-that-fall-wit)
-
-        # import pandas as pd
-        
-        # data = [['Alex', 10], ['Bob', 12], ['Clarke', 13]]
-        # df = pd.DataFrame(data, columns=['Name', 'Age'])
-        # print df
 
         ret_str = 'Total iterations: ' + str(iters) + '\n'
         ret_str += ' Avg try length: ' + str(avg_len) + '\n'
@@ -462,7 +460,7 @@ class Agent(threading.Thread):
         f_save = "self._save('MODEL_FILE')"
         f_load = "self._load('MODEL_FILE')"
         self.model = ModelHandler(self, CONSOLE_OUT, PERSIST,
-                                  model_ext=MODEL_EXT,
+                                  model_ext=AGENT_FILE_EXT,
                                   save_func=f_save,
                                   load_func=f_load)
 
@@ -486,6 +484,27 @@ class Agent(threading.Thread):
         self.l2 = IntuitiveLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_CONTEXTMODE)
+
+    def get_stats(self, reset=False):
+        pass
+
+    def do_bruteforce_benchmark(self):
+        """ A function for establishing a baseline performance metric by brute
+            forcing strings against the current context mode.
+        """
+        max_width = len(self.inputs)                # Max string width
+        charset = [chr(i) for i in range(97, 123)]  # Ascii chars a-z
+        t_start = datetime.now()                    # Start time
+
+        print('Establishing benchmark performance by brute force...', sep=' ')
+        
+        # Query every combination of characters for the given charset and 
+
+        print('Done.')
+        print('  Run time: ' + str((datetime.now() - stime).seconds) + 's\n')
+
+
+            
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -600,26 +619,16 @@ class Agent(threading.Thread):
 
 
 if __name__ == '__main__':
-    # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
-    in_data = AGENT_INPUTFILES
+    # Instantiate the agent (Note: agent shape derived from input data)
+    agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
 
-    # Layer 1 training data (one per node) - length must match len(in_data) 
-    l1_train = L1_TRAINFILES
-
-    # Layer 1 validation data (one per node) - length must match len(in_data)
-    l1_vald = L1_VALIDFILES
-
-    # Instantiate the agent (agent shape derived automatically from input data)
-    agent = Agent(AGENT_NAME, in_data)
-
-    # Train and validate the nodes at layer 1, if specified by cmd line arg
+    # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
             print('Training layer 1...', sep=' ')
-            agent.l1.train(l1_train, l1_vald)
+            agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
             print('Done.')
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)
-    agent.start(AGENT_DATA_ITERS)
+    agent.start(AGENT_ITERS)
     agent.join()
-

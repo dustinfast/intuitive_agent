@@ -3,25 +3,28 @@
     set of symbols. For example, contains a method for checking if a set of
     letters represents a noun.
 
-    Module Structure:
+    Interface:
         Class Connector contains static methods for determining various kinds
         of logical associations/connectedness.
-
-    Dependencies:
-        Requests
 
     Usage: 
         See "__main__" for example usage.
 
-    TODO:
-        String passed to is_python could break things. Try just compiling?
-        is_python is slow - need to find way to keep exec isolated without 
-            the overhead of creating a new process each time.
-        is_python)func should be in a sep mem space, like is_python
-        is_alphastr would be more efficient if using re.compile
+    Dependencies:
+        Requests
 
-    Author: Dustin Fast, 2018
+    TODO:
+        String passed to is_python could break things - try just compiling?
+        is_python is slow - need to avoid creating a new process each time.
+        is_python_func should be in a sep mem space, like is_python
+
 """
+__author__ = "Dustin Fast"
+__email__ = "dustin.fast@outlook.com"
+__license__ = "GPLv3"
+
+
+# Std lib
 import os
 import re
 import sys

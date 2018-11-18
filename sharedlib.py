@@ -4,10 +4,12 @@
     Dependencies:
         Pandas      (pip install pandas)
         PyTorch     (see https://pytorch.org)
-        
 
-    Author: Dustin Fast, 2018
 """
+__author__ = "Dustin Fast"
+__email__ = "dustin.fast@outlook.com"
+__license__ = "GPLv3"
+
 
 # Std lib
 import os

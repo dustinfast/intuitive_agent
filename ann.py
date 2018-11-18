@@ -1,41 +1,37 @@
 #!/usr/bin/env python
-""" An Artificial Neural Network (ANN) implemented using the PyTorch and 
-    Pandas libraries.
-
-    The ANN functions as a classifier, with the output classification denoted
-    by the active (argmax(y)) output node. However, the mapping of labels to
-    output nodes is handled internally, and the use of ann.classify (inputs)
-    is all an end-user might need to use after the model is initialized and
-    trained. For a raw results tensor, however, use ANN.forward(inputs)
+""" A non-binary classifier implemented as an artificial neural network (ANN)
+    using the PyTorch library.
     
-    Module Structure:
+    Interface:
         ANN() is the main interface. It expects training/validation data as
         an instance object of type sharedlib.DataFrom(). 
         ANN persistence and output is handled by sharedlib.ModelHandler().
-
-    External ependencies:
-        PyTorch (see https://pytorch.org)
+        After training, ann.classify(inputs) gets a classification from inputs.
 
     Usage: 
         See "__main__" for example usage.
 
-    # TODO: 
-        "In Context" Param
-        Fix: All unique classes must be present in both training and val set
-        EMU: new_average = (1.0 - self.mu) * x + self.mu * self.shadow[name]
+    Dependencies:
+        PyTorch (see https://pytorch.org)
 
-
-    Author: Dustin Fast, 2018
 """
+__author__ = "Dustin Fast"
+__email__ = "dustin.fast@outlook.com"
+__license__ = "GPLv3"
 
+
+# Std lib
 import logging
 
+# Third-party
 import torch
 import torch.nn as nn
 
+# Custom
 from sharedlib import ModelHandler, DataFrom
 
-MODEL_EXT = '.pt'   # ANN model file extension
+MODEL_EXT = '.pt'  # ANN model file extension
+
 
 class ANN(nn.Module):
     """ An artificial neural network with 3 fully connected layers x, y, and z,

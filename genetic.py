@@ -2,23 +2,22 @@
 """ A module for genetically evolving a population of expression trees 
     and applying them to user-specified data.
 
-    Module Structure:
+    Interface:
         Class Genetic is the main interface.
         File persistence and console output handled by sharedlib.ModelHandler.
-    
+
     Usage: 
         See main() for example usage.
-
+    
     Dependencies:
-        numpy       (pip install numpy)
+        Numpy       (pip install numpy)
         KarooGP     (lib/karoo_gp)
         
-    Karoo GP Version Info: 
-        Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
-        Python 3 version from https://github.com/kstaats/karoo_gp/pull/9)
-
-    Author: Dustin Fast, 2018
 """
+__author__ = "Dustin Fast"
+__email__ = "dustin.fast@outlook.com"
+__license__ = "GPLv3"
+
 
 # Std ib
 import re
