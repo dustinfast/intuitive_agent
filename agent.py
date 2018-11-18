@@ -60,7 +60,7 @@ from sharedlib import ModelHandler, DataFrom
 PERSIST = True
 CONSOLE_OUT = False
 
-# Agent user configurables
+# Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agnt'         # Log file extension
 AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES as input
@@ -70,8 +70,6 @@ AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters2.csv'),
                     DataFrom('static/datasets/letters3.csv')]
-
-
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
