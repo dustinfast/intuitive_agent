@@ -52,12 +52,8 @@ __license__ = "GPLv3"
 import sys
 import logging
 import threading
-from math import sqrt
 from itertools import groupby
 from datetime import datetime
-
-# Third-party
-import numpy as np
 
 # Custom
 from ann import ANN
@@ -359,36 +355,36 @@ class LogicalLayer(object):
                 # If item is valid in the current context
                 if self._context(item):
                     sec_in = (datetime.now() - self.epoch_time).seconds
-                    in_ep = '\n( %ss into epoch %s)' % (sec_in, str(self.epoch))
+                    in_ep = '\n(%ss into epoch %s)' % (sec_in, str(self.epoch))
 
-                    # If LEARNED / seeing this item for the very first time
-                    if item not in self.kb_lifetime:
-                        fitness[treeID] += 100
-
-                        # Update stat containers
-                        self.kb_lifetime.append(item)
+                    # If seeing this item for the very first time this epoch
+                    if item not in self.learned:
                         self.learned.append(item)
                         self.learned_t.append(sec_in)
 
-                        self.model.log('L3 LEARNED: ' + item + in_ep)
-                        print('L3 LEARNED: ' + item + in_ep)
+                        # If seeing item for the very first time ever
+                        if item not in self.kb_lifetime:
+                            fitness[treeID] += 100
 
-                    # If ENCOUNTERED / seen item before but not this epoch
-                    elif item not in self.encounters:
-                        fitness[treeID] += 10
+                            self.kb_lifetime.append(item)
+                            
+                            self.model.log('L3 LEARNED: ' + item + in_ep)
+                            print('L3 LEARNED: ' + item + in_ep)
 
-                        # Update stat containers
-                        self.encounters.append(item)
-                        self.encounters_t.append(sec_in)
+                        # Else, seeing it for the first time this epoch
+                        else:
+                            fitness[treeID] += 10
 
-                        self.model.log('L3 Encountered: ' + item + in_ep)
-                        print('L3 Encountered: ' + item + in_ep)
+                            self.encounters.append(item)
+                            self.encounters_t.append(sec_in)
 
-                    # Else RENCOUNTERED / we've seen this item this epoch
+                            self.model.log('L3 Encountered: ' + item + in_ep)
+                            print('L3 Encountered: ' + item + in_ep)
+
+                    # Else we've seen this item this epoch
                     else:
                         fitness[treeID] += 1
 
-                        # Update stat containers
                         self.re_encounters.append(item)
                         self.re_encounters_t.append(sec_in)
 
@@ -427,13 +423,19 @@ class LogicalLayer(object):
         if self.input_count:
             avg_try_len = self.input_lens / self.input_count
 
-        # re_var = 0          # Variance among re-encounters
-        # if self.encounters:
-        #     dist = [len(list(group))
-        #             for _, group in groupby(self.re_encounters)]
-        #     re_len = len(self.encounters)
-        #     avg = sum(dist) / re_len
-        #     re_var = sum((x - avg) ** 2 for x in dist) / re_len
+        re_var = 0          # Variance among re-encounters
+        if self.re_encounters:
+            res_sorted = sorted(self.re_encounters)
+            dist = [len(list(group)) for _, group in groupby(res_sorted)]
+
+            # debug
+            keys = [key for key, _ in groupby(self.re_encounters)]
+            print(keys)
+            print(dist)
+            
+            re_len = len(set(self.re_encounters))
+            avg = sum(dist) / re_len
+            re_var = sum((x - avg) ** 2 for x in dist) / re_len
             
         ret_str = '-- Epoch %s Statistics --\n' % epoch
         ret_str += ' Epoch run time: %d\n' % epoch_time
@@ -443,10 +445,10 @@ class LogicalLayer(object):
         ret_str += '   Total learns: %d\n' % learns
         ret_str += '   Total encounters: %d\n' % encounters
         ret_str += '   Total re-encounters: %d\n' % re_encounters
-        # ret_str += '   Re-encounter variance: %d\n' % re_var
+        ret_str += '   Re-encounter variance: %d\n' % re_var
 
         ret_str += 'Total run time: %ds\n' % run_time
-
+        
         if clear:
             self.stats_clear()
 
@@ -473,30 +475,36 @@ class LogicalLayer(object):
             for _ in range(epochs):
                 for i in range(1, width + 1):
                     for item in (''.join(s) for s in product(ascii_lowercase, repeat=i)):
+                        # Update stats
                         self.input_count += 1
                         self.input_lens += len(item)
 
+                        # If item is valid in the current context
                         if L3_CONTEXTMODE(item):
                             sec_in = (datetime.now() - self.epoch_time).seconds
 
-                            # If seeing item for the very first time
-                            if item not in test_kb:
-                                print('L3 LEARNED: ' + item)
-                                test_kb.append(item)
+                            # If seeing this item for the very first time this epoch
+                            if item not in self.learned:
                                 self.learned.append(item)
                                 self.learned_t.append(sec_in)
 
-                            # If seen item before but not this epoch
-                            elif item not in self.encounters:
-                                print('L3 ENCOUNTERED: ' + item)
-                                self.encounters.append(item)
-                                self.encounters_t.append(sec_in)
+                                # If seeing item for the very first time ever
+                                if item not in test_kb:
+                                    test_kb.append(item)
+                                    print('L3 LEARNED: ' + item)
+
+                                # Else, seeing it for the first time this epoch
+                                else:
+                                    self.encounters.append(item)
+                                    self.encounters_t.append(sec_in)
+                                    print('L3 Encountered: ' + item)
 
                             # Else we've seen this item this epoch
                             else:
-                                print('L3 Re-encountered: ' + item)
                                 self.re_encounters.append(item)
                                 self.re_encounters_t.append(sec_in)
+
+                                print('L3 Re-encountered: ' + item)
                 
                 print(self.stats_get(t_start))
 
