@@ -3,33 +3,34 @@
     and applying them to user-specified data.
 
     Module Structure:
-        GPM is the main interface.
-        Persistence and output handled by sharedlib.ModelHandler.
+        Class Genetic is the main interface.
+        File persistence and console output handled by sharedlib.ModelHandler.
     
     Usage: 
         See main() for example usage.
+
+    Dependencies:
+        numpy       (pip install numpy)
+        KarooGP     (lib/karoo_gp)
         
     Karoo GP Version Info: 
         Karoo GP was written by Kai Staats for Python 2.7. We use the adapted 
-        Python 3 version from https://github.com/kstaats/karoo_gp/pull/9.
-        Small, non-systemic changes to karoo_gp.Base_GP were made by Dustin
-        Fast for use in this module (see notes in 'lib/karoo_gp_base_class.py')
-
-    # TODO: 
-        Trim mutation for paring down large trees when acc is low
-        Remove is_seq and dep sympy
-        L2 feedback only if in context
+        Python 3 version from https://github.com/kstaats/karoo_gp/pull/9)
 
     Author: Dustin Fast, 2018
 """
 
+# Std ib
 import re
 import random
+
+# Third-party
 import numpy as np
 from numpy import array
 import sys; sys.path.append('lib')
-
 import karoo_gp.karoo_gp_base_class as karoo_gp
+
+# Custom
 from sharedlib import ModelHandler, AttrIter, Queue, negate
 
 # User configurable
