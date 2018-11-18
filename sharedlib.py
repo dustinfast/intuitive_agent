@@ -1,32 +1,31 @@
 #!/usr/bin/env python
-""" A collection of shared and/or parent classes for the intutive agent.
+""" A collection of shared classes/functions for the intutive agent.
 
     Dependencies:
-        Pandas (pip install pandas)
-        PyTorch (see (see https://pytorch.org)
-        Requests (pip install requests)
-
-    # TODO: 
-        Change DataFrom to look at rightmost col for labels
+        Pandas      (pip install pandas)
+        PyTorch     (see https://pytorch.org)
+        
 
     Author: Dustin Fast, 2018
 """
 
+# Std lib
 import os
 import logging
 import logging.handlers
 
+# Third-party
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 import pandas as pd
 
-OUT_PATH = 'var/models'
-
-LOGFILE_EXT = '.log'
-LOG_LEVEL = logging.DEBUG
-LOG_SIZE = 1 * 1048576  # x * bytes in a mb
-LOG_FILES = 2
+# User configurable
+OUT_PATH = 'var'                # Log and Model file output directories
+LOGFILE_EXT = '.log'            # Log file extension
+LOG_LEVEL = logging.DEBUG       # Log file level
+LOG_SIZE = 1 * 1048576          # Log file size (x * bytes in a mb)
+LOG_FILES = 2                   # Concurrent locating log file count
 
 # Global logger
 g_logger = None
@@ -420,18 +419,6 @@ class Queue:
         """
         return [item for item in self.items]
 
-
-# TODO: class Persist(object):
-#     """ A collection of helpers to save/load a model to/from file.
-#     """
-# def dict_saveto(obj_dict, filename=None):
-#     """ Saves the given dictionary to a file in a format able to be loaded
-#         later by dict_loadfrom.
-#         Accepts:
-#             obj_dict (dict)     : { ObjectProperty: PropertyValue }
-#             filename (str)      : Output filename
-#     """
-#     ### Convert the dictionary to a string
 
 ################
 # Function Lib #
