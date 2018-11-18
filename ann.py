@@ -33,15 +33,10 @@ from sharedlib import ModelHandler, DataFrom
 MODEL_EXT = '.pt'  # ANN model file extension
 
 
-class ANN(nn.Module):
-    """ An artificial neural network with 3 fully connected layers x, y, and z,
-        with each layer represented as a tensor.
-
-        Layer/Node properties:
-            Each layer is summed according to torch.nn.Linear()
-            Each Node is activated according torch.nn.Sigmoid()
-            Error is computed via torch.nn.MSELoss()
-        """
+class Classifier(nn.Module):
+    """ An artificial neural network classifier with 3 fully connected 
+        layers x, y, and z. Each layer is represented internally as a tensor.
+    """
     def __init__(self, ID, dims, console_out, persist):
         """ Accepts the following parameters
             ID (str)                : This ANNs unique ID number
@@ -50,7 +45,7 @@ class ANN(nn.Module):
             persist (bool)          : Persit mode flag
             start_bias (float)      : Initial node bias
         """
-        super(ANN, self).__init__()
+        super(Classifier, self).__init__()
         self.ID = ID
         self.persist = persist
         self.inputs_sz = dims[0]
@@ -61,7 +56,7 @@ class ANN(nn.Module):
         # Define loss function 
         self.loss_func = nn.MSELoss()
 
-        # Define sequential layers: Linear->ReLU->Linear->Sigmoid
+        # Define sequential layers: Linear->ReLU->Linear->ReLU->Linear->Sigmoid
         self.seq_layers = nn.Sequential(
             nn.Linear(dims[0], dims[1]),
             nn.ReLU(),
@@ -188,7 +183,7 @@ class ANN(nn.Module):
         return idx
 
     def classify_outputs(self, outputs):
-        """ Returns the ANN's classification label of the given outputs tensor.
+        """ Returns the classification label of the given outputs tensor.
             I.e. outputs is the tensor produced by the output layer.
         """
         try:
@@ -197,7 +192,7 @@ class ANN(nn.Module):
             self.model.log('Must set class labels first.', logging.error)
 
     def classify(self, inputs):
-        """ Returns the ANN's classification label of the given inputs tensor.
+        """ Returns the classification label of the given inputs tensor.
             I.e. inputs is the initial input-layers input.
         """
         return self.classify_outputs(self(inputs))
@@ -218,7 +213,7 @@ if __name__ == '__main__':
     y_sz = train_data.class_count
 
     # Init the ann
-    ann = ANN('ann_test1', (x_sz, h_sz, y_sz), console_out=True, persist=False)
+    ann = Classifier('ann', (x_sz, h_sz, y_sz), console_out=True, persist=False)
     
     # Train the ann with the training set
     ann.train(train_data, epochs=500, lr=.001, alpha=.9, stats_at=10)
