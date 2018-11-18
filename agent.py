@@ -62,20 +62,20 @@ from connector import Connector
 from sharedlib import ModelHandler, DataFrom
 
 MODEL_EXT = '.agnt'
-CONSOLE_OUT = True
+CONSOLE_OUT = False
 PERSIST = True
 
-AGENT_NAME = 'testagent1'
-AGENT_DATA_ITERS = 1  # Num times to iterate all input rows
+AGENT_NAME = 'agent1_memdepth1'
+AGENT_DATA_ITERS = 20  # Num times to iterate all input rows through model
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
                     DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters2.csv'),
                     DataFrom('static/datasets/letters3.csv'),
                     DataFrom('static/datasets/letters4.csv')]
 
-L1_EPOCHS = 300  # Num learning epochs (per L1 node) per training instance
-L1_LR = .001     # ANN learning rate
-L1_ALPHA = .9    # ANN learning rate momentum
+L1_EPOCHS = 1000  # Num learning epochs (per L1 node) per training instance
+L1_LR = .001      # ANN learning rate
+L1_ALPHA = .9     # ANN learning rate momentum
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
@@ -86,11 +86,15 @@ L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 L2_EXT = '.lyr2'
-L2_KERNEL_MODE = 1  # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
-L2_MAX_DEPTH = 6    # 10 is max per Karoo user manual, has perf affect
-L2_GAIN = .75       # A measure of the fit/random variance in the gene pool
-L2_MEMDEPTH = 2     # Agent's "recurrent" memory, an iplier of L1's input sz
-L2_MAX_POP = 50     # Genetic population size, has perf affect
+L2_KERNEL_MODE = 1     # Layer 2 kernel mode (1 = no case flip, 2 = w/case flip)
+L2_MUT_REPRO  = 0.10   # TOOD: mut
+L2_MUT_POINT = 0.40
+L2_MUT_BRANCH = 0.10
+L2_MUT_CROSS = 0.40
+L2_MAX_DEPTH = 6       # 10 is max per Karoo user manual (has perf affect)
+L2_GAIN = .75          # A measure of the fit/random variance in the gene pool
+L2_MEMDEPTH = 1        # Agent's "recurrent" memory, an iplier of L1's input sz
+L2_MAX_POP = 50        # Genetic population size (has perf affect)
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 L3_EXT = '.lyr3'
@@ -587,10 +591,6 @@ class Agent(threading.Thread):
 if __name__ == '__main__':
     # Agent "sensory input" data. Length denotes the agent's L1 and L2 depth.
     in_data = AGENT_INPUTFILES
-    in_data = [DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv'),
-               DataFrom('static/datasets/letters.csv')]  # debug
 
     # Layer 1 training data (one per node) - length must match len(in_data) 
     l1_train = L1_TRAINFILES
@@ -608,7 +608,7 @@ if __name__ == '__main__':
             print('Done.')
 
     # Start the agent thread
-    print('Running' + AGENT_NAME)
+    print('Running ' + AGENT_NAME)
     agent.start(AGENT_DATA_ITERS)
     agent.join()
 
