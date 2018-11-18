@@ -40,7 +40,7 @@
         Check private notation for all members
         Statistic graph output through model obj
         L2 does not output node count in multimode
-        in_data must contain all labels, otherwise ANN inits break 
+        in_data must contain all labels, otherwise L1 inits break 
 
 """
 __author__ = "Dustin Fast"
@@ -56,7 +56,7 @@ from itertools import groupby
 from datetime import datetime
 
 # Custom
-from ann import ANN
+from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
 from sharedlib import ModelHandler, DataFrom
@@ -81,8 +81,8 @@ AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
-L1_LR = .001                # ANN learning rate (all nodes)
-L1_ALPHA = .9               # ANN learning rate momentum (all nodes)
+L1_LR = .001                # Classifier learning rate (all nodes)
+L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
@@ -120,15 +120,14 @@ L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
 
-class ConceptualLayer(object):
-    """ An abstraction of the agent's conceptual layer (i.e. layer one), which
-        represents its "sensory input". 
+class ClassifierLayer(object):
+    """ An abstraction of the agent's classifier layer (i.e. layer one).
         Provides interfaces to each layer-node and a its current output.
-        Nodes at this level are ANN's representing a single sensory 
+        Nodes at this level are classifiers representing a single sensory 
         input processing channel, where the input to each channel is a sample
         of some subset of the agent's environment. Its output is then its
         "classification" of what that input represents.
-        On init, each node is loaded by the ANN object from file iff PERSIST.
+        On init, each node loaded fromfile by class Classifer iff PERSIST.
         Note: This layer must be trained offline via self.train(). After 
         training, each node saves its model to file iff PERSIST.
         """
@@ -136,14 +135,14 @@ class ConceptualLayer(object):
         """ Accepts:
                 ID (str)        : This layers unique ID
                 depth (int)     : How many nodes this layer contains
-                dims (list)     : 3 ints - ANN in/hidden/output layer sizes
+                dims (list)     : 3 ints - classfier x/h/y layer sizes
         """
         self._nodes = []        # A list of nodes, one for each layer 1 depth
         self._depth = depth     # This layer's depth. I.e., it's node count
         
         for i in range(depth):
             nodeID = ID + '_node_' + str(i)
-            self._nodes.append(ANN(nodeID, dims[i], CONSOLE_OUT, PERSIST))
+            self._nodes.append(Classifier(nodeID, dims[i], CONSOLE_OUT, PERSIST))
             self._nodes[i].set_labels(inputs[i].class_labels)
     
     def train(self, train_data, val_data, epochs=L1_EPOCHS,
@@ -176,7 +175,7 @@ class ConceptualLayer(object):
         return outputs
 
     
-class IntuitiveLayer(object):
+class EvolutionaryLayer(object):
     """ An abstraction of the agent's second layer, representing the ability to
         intuitively form new connections between symbols, as well as its
         recurrent memory (i.e. it's last L2_MEMDEPTH)
@@ -480,7 +479,7 @@ class LogicalLayer(object):
                         self.input_lens += len(item)
 
                         # If item is valid in the current context
-                        if L3_CONTEXTMODE(item):
+                        if self._context(item):
                             sec_in = (datetime.now() - self.epoch_time).seconds
 
                             # If seeing this item for the very first time this epoch
@@ -557,9 +556,9 @@ class Agent(threading.Thread):
         # Init layers
         id_prefix = self.ID + '_'
         ID = id_prefix + 'L1'
-        self.l1 = ConceptualLayer(ID, self.depth, l1_dims, inputs)
+        self.l1 = ClassifierLayer(ID, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
-        self.l2 = IntuitiveLayer(ID, self.depth, L2_MEMDEPTH)
+        self.l2 = EvolutionaryLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_CONTEXTMODE)
 
