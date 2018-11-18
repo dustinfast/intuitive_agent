@@ -77,12 +77,17 @@ class Genetic(karoo_gp.Base_GP):
         self.precision = 6          # Tourney fitness floating points
         self.fitness_type = 'max'   # Maximizing kernel function
         self.functions = np.array(KERNEL_OPERATORS.get(kernel))
-        self.set_mratio()          # Set initial mutation ratios
 
-        # Apply mem depth - 
-        #  Mem depth 1 is our "input" size, where mem depth 2 is input fed as
-        #  feedback rom the last input to mem depth 1. Mem depth 3 is then mem
-        #  depth 2's prev feedback. Prev_deepmem implemented as a shove queue
+        # Set initial mutation ratios
+        self.set_mratio(repro=DEFAULT_MREPRO,
+                        point=DEFAULT_MPOINT,
+                        branch=DEFAULT_MBRANCH,
+                        cross=DEFAULT_MCROSS)  
+
+        # Apply mem depth. I.e. the depth of the symbol pool - 
+        #  Mem depth 1 is our "input" size, where mem depth 2 is like feedback
+        #  from the previous input. Mem depth 3 is then mem depth 2's prev 
+        #  feedback. Note: self.mem is implemented as a "shove queue".
         self.mem_width = max_inputs * mem_depth
         self.mem = Queue(self.mem_width)
         
@@ -180,7 +185,8 @@ class Genetic(karoo_gp.Base_GP):
         self.set_mratio(int(data['evolve_repro']),
                         int(data['evolve_point']),
                         int(data['evolve_branch']),
-                        int(data['evolve_cross']))
+                        int(data['evolve_cross']),
+                        ratios=False)
 
         self.mem_width = data['mem_width']
         self.mem = Queue(self.mem_width)
@@ -259,22 +265,22 @@ class Genetic(karoo_gp.Base_GP):
             return re.split(' ', string)
         return lst[1:]
 
-    def set_mratio(self, repro=DEFAULT_MREPRO, point=DEFAULT_MPOINT,
-                   branch=DEFAULT_MBRANCH, cross=DEFAULT_MCROSS):
-        """ Sets the genetic mutation ratios.
+    def set_mratio(self, repro, point, branch, cross, ratios=True):
+        """ Sets the genetic mutation ratios to the value of the given floats.
+            If not ratios, given values are considered actual mutation counts. 
         """
-        # If not already initialized, assume a ratio, else assume integer
-        try:
-            self.evolve_repro  # throws AttributeError if not exists
-            self.evolve_repro = repro
-            self.evolve_point = point
-            self.evolve_branch = branch
-            self.evolve_cross = cross
-        except AttributeError:
+        if ratios:
+            # Set mutation counts from the given ratios
             self.evolve_repro = int(repro * self.tree_pop_max)
             self.evolve_point = int(point * self.tree_pop_max)
             self.evolve_branch = int(branch * self.tree_pop_max)
             self.evolve_cross = int(cross * self.tree_pop_max)
+        else:
+            # Set mutation counts to those given
+            self.evolve_repro = repro
+            self.evolve_point = point
+            self.evolve_branch = branch
+            self.evolve_cross = cross
 
     def clear_mem(self):
         """ Clears any symbols from the working memory.
