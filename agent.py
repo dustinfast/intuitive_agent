@@ -63,7 +63,7 @@ from matplotlib.animation import FuncAnimation
 from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom, plot
+from sharedlib import ModelHandler, DataFrom
 
 PERSIST = True
 CONSOLE_OUT = False
@@ -76,11 +76,11 @@ AGENT_ITERS = 5                  # Num times to iterate AGENT_INPUTFILES
 
 # Agent input data. Length denotes the agent's L1 and L2 depth.
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
-                    DataFrom('static/datasets/letters2.csv'),
-                    DataFrom('static/datasets/letters3.csv'),
-                    DataFrom('static/datasets/letters4.csv'),
-                    DataFrom('static/datasets/letters5.csv'),
-                    DataFrom('static/datasets/letters6.csv'),
+                    # DataFrom('static/datasets/letters2.csv'),
+                    # DataFrom('static/datasets/letters3.csv'),
+                    # DataFrom('static/datasets/letters4.csv'),
+                    # DataFrom('static/datasets/letters5.csv'),
+                    # DataFrom('static/datasets/letters6.csv'),
                     DataFrom('static/datasets/letters7.csv')]
 
 # Layer 1 user configurables
@@ -90,20 +90,20 @@ L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv')]
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 # Layer 2 user configurables
@@ -408,7 +408,7 @@ class LogicalLayer(object):
         self.input_lens = 0
         self.input_count = 0
 
-    def stats_get(self, stime, clear=False, graph=True):
+    def stats_get(self, stime, clear=False, graph=False):
         """ Generates statistics from the current state and returns the results
             as a string.
             Accepts:
@@ -424,9 +424,9 @@ class LogicalLayer(object):
         encounters = len(self.encounters)
         re_encounters = len(self.re_encounters)
 
-        avg_try_len = 0     # Average length of all inputs
+        try_len = 0     # Average length of all inputs
         if self.input_count:
-            avg_try_len = self.input_lens / self.input_count
+            try_len = self.input_lens / self.input_count
 
         re_var = 0          # Variance among re-encounters
         if self.re_encounters:
@@ -442,20 +442,20 @@ class LogicalLayer(object):
             # print(dist)
         
         if graph:
-            ret = (run_time, learns, re_encounters)
+            ret = (run_time, learns, encounters, re_encounters, re_var, try_len)
 
         else:
             ret = '-- Epoch %s Statistics --\n' % epoch
             ret += ' Epoch run time: %d\n' % epoch_time
             ret += '   Total inputs: %d\n' % self.input_count
-            ret += '   Avg try length: %d\n' % avg_try_len
-
+            ret += '   Avg try length: %d\n' % try_len
             ret += '   Total learns: %d\n' % learns
             ret += '   Total encounters: %d\n' % encounters
             ret += '   Total re-encounters: %d\n' % re_encounters
             ret += '   Re-encounter variance: %d\n' % re_var
-
-            ret += 'Total run time: %ds\n' % run_time
+            ret += '\nLearned: ' + str(self.learned) + '\n\n'
+            ret += 'Encounters: ' + str(self.learned) + '\n'
+            ret += '\nTotal run time: %ds\n' % run_time
 
         if clear:
             self.stats_clear()
@@ -681,6 +681,59 @@ class Agent(threading.Thread):
         self.running = False
         self.model.log(output_str)
 
+class AgentPlot(object):
+    def __init__(self):
+        # Figure w/5 subplots
+        self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
+        self.axes = (ax1, ax2, ax3, ax4, ax5)
+        self.time = []
+        self.learns = []
+        self.encs = []
+        self.rencs = []
+        self.rencs_var = []
+        self.lens = []
+
+        ln1, = ax1.plot([], [], lw=2, color='b')
+        ln2, = ax2.plot([], [], lw=2, color='r')
+        ln3, = ax3.plot([], [], lw=2, color='g')
+        ln4, = ax4.plot([], [], lw=2, color='y')
+        ln5, = ax5.plot([], [], lw=2, color='b')
+        self.lines = [ln1, ln2, ln3, ln4, ln5]
+
+        # Set axes bounds
+        for ax in self.axes:
+            ax.set_ylim(0, 40)
+            ax.set_xlim(0, 100)
+            ax.grid()
+
+    def update_graph(self, frame):
+        t, y1, y2, y3, y4, y5 = agent.l3.stats_get(g_start_time, graph=True)
+        self.time.append(t)
+        self.learns.append(y1)
+        self.encs.append(y2)
+        self.rencs.append(y3)
+        self.rencs_var.append(y4)
+        self.lens.append(y5)
+
+        # Check axes limits
+        for ax in self.axes:
+            xmin, xmax = ax.get_xlim()
+            if t >= xmax:
+                ax.set_xlim(xmin, 2 * xmax)
+                ax.figure.canvas.draw()
+
+        # update the data of both ln objects
+        self.lines[0].set_data(self.time, self.learns)
+        self.lines[1].set_data(self.time, self.encs)
+        self.lines[2].set_data(self.time, self.rencs)
+        self.lines[3].set_data(self.time, self.rencs_var)
+        self.lines[4].set_data(self.time, self.lens)
+
+        # self.fig.gca().relim()
+        # self.fig.gca().autoscale_view()
+
+        return self.lines
+
 
 if __name__ == '__main__':
     # Instantiate the agent (Note: agent shape derived from input data)
@@ -693,47 +746,9 @@ if __name__ == '__main__':
             print('Done.')
 
     if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        # create a figure with two subplots
-        fig, (ax1, ax2) = plt.subplots(2, 1)
+        plot = AgentPlot()
 
-        # intialize two line objects (one in each axes)
-        line1, = ax1.plot([], [], lw=2)
-        line2, = ax2.plot([], [], lw=2, color='r')
-        lines = [line1, line2]
-
-        # the same axes initalizations as before (just now we do it for both of them)
-        for ax in [ax1, ax2]:
-            ax.set_ylim(0, 40)
-            ax.set_xlim(0, 100)
-            ax.grid()
-
-        # initialize the data arrays
-        data_x, data_y_1, data_y_2 = [], [], []
-
-        def update_graph(frame):
-            # update the data
-            t, y_1, y_2 = agent.l3.stats_get(g_start_time, graph=True)
-            data_x.append(t)
-            data_y_1.append(y_1)
-            data_y_2.append(y_2)
-
-            # axis limits checking. Same as before, just for both axes
-            for ax in [ax1, ax2]:
-                xmin, xmax = ax.get_xlim()
-                if t >= xmax:
-                    ax.set_xlim(xmin, 2*xmax)
-                    ax.figure.canvas.draw()
-
-            # update the data of both line objects
-            line[0].set_data(data_x, data_y_1)
-            line[1].set_data(data_x, data_y_2)
-
-            # fig.gca().relim()
-            # fig.gca().autoscale_view()
-
-            return lines
-
-        animation = FuncAnimation(fig, update_graph, interval=200)
+        animation = FuncAnimation(plot.fig, plot.update_graph, interval=200)
         threading.Thread(target=agent.l3.run_benchmark).start()
         plt.show()
         exit()

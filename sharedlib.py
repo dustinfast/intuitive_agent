@@ -21,6 +21,8 @@ import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 # User configurable
 OUT_PATH = 'var'                # Log and Model file output directories
@@ -437,4 +439,4 @@ def negate(x):
 
     # Numerical negate
     return (x * -1)
-
+    
