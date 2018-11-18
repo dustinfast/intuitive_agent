@@ -12,7 +12,10 @@
             Log statments are logged to PERSIST_PATH/ID.LOG_EXT. 
 
         If CONSOLE_OUT = True:
-        Agent (and its sub-modules) output log statements to stdout.
+            Agent (and its sub-modules) output log statements to stdout.
+
+        If STATS_OUT = True:
+            Statistics info output to console
 
     Usage: 
         Run from the terminal with './agent.py'.
@@ -49,7 +52,12 @@ __license__ = "GPLv3"
 import sys
 import logging
 import threading
+from math import sqrt
+from itertools import groupby
 from datetime import datetime
+
+# Third-party
+import numpy as np
 
 # Custom
 from ann import ANN
@@ -59,17 +67,21 @@ from sharedlib import ModelHandler, DataFrom
 
 PERSIST = True
 CONSOLE_OUT = False
+STATS_OUT = True
 
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agnt'         # Log file extension
-AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES as input
+AGENT_ITERS = 5                  # Num times to iterate AGENT_INPUTFILES
 
 # Agent input data. Length denotes the agent's L1 and L2 depth.
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
-                    DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters2.csv'),
-                    DataFrom('static/datasets/letters3.csv')]
+                    DataFrom('static/datasets/letters3.csv'),
+                    DataFrom('static/datasets/letters4.csv'),
+                    DataFrom('static/datasets/letters5.csv'),
+                    DataFrom('static/datasets/letters6.csv'),
+                    DataFrom('static/datasets/letters7.csv')]
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
@@ -80,10 +92,16 @@ L1_ALPHA = .9               # ANN learning rate momentum (all nodes)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv')]
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
@@ -93,19 +111,15 @@ L2_EXT = '.lyr2'
 L2_KERNEL_MODE = 1      # 1 = no case flip, 2 = w/case flip
 L2_MUT_REPRO = 0.10     # Genetic mutation ration: Reproduction
 L2_MUT_POINT = 0.40     # Genetic mutation ration: Point
-L2_MUT_BRANCH = 0.00    # Genetic mutation ration: Branch
-L2_MUT_CROSS = 0.50     # Genetic mutation ration: Crossover
+L2_MUT_BRANCH = 0.10    # Genetic mutation ration: Branch
+L2_MUT_CROSS = 0.40     # Genetic mutation ration: Crossover
 L2_MAX_DEPTH = 5        # Max is 10, per KarooGP (has perf affect)
 L2_GAIN = .75           # Fit/random ratio of the genetic pool
 L2_MEMDEPTH = 1         # Working mem depth, an iplier of L1's input sz
 L2_MAX_POP = 50         # Genetic population size (has perf affect)
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
-# L2_MUT_REPRO = 0.15   # Default genetic mutation ration: Reproduction
-# L2_MUT_POINT = 0.15   # Default genetic mutation ration: Point
-# L2_MUT_BRANCH = 0.0   # Default genetic mutation ration: Branch
-# L2_MUT_CROSS = 0.7    # Default genetic mutation ration: Crossover
-
+# Layer 3 user configurables
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
@@ -256,6 +270,7 @@ class IntuitiveLayer(object):
 class LogicalLayer(object):
     """ An abstraction of the agent's Logical layer (i.e. layer three), which
         evaluates the fitness of it's input according to the given context mode.
+        Statistics are also tracked here.
     """
     def __init__(self, ID, mode):
         """ Accepts:
@@ -263,22 +278,20 @@ class LogicalLayer(object):
                 mode (function)     : A bool-returning func accepting L2 output
         """
         self.ID = ID
-        self._mode = mode
+        self._context = mode
 
-        # Heuristics variables
-        self.last_learnhit = datetime.now()     # New item learned event time
-        self.last_encounter = datetime.now()    # Last saw a prev learned item
-        self.learnhits = []                     # Number of new items learned
-        self.encounterhits = []                 # Num encounters w/items in kb 
-        self.len_total = 0                      # Cumulative len of inputs fed
-        self.len_count = 0                      # Count of all inputs fed
-
-        # Persistent containers and metrics
-        self.kb = []                # Lifetime list of all learned items
-        self._life_learnhits = 0    # Lifetime "new item learned" hits count
-        self._life_encounters = 0   # Lifetime encounters w/items in kb
-        self._life_learn_t = 0      # Lifetime "new item learned" hits count
-        self._life_enc_t = 0        # Lifetime avg time btwn encounters
+        # Statistics
+        self.epoch_time = datetime.now()    # Start of current stats epoch
+        self.epoch = 1                      # Stats epoch count
+        self.kb_lifetime = []               # Items learned, lifetime
+        self.learned = []                   # New items learned this epoch
+        self.learned_t = []                 # Times each item was learned
+        self.encounters = []       # Not new but seen first time this epoch
+        self.encounters_t = []              # Times of each encounter
+        self.re_encounters = []    # Items for which 1 or more encounters occur
+        self.re_encounters_t = []           # Times for each re-encounter
+        self.input_lens = 0                 # Sum(Len(all inputs received))
+        self.input_count = 0                # Count of all inputs received
 
         # Save/Load/Loghandler
         f_save = "self._save('MODEL_FILE')"
@@ -290,11 +303,7 @@ class LogicalLayer(object):
 
     def __str__(self):
         str_out = '\nID = ' + self.ID
-        str_out += '\nMode = ' + self._mode.__name__
-        str_out += '\nLifetime learning hits: ' + str(self._life_learnhits)
-        str_out += '\n  Avg time between learn hits: ' + str(self._life_learn_t)
-        str_out += '\nLifetime encounters: ' + str(self._life_encounters)
-        str_out += '\n  Avg time between encounters: ' + str(self._life_enc_t)
+        str_out += '\nContext Mode = ' + self._context.__name__
         return str_out
 
     def _save(self, filename):
@@ -303,12 +312,8 @@ class LogicalLayer(object):
             the string that would have otherwise been written.
         """
         # Build model params in dict form
-        writestr = "{ '_mode': 'Connector." + self._mode.__name__ + "'"
-        writestr += ", 'kb': " + str(self.kb)
-        writestr += ", '_life_learnhits': " + str(self._life_learnhits)
-        writestr += ", '_life_learn_t': " + str(self._life_learn_t)
-        writestr += ", '_life_encounters': " + str(self._life_encounters)
-        writestr += ", '_life_enc_t': " + str(self._life_enc_t)
+        writestr = "{ '_context': 'Connector." + self._context.__name__ + "'"
+        writestr += ", 'kb': " + str(self.kb_lifetime)
         writestr += "}"
 
         if not filename:
@@ -329,15 +334,12 @@ class LogicalLayer(object):
                 loadfrom = f.read()
 
         data = eval(loadfrom.replace('\n', ''))
-        self.kb = data['kb']
-        self._mode = eval(data['_mode'])
-        self._life_learnhits = data['_life_learnhits']
-        self._life_learn_t = data['_life_learn_t']
-        self._life_encounters = data['_life_encounters']
-        self._life_enc_t = data['_life_enc_t']
+        self.kb_lifetime = data['kb']
+        self._context = eval(data['_context'])
 
     def forward(self, results):
-        """ Checks each result in results and determines fitness.
+        """ Checks each result in results against the current context mode and 
+            qauntifies its fitness.
             Accepts:
                 fitness (AttrIter) : Keyed by tree ID with 'ouput' label
             Returns:
@@ -347,88 +349,158 @@ class LogicalLayer(object):
 
         for trees in results:
             for treeID, attrs in trees.items():
-                tryme = attrs['output']
-                self.len_count += 1
-                self.len_total += len(tryme)
+                item = attrs['output']
+                self.model.log('L3 TRYING: ' + item)
 
-                self.model.log('L3 TRYING: ' + tryme)
-                if self._mode(tryme):
+                # Update stats
+                self.input_count += 1
+                self.input_lens += len(item)
 
-                    if tryme not in self.kb:
-                        lasthit = (datetime.now() - self.last_learnhit).seconds
-                        self.model.log('L3 LEARNED: ' + tryme)
-                        self.model.log('(Last was: ' + str(lasthit) + 's ago)')
-                        print('L3 LEARNED: ' + tryme)
-                        print('(Last was: ' + str(lasthit) + 's ago)')
-                        self.kb.append(tryme)
-                        self.learnhits.append(lasthit)
-                        self.encounterhits.append(lasthit)
-                        self.last_learnhit = datetime.now()
-                        self.last_encounter = datetime.now()
+                # If item is valid in the current context
+                if self._context(item):
+                    sec_in = (datetime.now() - self.epoch_time).seconds
+                    in_ep = '\n( %ss into epoch %s)' % (sec_in, str(self.epoch))
+
+                    # If LEARNED / seeing this item for the very first time
+                    if item not in self.kb_lifetime:
+                        fitness[treeID] += 100
+
+                        # Update stat containers
+                        self.kb_lifetime.append(item)
+                        self.learned.append(item)
+                        self.learned_t.append(sec_in)
+
+                        self.model.log('L3 LEARNED: ' + item + in_ep)
+                        print('L3 LEARNED: ' + item + in_ep)
+
+                    # If ENCOUNTERED / seen item before but not this epoch
+                    elif item not in self.encounters:
                         fitness[treeID] += 10
+
+                        # Update stat containers
+                        self.encounters.append(item)
+                        self.encounters_t.append(sec_in)
+
+                        self.model.log('L3 Encountered: ' + item + in_ep)
+                        print('L3 Encountered: ' + item + in_ep)
+
+                    # Else RENCOUNTERED / we've seen this item this epoch
                     else:
-                        lasthit = (datetime.now() - self.last_encounter).seconds
-                        self.model.log('L3 Encountered: ' + tryme)
-                        self.model.log('(Last was: ' + str(lasthit) + 's ago)')
-                        self.encounterhits.append(lasthit)
-                        self.last_encounter = datetime.now()
-                        fitness[treeID] += .5
+                        fitness[treeID] += 1
+
+                        # Update stat containers
+                        self.re_encounters.append(item)
+                        self.re_encounters_t.append(sec_in)
+
+                        self.model.log('L3 Re-encountered: ' + item)
 
         return fitness
 
-    def stats(self, clear=False):
-        """ Updates the lifetime statistics and returns a string representing 
-            performance statistics.
-            Accepts:
-                clear (bool)    : Denotes stats to be reset after generating
-                # TODO: (bool)  : Denotes results returned as dict vs str
+    def stats_clear(self):
+        """ Clears the current statistics / Starts a new statistics epoch.
         """
-        # Build statistics
-        iters = self.len_count / L2_MAX_POP
-        l_hits = len(self.learnhits)
-        e_hits = len(self.encounterhits)
+        self.epoch += 1
+        self.epoch_time = datetime.now()
+        self.learned = []
+        self.encounters = []
+        self.re_encounters = []
+        self.input_lens = 0
+        self.input_count = 0
 
-        l_hits_time = 0
-        avg_hit_len = 0
-        if l_hits:
-            l_hits_time = sum(self.learnhits) / l_hits
-            avg_hit_len = sum([len(h) for h in self.kb]) / l_hits
+    def stats_get(self, stime, clear=False, graph=False):
+        """ Generates statistics from the current state and returns the results
+            as a string.
+            Accepts:
+                stime (datetime)    : A datetime representing run start time
+                clear (bool)        : Also reset stats / start new stats epoch
+                graph (bool)        : Also display stats in graph form
+        """
+        # Misc stats
+        epoch = self.epoch
+        epoch_time = (datetime.now() - self.epoch_time).seconds
+        run_time = (datetime.now() - stime).seconds
+        learns = len(self.learned)
+        encounters = len(self.encounters)
+        re_encounters = len(self.re_encounters)
 
-        e_hits_time = 0
-        if e_hits:
-            e_hits_time = sum(self.encounterhits) / e_hits
+        avg_try_len = 0     # Average length of all inputs
+        if self.input_count:
+            avg_try_len = self.input_lens / self.input_count
 
-        avg_len = 0
-        if self.len_count:
-            avg_len = str(self.len_total / self.len_count)
+        # re_var = 0          # Variance among re-encounters
+        # if self.encounters:
+        #     dist = [len(list(group))
+        #             for _, group in groupby(self.re_encounters)]
+        #     re_len = len(self.encounters)
+        #     avg = sum(dist) / re_len
+        #     re_var = sum((x - avg) ** 2 for x in dist) / re_len
+            
+        ret_str = '-- Epoch %s Statistics --\n' % epoch
+        ret_str += ' Epoch run time: %d\n' % epoch_time
+        ret_str += '   Total inputs: %d\n' % self.input_count
+        ret_str += '   Avg try length: %d\n' % avg_try_len
 
-        # Update lifetime stats
-        self._life_learnhits += l_hits
-        self._life_learn_t += l_hits_time
-        self._life_encounters += e_hits
-        self._life_enc_t += e_hits_time
+        ret_str += '   Total learns: %d\n' % learns
+        ret_str += '   Total encounters: %d\n' % encounters
+        ret_str += '   Total re-encounters: %d\n' % re_encounters
+        # ret_str += '   Re-encounter variance: %d\n' % re_var
 
-        ret_str = 'Total iterations: ' + str(iters) + '\n'
-        ret_str += ' Avg try length: ' + str(avg_len) + '\n'
-
-        ret_str += 'Total learn hits: ' + str(l_hits) + '\n'
-        ret_str += ' Avg learn hit length: ' + str(avg_hit_len) + '\n'
-        ret_str += ' Avg time btwn learn hits -\n'
-        ret_str += '    This run: ' + str(l_hits_time) + '\n'
-        ret_str += '    Lifetime (NEEDS FIXED): ' + str(self._life_learn_t) + '\n'
-
-        ret_str += 'Total encounters: ' + str(e_hits) + '\n'
-        ret_str += ' Avg time btwn encounters (NEEDS FIXED): ' + str(e_hits_time) + '\n'
-
-        ret_str += 'Learned: \n' + str(self.kb) + '\n'
+        ret_str += 'Total run time: %ds\n' % run_time
 
         if clear:
-            self.learnhits = []
-            self.encounterhits = []
-            self.len_total = 0
-            self.len_count = 0
+            self.stats_clear()
 
         return ret_str
+
+    def run_benchmark(self, width=4, epochs=3):
+        """ A function for establishing baseline performance metrics by brute
+            forcing strings against the current context mode. Benchmark 
+            statistics are output to the console.
+            Accepts:
+                width (int)     : Max string width to generate
+                epochs (int)    : Benchmark revolutions
+        """
+        from itertools import product
+        from string import ascii_lowercase
+
+        test_kb = []        # Fresh kb 
+        self.epoch = 0      # Ensure fresh epoch number
+        self.stats_clear()  # Ensure fresh stats containers
+
+        # Query every combination of lcase strings against agent's context
+        t_start = datetime.now()
+        for _ in range(epochs):
+            for _ in range(epochs):
+                for i in range(1, width + 1):
+                    for item in (''.join(s) for s in product(ascii_lowercase, repeat=i)):
+                        self.input_count += 1
+                        self.input_lens += len(item)
+
+                        if L3_CONTEXTMODE(item):
+                            sec_in = (datetime.now() - self.epoch_time).seconds
+
+                            # If seeing item for the very first time
+                            if item not in test_kb:
+                                print('L3 LEARNED: ' + item)
+                                test_kb.append(item)
+                                self.learned.append(item)
+                                self.learned_t.append(sec_in)
+
+                            # If seen item before but not this epoch
+                            elif item not in self.encounters:
+                                print('L3 ENCOUNTERED: ' + item)
+                                self.encounters.append(item)
+                                self.encounters_t.append(sec_in)
+
+                            # Else we've seen this item this epoch
+                            else:
+                                print('L3 Re-encountered: ' + item)
+                                self.re_encounters.append(item)
+                                self.re_encounters_t.append(sec_in)
+                
+                print(self.stats_get(t_start))
+
+            self.stats_get(t_start, clear=True)
 
 
 class Agent(threading.Thread):
@@ -482,27 +554,6 @@ class Agent(threading.Thread):
         self.l2 = IntuitiveLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
         self.l3 = LogicalLayer(ID, L3_CONTEXTMODE)
-
-    def get_stats(self, reset=False):
-        pass
-
-    def do_bruteforce_benchmark(self):
-        """ A function for establishing a baseline performance metric by brute
-            forcing strings against the current context mode.
-        """
-        max_width = len(self.inputs)                # Max string width
-        charset = [chr(i) for i in range(97, 123)]  # Ascii chars a-z
-        t_start = datetime.now()                    # Start time
-
-        print('Establishing benchmark performance by brute force...', sep=' ')
-        
-        # Query every combination of characters for the given charset and 
-
-        print('Done.')
-        print('  Run time: ' + str((datetime.now() - stime).seconds) + 's\n')
-
-
-            
 
     def __str__(self):
         return 'ID = ' + self.ID
@@ -593,14 +644,14 @@ class Agent(threading.Thread):
                 self.model.log('\n** STEP - iter: %d depth:%d **' % (iters, i))
                 self._step(row)
 
-            # Minimal console output
-            print('-- Epoch', iters, 'complete --')
-            print(self.l3.stats(clear=True))
-            print('Run time: ' + str((datetime.now() - stime).seconds) + 's\n')
-            self.l2._node.clear_mem()
+            # End of iteration...
+            self.l2._node.clear_mem()  # Keep data consistent across iterations
+
+            if STATS_OUT:
+                print(self.l3.stats_get(stime, clear=True))  # Output stats
 
             if PERSIST:
-                self.model.save()
+                self.model.save()  # Save the model to file
 
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
@@ -625,6 +676,10 @@ if __name__ == '__main__':
             print('Training layer 1...', sep=' ')
             agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
             print('Done.')
+
+    if len(sys.argv) > 1 and sys.argv[1] == '-benchmark':
+        agent.l3.run_benchmark()
+        exit()
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)
