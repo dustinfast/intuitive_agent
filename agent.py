@@ -55,11 +55,15 @@ import threading
 from itertools import groupby
 from datetime import datetime
 
+# Third-party
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+
 # Custom
 from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom
+from sharedlib import ModelHandler, DataFrom, plot
 
 PERSIST = True
 CONSOLE_OUT = False
@@ -119,6 +123,8 @@ L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
+# Global agent start time
+g_start_time = datetime.now()
 
 class ClassifierLayer(object):
     """ An abstraction of the agent's classifier layer (i.e. layer one).
@@ -402,13 +408,13 @@ class LogicalLayer(object):
         self.input_lens = 0
         self.input_count = 0
 
-    def stats_get(self, stime, clear=False, graph=False):
+    def stats_get(self, stime, clear=False, graph=True):
         """ Generates statistics from the current state and returns the results
             as a string.
             Accepts:
                 stime (datetime)    : A datetime representing run start time
                 clear (bool)        : Also reset stats / start new stats epoch
-                graph (bool)        : Also display stats in graph form
+                graph (bool)        : Returns graph data instead
         """
         # Misc stats
         epoch = self.epoch
@@ -426,32 +432,35 @@ class LogicalLayer(object):
         if self.re_encounters:
             res_sorted = sorted(self.re_encounters)
             dist = [len(list(group)) for _, group in groupby(res_sorted)]
-
-            # debug
-            keys = [key for key, _ in groupby(self.re_encounters)]
-            print(keys)
-            print(dist)
-            
             re_len = len(set(self.re_encounters))
             avg = sum(dist) / re_len
             re_var = sum((x - avg) ** 2 for x in dist) / re_len
-            
-        ret_str = '-- Epoch %s Statistics --\n' % epoch
-        ret_str += ' Epoch run time: %d\n' % epoch_time
-        ret_str += '   Total inputs: %d\n' % self.input_count
-        ret_str += '   Avg try length: %d\n' % avg_try_len
 
-        ret_str += '   Total learns: %d\n' % learns
-        ret_str += '   Total encounters: %d\n' % encounters
-        ret_str += '   Total re-encounters: %d\n' % re_encounters
-        ret_str += '   Re-encounter variance: %d\n' % re_var
-
-        ret_str += 'Total run time: %ds\n' % run_time
+            # debug
+            # keys = [key for key, _ in groupby(self.re_encounters)]
+            # print(keys)
+            # print(dist)
         
+        if graph:
+            ret = (run_time, learns, re_encounters)
+
+        else:
+            ret = '-- Epoch %s Statistics --\n' % epoch
+            ret += ' Epoch run time: %d\n' % epoch_time
+            ret += '   Total inputs: %d\n' % self.input_count
+            ret += '   Avg try length: %d\n' % avg_try_len
+
+            ret += '   Total learns: %d\n' % learns
+            ret += '   Total encounters: %d\n' % encounters
+            ret += '   Total re-encounters: %d\n' % re_encounters
+            ret += '   Re-encounter variance: %d\n' % re_var
+
+            ret += 'Total run time: %ds\n' % run_time
+
         if clear:
             self.stats_clear()
 
-        return ret_str
+        return ret
 
     def run_benchmark(self, width=4, epochs=3):
         """ A function for establishing baseline performance metrics by brute
@@ -638,7 +647,6 @@ class Agent(threading.Thread):
         self.model.log('Agent thread started.')
         min_rows = min([data.row_count for data in self.inputs])
         self.running = True
-        stime = datetime.now()
         iters = 0
 
         # Step the agent forward with each row of each dataset
@@ -655,7 +663,7 @@ class Agent(threading.Thread):
             self.l2._node.clear_mem()  # Keep data consistent across iterations
 
             if STATS_OUT:
-                print(self.l3.stats_get(stime, clear=True))  # Output stats
+                print(self.l3.stats_get(g_start_time, clear=True))
 
             if PERSIST:
                 self.model.save()  # Save the model to file
@@ -684,8 +692,50 @@ if __name__ == '__main__':
             agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
             print('Done.')
 
-    if len(sys.argv) > 1 and sys.argv[1] == '-benchmark':
-        agent.l3.run_benchmark()
+    if len(sys.argv) > 1 and sys.argv[1] == '-bench':
+        # create a figure with two subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1)
+
+        # intialize two line objects (one in each axes)
+        line1, = ax1.plot([], [], lw=2)
+        line2, = ax2.plot([], [], lw=2, color='r')
+        lines = [line1, line2]
+
+        # the same axes initalizations as before (just now we do it for both of them)
+        for ax in [ax1, ax2]:
+            ax.set_ylim(0, 40)
+            ax.set_xlim(0, 100)
+            ax.grid()
+
+        # initialize the data arrays
+        data_x, data_y_1, data_y_2 = [], [], []
+
+        def update_graph(frame):
+            # update the data
+            t, y_1, y_2 = agent.l3.stats_get(g_start_time, graph=True)
+            data_x.append(t)
+            data_y_1.append(y_1)
+            data_y_2.append(y_2)
+
+            # axis limits checking. Same as before, just for both axes
+            for ax in [ax1, ax2]:
+                xmin, xmax = ax.get_xlim()
+                if t >= xmax:
+                    ax.set_xlim(xmin, 2*xmax)
+                    ax.figure.canvas.draw()
+
+            # update the data of both line objects
+            line[0].set_data(data_x, data_y_1)
+            line[1].set_data(data_x, data_y_2)
+
+            # fig.gca().relim()
+            # fig.gca().autoscale_view()
+
+            return lines
+
+        animation = FuncAnimation(fig, update_graph, interval=200)
+        threading.Thread(target=agent.l3.run_benchmark).start()
+        plt.show()
         exit()
 
     # Start the agent thread
