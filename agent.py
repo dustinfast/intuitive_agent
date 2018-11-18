@@ -38,7 +38,7 @@
         Statistic graph output through model obj
         L2 does not output node count in multimode
         in_data must contain all labels, otherwise ANN inits break 
-        
+
 """
 __author__ = "Dustin Fast"
 __email__ = "dustin.fast@outlook.com"
@@ -60,52 +60,53 @@ from sharedlib import ModelHandler, DataFrom
 PERSIST = True
 CONSOLE_OUT = False
 
-# Agent user-configurables
-AGENT_NAME = 'agent1_memdepth2'  # Log file prefix
-AGENT_FILE_EXT = '.agnt'    # Log file extension
-AGENT_ITERS = 2             # Num times to iterate AGENT_INPUTFILES as input
-AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
+# Agent user configurables
+AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
+AGENT_FILE_EXT = '.agnt'         # Log file extension
+AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES as input
+
+# Agent input data. Length denotes the agent's L1 and L2 depth.
+AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters1.csv'),
                     DataFrom('static/datasets/letters2.csv'),
                     DataFrom('static/datasets/letters3.csv')]
 
-# Layer 1 user-configurables
+
+
+# Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
 L1_LR = .001                # ANN learning rate (all nodes)
 L1_ALPHA = .9               # ANN learning rate momentum (all nodes)
 
-# Layer 1 Training/Validation sets, indexed by L1 node
+# Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv')]
+
+# Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
+# Layer 2 user configurables
 L2_EXT = '.lyr2'
-L2_KERNEL_MODE = 1          # 1 = no case flip, 2 = w/case flip
-L2_MAX_DEPTH = 5            # Max is 10, per KarooGP (has perf affect)
-L2_GAIN = .75               # Fit/random ratio of the genetic pool
-L2_MEMDEPTH = 2             # Working mem depth, an iplier of L1's input sz
-L2_MAX_POP = 50             # Genetic population size (has perf affect)
+L2_KERNEL_MODE = 1      # 1 = no case flip, 2 = w/case flip
+L2_MUT_REPRO = 0.10     # Genetic mutation ration: Reproduction
+L2_MUT_POINT = 0.40     # Genetic mutation ration: Point
+L2_MUT_BRANCH = 0.00    # Genetic mutation ration: Branch
+L2_MUT_CROSS = 0.50     # Genetic mutation ration: Crossover
+L2_MAX_DEPTH = 5        # Max is 10, per KarooGP (has perf affect)
+L2_GAIN = .75           # Fit/random ratio of the genetic pool
+L2_MEMDEPTH = 1         # Working mem depth, an iplier of L1's input sz
+L2_MAX_POP = 50         # Genetic population size (has perf affect)
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
-L2_MUT_REPRO = 0.10    # Genetic mutation ration: Reproduction
-L2_MUT_POINT = 0.40    # Genetic mutation ration: Point
-L2_MUT_BRANCH = 0.00   # Genetic mutation ration: Branch
-L2_MUT_CROSS = 0.50    # Genetic mutation ration: Crossover
-
-# L2_MUT_REPRO = 0.10    # Genetic mutation ration: Reproduction
-# L2_MUT_POINT = 0.40    # Genetic mutation ration: Point
-# L2_MUT_BRANCH = 0.10   # Genetic mutation ration: Branch
-# L2_MUT_CROSS = 0.40    # Genetic mutation ration: Crossover
-
-# DEFAULT_MREPRO = 0.15   # Default genetic mutation ration: Reproduction
-# DEFAULT_MPOINT = 0.15   # Default genetic mutation ration: Point
-# DEFAULT_MBRANCH = 0.0   # Default genetic mutation ration: Branch
-# DEFAULT_MCROSS = 0.7    # Default genetic mutation ration: Crossover
+# L2_MUT_REPRO = 0.15   # Default genetic mutation ration: Reproduction
+# L2_MUT_POINT = 0.15   # Default genetic mutation ration: Point
+# L2_MUT_BRANCH = 0.0   # Default genetic mutation ration: Branch
+# L2_MUT_CROSS = 0.7    # Default genetic mutation ration: Crossover
 
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
@@ -455,6 +456,7 @@ class Agent(threading.Thread):
         self.inputs = inputs        # The agent's "sensory input" data
         self.max_iters = None       # Num inputs iters, set on self.start
         self.L2_nodemap = None      # Pop via ModelHandler, for loading L2
+        self.depth = len(inputs)    # L1 node count and L2 inputs count
 
         # Init the load, save, log, and console output handler
         f_save = "self._save('MODEL_FILE')"
@@ -464,15 +466,13 @@ class Agent(threading.Thread):
                                   save_func=f_save,
                                   load_func=f_load)
 
-        # Determine agent shape from input data
+        # Determine layer 1 dimensions from input data
         l1_dims = []
-        self.depth = len(inputs)
-
         for i in range(self.depth):
             l1_dims.append([])                              # New L1 dimension
-            l1_dims[i].append(in_data[i].feature_count)     # x sz
+            l1_dims[i].append(inputs[i].feature_count)      # x sz
             l1_dims[i].append(0)                            # h sz placeholder
-            l1_dims[i].append(in_data[i].class_count)       # y sz
+            l1_dims[i].append(inputs[i].class_count)        # y sz
             l1_dims[i][1] = int(
                 (l1_dims[i][0] + l1_dims[i][2]) / 2)        # h sz is xy avg
 
