@@ -9,7 +9,21 @@ Intuition - black box, selects current context. May lead to "aha" moments or sim
 
 
 ## What's next
-
+ rim mutation for paring down large trees when acc is low
+Change DataFrom to look at rightmost col for labels
+L2.node_map[].weight (logarithmic decay over time/frequency)
+* L2.node_map[].kb/correct/solution strings
+* REPL vs. Flask interface?
+* GP auto-tuna - mutation ratios, pop sizes, etc
+* Adapt ann.py to accept dataloader and use MNIST (or similiar)
+* Refactor all save/load funcs into ModelHandler.get_savestring?
+* "provides feedback" connector - ex: True if the action returns a value
+* Seperate log output option and persist
+* Add heuristics output to log handler
+* L3 kb save/load w/decaying fitness if already seen to encourage newness
+* Expand l2 nodes - one for each sub-class (ex: py func, py kwd, etc) as
+* Expand l2 nodes - as soon as some local mimima reached
+* L2 - One node per input, but only the first dimension
 * Add a temporal decay to the evolving string?
 * Add a "recent connection beween two sub-ann's give'sadjacent ann's higher priority"
 * The evoling string is a tensor of floats. Tee floatsrepresent connectoins between each sub-ann. i.e."adjacent anns"
