@@ -32,8 +32,14 @@ import sys; sys.path.append('lib')
 import karoo_gp.karoo_gp_base_class as karoo_gp
 from sharedlib import ModelHandler, AttrIter, Queue, negate
 
+# User configurable
+MODEL_EXT = '.ev'       # File extensions for model file save/load
+DEFAULT_MREPRO = 0.15   # Default genetic mutation ration: Reproduction
+DEFAULT_MPOINT = 0.15   # Default genetic mutation ration: Point
+DEFAULT_MBRANCH = 0.0   # Default genetic mutation ration: Branch
+DEFAULT_MCROSS = 0.7    # Default genetic mutation ration: Crossover
 
-MODEL_EXT = '.ev'           # File extensions for model file save/load
+# Not user configurable
 OP_FLIP_STR = '+ abs'       # Alphabetic case flip operator in string form
 KERNEL_MODES = [1, 2]       # See class docstring for kernel descriptions
 KERNEL_OPERATORS = {1: [['+', '2']],
@@ -71,7 +77,7 @@ class Genetic(karoo_gp.Base_GP):
         self.precision = 6          # Tourney fitness floating points
         self.fitness_type = 'max'   # Maximizing kernel function
         self.functions = np.array(KERNEL_OPERATORS.get(kernel))
-        self._set_mratio()  # Set initial mutation ratios
+        self.set_mratio()          # Set initial mutation ratios
 
         # Apply mem depth - 
         #  Mem depth 1 is our "input" size, where mem depth 2 is input fed as
@@ -171,29 +177,13 @@ class Genetic(karoo_gp.Base_GP):
         self.generation_id = data['generation_id']
         self.pop_tree_type = data['pop_tree_type']
         self.population_a = eval(data['population'])
-        self._set_mratio(int(data['evolve_repro']),
-                         int(data['evolve_point']),
-                         int(data['evolve_branch']),
-                         int(data['evolve_cross']))
+        self.set_mratio(int(data['evolve_repro']),
+                        int(data['evolve_point']),
+                        int(data['evolve_branch']),
+                        int(data['evolve_cross']))
 
         self.mem_width = data['mem_width']
         self.mem = Queue(self.mem_width)
-
-    def _set_mratio(self, repro=0.10, point=0.40, branch=0.10, cross=0.40):
-        """ Sets the mutation ratios, based on the given max population metric.
-        """
-        # If not already initialized, assume a ratio, else assume integer
-        try:
-            self.evolve_repro  # throws exception if not exists
-            self.evolve_repro = repro
-            self.evolve_point = point
-            self.evolve_branch = branch
-            self.evolve_cross = cross
-        except AttributeError:
-            self.evolve_repro = int(repro * self.tree_pop_max)
-            self.evolve_point = int(point * self.tree_pop_max)
-            self.evolve_branch = int(branch * self.tree_pop_max)
-            self.evolve_cross = int(cross * self.tree_pop_max)
 
     def _tree_IDs(self):
         """ Returns a list of the populations tree IDs.
@@ -269,8 +259,25 @@ class Genetic(karoo_gp.Base_GP):
             return re.split(' ', string)
         return lst[1:]
 
+    def set_mratio(self, repro=DEFAULT_MREPRO, point=DEFAULT_MPOINT,
+                   branch=DEFAULT_MBRANCH, cross=DEFAULT_MCROSS):
+        """ Sets the genetic mutation ratios.
+        """
+        # If not already initialized, assume a ratio, else assume integer
+        try:
+            self.evolve_repro  # throws AttributeError if not exists
+            self.evolve_repro = repro
+            self.evolve_point = point
+            self.evolve_branch = branch
+            self.evolve_cross = cross
+        except AttributeError:
+            self.evolve_repro = int(repro * self.tree_pop_max)
+            self.evolve_point = int(point * self.tree_pop_max)
+            self.evolve_branch = int(branch * self.tree_pop_max)
+            self.evolve_cross = int(cross * self.tree_pop_max)
+
     def clear_mem(self):
-        """ Clears the memory at each depth.
+        """ Clears any symbols from the working memory.
         """
         self.mem.reset()
 
@@ -363,8 +370,6 @@ class Genetic(karoo_gp.Base_GP):
                 outputs.push(treeID, 'output', output)
                 outputs.push(treeID, 'from_inputs', list(in_context))
 
-        # Remove empty results and return
-        # outputs.rm_empties('output')
         return outputs
 
     def _new_genepool(self, max_results, gain):
@@ -461,22 +466,24 @@ class Genetic(karoo_gp.Base_GP):
 
 
 if __name__ == '__main__':
-    """ TODO: Demo info... 
+    """ The following is a demonstration of the genetic algorithm with a
+        utility function compelling it to converge on the string "AK" from  its
+        input string of the characters A-K.
     """
     from pprint import pprint  # For pretty-printing demo output
 
-    # Define inputs (may contain more than one inner list)
+    # Define inputs (may contain more than one inner list. Ex: 2nd line down)
     inputs = [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']]
-    # inputs = [['1', '2', '3', '4', '5'], ['6', '7', '8', '9', '10'], ['11', '12', '13', '14', '15']]
-    input_lengths = [len(inputs[i]) for i in range(len(inputs))]
+    # inputs = [['1', '2', '3', '4', '5'], ['6', '7', '8', '9', '10']]
+    input_length = max([len(inputs[i]) for i in range(len(inputs))])
 
     # Init the genetically evolving expression trees
     gp = Genetic(ID='gp_demo',
                  kernel=1,
                  max_pop=40, 
                  max_depth=6, 
-                 max_inputs=max(input_lengths),
-                 mem_depth=2,
+                 max_inputs=input_length,
+                 mem_depth=1,
                  console_out=True, 
                  persist=False)
 
@@ -496,10 +503,8 @@ if __name__ == '__main__':
 
                 # Evaluate fitness
                 length = len(output)
-                if length < 2:
-                    continue
                 if output[:1] == 'A':
-                    fitness[treeID] += 40
+                    fitness[treeID] += 70
                     if output[1:2] == 'K':
                         fitness[treeID] += 9
                     while fitness[treeID] > 1 and length:
