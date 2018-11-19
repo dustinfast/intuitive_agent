@@ -67,7 +67,7 @@ GRAPH_OUT = True                # Statistics display in graph form
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1' # Log file prefix
 AGENT_FILE_EXT = '.agent'       # Log file extension
-AGENT_ITERS = 1                 # Num times to iterate AGENT_INPUTFILES
+AGENT_ITERS = 2                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000                # Num L1 training epochs (per node)
@@ -85,7 +85,7 @@ L2_MAX_DEPTH = 5                # Max is 10, per KarooGP (has perf affect)
 L2_GAIN = .75                   # Fit/random ratio of the genetic pool
 L2_MEMDEPTH = 1                 # Working mem depth, an iplier of L1's input sz
 L2_MAX_POP = 50                 # Genetic population size (has perf affect)
-L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
+L2_POOLSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 # Layer 3 user configurables
 L3_EXT = '.lyr3'
@@ -208,7 +208,7 @@ class EvolutionaryLayer(object):
                              max_depth=L2_MAX_DEPTH,
                              max_inputs=self._size,
                              mem_depth=self._mem_depth,
-                             tourn_sz=L2_TOURNYSZ,
+                             tourn_sz=L2_POOLSZ,
                              console_out=CONSOLE_OUT,
                              persist=False)
 
@@ -731,7 +731,7 @@ if __name__ == '__main__':
     legend = ('T', 'L', 'E', 'R', 'V')
     g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
                                     3, agent.l3.stats_graphtxt,
-                                    interval=10, legend=legend,
+                                    interval=250, legend=legend,
                                     title_txt=AGENT_NAME)
     if GRAPH_OUT:
         g_graph_out.play()
