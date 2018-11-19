@@ -72,39 +72,14 @@ STATS_OUT = True
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agnt'         # Log file extension
-AGENT_ITERS = 3                  # Num times to iterate AGENT_INPUTFILES
+AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES
 
-# Agent input data. Length denotes the agent's L1 and L2 depth.
-AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
-                    DataFrom('static/datasets/letters2.csv'),
-                    DataFrom('static/datasets/letters3.csv'),
-                    DataFrom('static/datasets/letters4.csv'),
-                    DataFrom('static/datasets/letters5.csv'),
-                    DataFrom('static/datasets/letters6.csv'),
-                    DataFrom('static/datasets/letters7.csv')]
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
 L1_LR = .001                # Classifier learning rate (all nodes)
 L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
 
-# Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
-L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv')]
-
-# Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
-L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv')]
 
 # Layer 2 user configurables
 L2_EXT = '.lyr2'
@@ -123,26 +98,61 @@ L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
+# Data sets...
+# Agent input data. Length denotes the agent's L1 and L2 depth.
+AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
+                    DataFrom('static/datasets/letters1.csv'),
+                    # DataFrom('static/datasets/letters2.csv'),
+                    # DataFrom('static/datasets/letters3.csv'),
+                    # DataFrom('static/datasets/letters4.csv'),
+                    # DataFrom('static/datasets/letters5.csv'),
+                    # DataFrom('static/datasets/letters6.csv'),
+                    DataFrom('static/datasets/letters7.csv')]
+
+# Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
+L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 #  DataFrom('static/datasets/letter_train.csv'),
+                 #  DataFrom('static/datasets/letter_train.csv'),
+                 #  DataFrom('static/datasets/letter_train.csv'),
+                 #  DataFrom('static/datasets/letter_train.csv'),
+                 #  DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv')]
+
+# Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
+L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 #  DataFrom('static/datasets/letter_val.csv'),
+                 #  DataFrom('static/datasets/letter_val.csv'),
+                 #  DataFrom('static/datasets/letter_val.csv'),
+                 #  DataFrom('static/datasets/letter_val.csv'),
+                 #  DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv')]
+
 # Globals
-g_start_time = datetime.now()
-g_animation = None
+g_start_time = datetime.now()   # Application start time
+g_animation = None              # Graph animation
 
 class ClassifierLayer(object):
-    """ An abstraction of the agent's classifier layer (i.e. layer one).
-        Provides interfaces to each layer-node and a its current output.
-        Nodes at this level are classifiers representing a single sensory 
-        input processing channel, where the input to each channel is a sample
-        of some subset of the agent's environment. Its output is then its
-        "classification" of what that input represents.
-        On init, each node loaded fromfile by class Classifer iff PERSIST.
-        Note: This layer must be trained offline via self.train(). After 
-        training, each node saves its model to file iff PERSIST.
+    """ An abstraction of the agent's classifier layer (i.e. layer one), 
+        representing our ability to ...
+        Contains layer 1 nodes and exposes their outputs.
+        Nodes at this level are classifiers, each representing a single sensory 
+        input processing channel - the input to each channel is a feature
+        vector of data representing some subset of the agent's environment. Its
+        output, then, is its classification of that input.
+        Persistence:
+            On init, each node loads from file via class Classifer iff PERSIST.
+        Training:
+            This layer must be trained offline via self.train(). After 
+            training, each node saves its model to file iff PERSIST.
         """
     def __init__(self, ID, depth, dims, inputs):
         """ Accepts:
                 ID (str)        : This layers unique ID
                 depth (int)     : How many nodes this layer contains
                 dims (list)     : 3 ints - classfier x/h/y layer sizes
+                inputs (list)   : The agent's input data - a list of vectors
         """
         self._nodes = []        # A list of nodes, one for each layer 1 depth
         self._depth = depth     # This layer's depth. I.e., it's node count
@@ -183,19 +193,20 @@ class ClassifierLayer(object):
 
     
 class EvolutionaryLayer(object):
-    """ An abstraction of the agent's second layer, representing the ability to
-        intuitively form new connections between symbols, as well as its
-        recurrent memory (i.e. it's last L2_MEMDEPTH)
+    """ An abstraction of the agent's second layer, representing our ability to
+        intuitively form new symbols composed of connections between known
+        symbols in the environemnts (including working memory).
     """
     def __init__(self, ID, size, mem_depth):
         """ Accepts:
-                ID (str)        : This layers unique ID
-                size (int)      : Num input terminals
+                ID (str)            : This layers unique ID
+                size (int)          : Num input terminals
+                mem_depth (int)     : Num prev inputs to keep in memory
         """
         self.ID = ID            
         self._size = size
         self._mem_depth = mem_depth       
-        self._node = None               # The GP element
+        self._node = None               # The gentic programming (GP) obj
         self._nodeID = ID + '_node'     # GP node's unique ID
 
         # Init the layer's node - a genetically evolving tree of expressions
@@ -270,9 +281,11 @@ class EvolutionaryLayer(object):
 
 
 class LogicalLayer(object):
-    """ An abstraction of the agent's Logical layer (i.e. layer three), which
-        evaluates the fitness of it's input according to the given context mode.
-        Statistics are also tracked here.
+    """ An abstraction of the agent's Logical layer (i.e. layer three).
+        Represents our ability to validate ideas against the environment.
+        At this level, fitness of it's input are evaluated according to the
+        given context mode.
+        Performance statistics are also tracked/exposed by this level.
     """
     def __init__(self, ID, mode):
         """ Accepts:
@@ -288,9 +301,9 @@ class LogicalLayer(object):
         self.kb_lifetime = []               # Items learned, lifetime
         self.learned = []                   # New items learned this epoch
         self.learned_t = []                 # Times each item was learned
-        self.encounters = []       # Not new but seen first time this epoch
+        self.encounters = []                # Seen for first time this epoch
         self.encounters_t = []              # Times of each encounter
-        self.re_encounters = []    # Items for which 1 or more encounters occur
+        self.re_encounters = []             # Items encounters 2+ times 
         self.re_encounters_t = []           # Times for each re-encounter
         self.input_lens = 0                 # Sum(Len(all inputs received))
         self.input_count = 0                # Count of all inputs received
@@ -410,56 +423,81 @@ class LogicalLayer(object):
         self.input_lens = 0
         self.input_count = 0
 
-    def stats_get(self, stime, clear=False, graph=False):
-        """ Generates statistics from the current state and returns the results
-            as a string.
+    def _stats_dict(self, stime=g_start_time):
+        """ Returns statistics in dict form.
             Accepts:
-                stime (datetime)    : A datetime representing run start time
-                clear (bool)        : Also reset stats / start new stats epoch
-                graph (bool)        : Returns graph data instead
+                stime (datetime)    : Application start time
+            Returns:
+                stats (dictionary)  : See stats dict below for fields
         """
-        # Misc stats
-        epoch = self.epoch
-        epoch_time = (datetime.now() - self.epoch_time).seconds
-        run_time = (datetime.now() - stime).seconds
-        learns = len(self.learned)
-        encounters = len(self.encounters)
-        re_encounters = len(self.re_encounters)
+        stats = {'epoch'        : self.epoch,
+                 'epoch_time'   : (datetime.now() - self.epoch_time).seconds,
+                 'run_time'     : (datetime.now() - stime).seconds,
+                 'learns'       : len(self.learned),
+                 'encounters'   : len(self.encounters),
+                 're_encounters': len(self.re_encounters),
+                 're_variance'  : -1,
+                 'avg_len'      : -1}
 
-        try_len = 0     # Average length of all inputs
+        avg_len = 0     # Average length of all inputs this epoch
         if self.input_count:
-            try_len = self.input_lens / self.input_count
+            avg_len = self.input_lens / self.input_count
+        stats['avg_len'] = avg_len
 
-        re_var = 0          # Variance among re-encounters
+        re_var = 0      # Variance among re-encounters this epoch
         if self.learned:
             res_sorted = sorted(self.re_encounters)
             dist = [len(list(group)) for _, group in groupby(res_sorted)]
             re_len = len(self.learned)
             avg = sum(dist) / re_len
             re_var = sum((x - avg) ** 2 for x in dist) / re_len
+        stats['re_variance'] = re_var
 
-            # debug
-            # keys = [key for key, _ in groupby(self.re_encounters)]
-            # print(keys)
-            # print(dist)
+        return stats
+
+    def stats_graphable(self):
+        """ Returns graphable performance metrics as a tuple.
+            Accepts:
+                stime (datetime)    : A datetime representing run start time
+                clear (bool)        : Also reset stats / start new stats epoch
+            Returns:
+                stats (tuple)       : See immediately below for structure
+        """
+        stats = self._stats_dict()
+        return (stats['run_time'],
+                stats['learns'],
+                stats['encounters'],
+                stats['re_encounters'],
+                stats['re_variance'],
+                stats['avg_len'])
         
-        if graph:
-            ret = (run_time, learns, encounters, re_encounters, re_var, try_len)
+    def stats_str(self, stime=g_start_time, clear=False):
+        """ Returns the formatted statistics output string.
+            Accepts:
+                stime (datetime)    : Application start time
+                clear (bool)        : Also reset stats / start new stats epoch
+        """
+        stats = self._stats_dict()
 
-        else:
-            ret = '\n-- Epoch %s Statistics --\n' % epoch
-            ret += ' Epoch run time: %d\n' % epoch_time
-            ret += '   Total inputs: %d\n' % self.input_count
-            ret += '   Avg try length: %d\n' % try_len
-            ret += '   Total learns: %d\n' % learns
-            ret += '   Total encounters: %d\n' % encounters
-            ret += '   Total re-encounters: %d\n' % re_encounters
-            ret += '   Re-encounter variance: %d\n' % re_var
-            ret += '\nLearned:\n'
-            ret += 'Lifetime: ' + str(self.kb_lifetime)
-            ret += '\n\nThis run: ' + str(self.learned)
-            # ret += 'Encounters: ' + str(self.learned) + '\n'
-            ret += '\nTotal run time: %ds\n' % run_time
+        res_sorted = sorted(self.re_encounters)  # debug
+        keys = [key for key, _ in groupby(res_sorted)]  # debug
+        dist = [len(list(group)) for _, group in groupby(res_sorted)]  # debug
+        
+        ret = '\n-- Epoch %s Statistics --\n' % stats['epoch']
+        ret += 'Input count: %d\n' % self.input_count
+        ret += 'Avg input length: %d\n' % stats['avg_len']
+        ret += 'Total learns: %d\n' % stats['learns']
+        ret += 'Total encounters: %d\n' % stats['encounters']
+        ret += 'Total re-encounters: %d\n' % stats['re_encounters']
+        ret += 'Re-encounter variance: %d\n' % stats['re_variance']
+
+        ret += 'Learned (lifetime):\n%s\n' % str(self.kb_lifetime)
+        ret += 'Learned (this epoch):\n%s\n' % str(self.learned)
+        ret += '\nRe-encounters (keys):\n%s\n' % str(keys)  # debug
+        ret += '\nRe-encounters (dist):\n%s\n' % str(dist)  # debug
+
+        ret += '\nEpoch run time: %ds\n' % stats['epoch_time']
+        ret += 'Total run time: %ds\n' % stats['run_time']
 
         if clear:
             self.stats_clear()
@@ -517,9 +555,9 @@ class LogicalLayer(object):
                                 self.re_encounters_t.append(sec_in)
                                 print('L3 Re-encountered: ' + item)
                 
-                print(self.stats_get(t_start))
+                print(self. stats_str(t_start))
 
-            self.stats_get(t_start, clear=True)
+            self. stats_str(t_start, clear=True)
 
 
 class Agent(threading.Thread):
@@ -666,7 +704,7 @@ class Agent(threading.Thread):
             self.l2._node.clear_mem()  # Keep data consistent across iterations
 
             if STATS_OUT:
-                print(self.l3.stats_get(g_start_time, clear=True))
+                print(self.l3. stats_str(g_start_time, clear=True))
 
             if PERSIST:
                 self.model.save()  # Save the model to file
@@ -686,10 +724,11 @@ class Agent(threading.Thread):
 
 
 class AgentPlot(object):
-    """ The agents plotter, for displayig graphical output.
+    """ A multi-plot matplotlib figure, for displaying graphs.
     """
-    def __init__(self):
+    def __init__(self, metrics_func):
         # Figure w/5 subplots
+        self.get_metrics = metrics_func
         self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
         self.axes = (ax1, ax2, ax3, ax4, ax5)
         self.time = []
@@ -713,7 +752,7 @@ class AgentPlot(object):
             ax.grid()
 
     def update_graph(self, frame):
-        t, y1, y2, y3, y4, y5 = agent.l3.stats_get(g_start_time, graph=True)
+        t, y1, y2, y3, y4, y5 = self.get_metrics()
         self.time.append(t)
         self.learns.append(y1)
         self.encs.append(y2)
@@ -741,7 +780,7 @@ class AgentPlot(object):
 if __name__ == '__main__':
     # Instantiate the agent (Note: agent shape derived from input data)
     agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
-    plot = AgentPlot()
+    plot = AgentPlot(agent.l3.stats_graphable)
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
