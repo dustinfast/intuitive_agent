@@ -72,15 +72,15 @@ STATS_OUT = True
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agnt'         # Log file extension
-AGENT_ITERS = 5                  # Num times to iterate AGENT_INPUTFILES
+AGENT_ITERS = 3                  # Num times to iterate AGENT_INPUTFILES
 
 # Agent input data. Length denotes the agent's L1 and L2 depth.
 AGENT_INPUTFILES = [DataFrom('static/datasets/letters1.csv'),
-                    # DataFrom('static/datasets/letters2.csv'),
-                    # DataFrom('static/datasets/letters3.csv'),
-                    # DataFrom('static/datasets/letters4.csv'),
-                    # DataFrom('static/datasets/letters5.csv'),
-                    # DataFrom('static/datasets/letters6.csv'),
+                    DataFrom('static/datasets/letters2.csv'),
+                    DataFrom('static/datasets/letters3.csv'),
+                    DataFrom('static/datasets/letters4.csv'),
+                    DataFrom('static/datasets/letters5.csv'),
+                    DataFrom('static/datasets/letters6.csv'),
                     DataFrom('static/datasets/letters7.csv')]
 
 # Layer 1 user configurables
@@ -90,20 +90,20 @@ L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv')]
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 # Layer 2 user configurables
@@ -123,8 +123,9 @@ L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
-# Global agent start time
+# Globals
 g_start_time = datetime.now()
+g_animation = None
 
 class ClassifierLayer(object):
     """ An abstraction of the agent's classifier layer (i.e. layer one).
@@ -394,6 +395,7 @@ class LogicalLayer(object):
                         self.re_encounters_t.append(sec_in)
 
                         self.model.log('L3 Re-encountered: ' + item)
+                        # print('L3 RE-encountered: ' + item + in_ep)
 
         return fitness
 
@@ -429,10 +431,10 @@ class LogicalLayer(object):
             try_len = self.input_lens / self.input_count
 
         re_var = 0          # Variance among re-encounters
-        if self.re_encounters:
+        if self.learned:
             res_sorted = sorted(self.re_encounters)
             dist = [len(list(group)) for _, group in groupby(res_sorted)]
-            re_len = len(set(self.re_encounters))
+            re_len = len(self.learned)
             avg = sum(dist) / re_len
             re_var = sum((x - avg) ** 2 for x in dist) / re_len
 
@@ -445,7 +447,7 @@ class LogicalLayer(object):
             ret = (run_time, learns, encounters, re_encounters, re_var, try_len)
 
         else:
-            ret = '-- Epoch %s Statistics --\n' % epoch
+            ret = '\n-- Epoch %s Statistics --\n' % epoch
             ret += ' Epoch run time: %d\n' % epoch_time
             ret += '   Total inputs: %d\n' % self.input_count
             ret += '   Avg try length: %d\n' % try_len
@@ -453,8 +455,10 @@ class LogicalLayer(object):
             ret += '   Total encounters: %d\n' % encounters
             ret += '   Total re-encounters: %d\n' % re_encounters
             ret += '   Re-encounter variance: %d\n' % re_var
-            ret += '\nLearned: ' + str(self.learned) + '\n\n'
-            ret += 'Encounters: ' + str(self.learned) + '\n'
+            ret += '\nLearned:\n'
+            ret += 'Lifetime: ' + str(self.kb_lifetime)
+            ret += '\n\nThis run: ' + str(self.learned)
+            # ret += 'Encounters: ' + str(self.learned) + '\n'
             ret += '\nTotal run time: %ds\n' % run_time
 
         if clear:
@@ -511,7 +515,6 @@ class LogicalLayer(object):
                             else:
                                 self.re_encounters.append(item)
                                 self.re_encounters_t.append(sec_in)
-
                                 print('L3 Re-encountered: ' + item)
                 
                 print(self.stats_get(t_start))
@@ -681,7 +684,10 @@ class Agent(threading.Thread):
         self.running = False
         self.model.log(output_str)
 
+
 class AgentPlot(object):
+    """ The agents plotter, for displayig graphical output.
+    """
     def __init__(self):
         # Figure w/5 subplots
         self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
@@ -715,7 +721,7 @@ class AgentPlot(object):
         self.rencs_var.append(y4)
         self.lens.append(y5)
 
-        # Check axes limits
+        # Expand x axes as needed
         for ax in self.axes:
             xmin, xmax = ax.get_xlim()
             if t >= xmax:
@@ -729,15 +735,13 @@ class AgentPlot(object):
         self.lines[3].set_data(self.time, self.rencs_var)
         self.lines[4].set_data(self.time, self.lens)
 
-        # self.fig.gca().relim()
-        # self.fig.gca().autoscale_view()
-
         return self.lines
 
 
 if __name__ == '__main__':
     # Instantiate the agent (Note: agent shape derived from input data)
     agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
+    plot = AgentPlot()
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
@@ -746,14 +750,14 @@ if __name__ == '__main__':
             print('Done.')
 
     if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        plot = AgentPlot()
-
-        animation = FuncAnimation(plot.fig, plot.update_graph, interval=200)
+        animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
         threading.Thread(target=agent.l3.run_benchmark).start()
         plt.show()
         exit()
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)
+    animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
     agent.start(AGENT_ITERS)
+    plt.show()
     agent.join()
