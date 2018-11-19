@@ -47,6 +47,7 @@ __license__ = "GPLv3"
 
 # Std lib
 import sys
+import time
 import logging
 from math import sqrt
 from datetime import datetime
@@ -63,7 +64,7 @@ from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
 
 # Output toggles
 PERSIST = False                  # File persistence
-CONSOLE_OUT = False             # Log statement output to console
+CONSOLE_OUT = True             # Log statement output to console
 STATS_OUT = True                # Statistics output to console
 
 # Top-level user configurables
@@ -72,7 +73,7 @@ AGENT_FILE_EXT = '.agent'       # Log file extension
 AGENT_ITERS = 2                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 10                # Num L1 training epochs (per node)
+L1_EPOCHS = 100                # Num L1 training epochs (per node)
 # L1_EPOCHS = 1000                # Num L1 training epochs (per node)
 L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
@@ -105,24 +106,24 @@ AGENT_INPUTFILES = ['static/datasets/small/letters0.csv',
                     'static/datasets/small/letters7.csv']
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
-L1_TRAINFILES = ['static/datasets/letter_train.csv',
+L1_TRAINFILES = ['static/datasets/letters.csv',
                 #  'static/datasets/letter_train.csv',
                 #  'static/datasets/letter_train.csv',
                 #  'static/datasets/letter_train.csv',
                 #  'static/datasets/letter_train.csv',
                 #  'static/datasets/letter_train.csv',
                 #  'static/datasets/letter_train.csv',
-                 'static/datasets/letter_train.csv']
+                 'static/datasets/letters.csv']
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
-L1_VALIDFILES = ['static/datasets/letter_val.csv',
+L1_VALIDFILES = ['static/datasets/letters.csv',
                 #  'static/datasets/letter_val.csv',
                 #  'static/datasets/letter_val.csv',
                 #  'static/datasets/letter_val.csv',
                 #  'static/datasets/letter_val.csv',
                 #  'static/datasets/letter_val.csv',
                 #  'static/datasets/letter_val.csv',
-                 'static/datasets/letter_val.csv']
+                 'static/datasets/letters.csv']
 
 # Non-user configurable
 GRAPH_LEGEND_AGENT = (['Avg Try Len'], 
@@ -130,7 +131,7 @@ GRAPH_LEGEND_AGENT = (['Avg Try Len'],
                       ['Encounters'],
                       ['ReEncounters'],
                       ['ReE Std Dev'])
-GRAPH_LEGEND_L1TRAIN = (['RMS Error'], ['Val Acc'])
+GRAPH_LEGEND_L1TRAIN = (['Training Loss'], ['Validation Acc'])
 
 # Globals
 g_start_time = datetime.now()    # Application start time
@@ -176,26 +177,50 @@ class ClassifierLayer(object):
                 alpha (float)           : Learning gain/momentum
         """
         print('Training layer 1 nodes...')
+        self._cumulative_epoch = 0
+        self._val_stats = []
+
         for i in range(self._depth):
-            g_graph_out.annotate('<-node %d' % i)
-            self._nodes[i].train(
-                train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
-            self._nodes[i].validate(val_data[i], verbose=True)
+            node_str = 'Node %d' % (i + 1)
+            g_graph_out.annotate('<-%s' % node_str)
+            self._t_node = self._nodes[i]
+            self._t_node.train(
+                train_data[i], epochs=epochs, lr=lr, alpha=alpha)
+            self._t_node.validate(val_data[i], verbose=True)
+            self._val_stats.append(
+                '%s: %d%%' % (node_str, self._t_node.train_acc))
         print('Done training layer 1 nodes.')
+        time.sleep(.5)       # Ensure no pause before val stats get refreshed
+        g_graph_out.pause()  # Pause stats graph
 
     def forward(self, inputs):
-        """ Moves the given inputs through the layer, setting self.outputs
-            appropriately.
+        """ Moves the given inputs through the layer.
             Accepts:
                 inputs (list)   : A list of tensors, one per node.
             Returns:
                 A list of outputs with one element (a list) for each node.
-            
         """
         outputs = []
         for i in range(self._depth):
             outputs.append(self._nodes[i].classify(inputs[i]))
         return outputs
+
+    def stats_graphdata(self):
+        """ Returns training statistics as a tuple for graph display.
+        """
+        try:
+            self._cumulative_epoch += self._t_node.train_epoch
+            return self._t_node.train_loss, self._cumulative_epoch
+        except AttributeError:
+            return 0, 0  # No training data yet
+
+    def stats_graphtxt(self):
+        """ Returns training text field data for graph display.
+        """
+        try:
+            return ['Training/Validating... %s' % ', '.join(self._val_stats)]
+        except AttributeError:
+            return ['']  # No training data yet
 
     
 class EvolutionaryLayer(object):
@@ -744,8 +769,8 @@ class Agent(Thread):
 
 if __name__ == '__main__':
     """ This is the main drive for the intutive agent application. 
-        The agent (or others, depending on cmd line args) runs as a thread 
-        to run concurrently with the window (graph) interface.
+        The agent thread (or another, depending on cmd line args) runs 
+        concurrently with the graph output.
     """
     # Parse cmd line options
     opts = opt()
@@ -754,35 +779,39 @@ if __name__ == '__main__':
     opts.add_option('--l1_train', action='store_true', dest='l1_train',
                     help='Train layer one classifiers from current data sets.')
     opts.add_option('--nograph', action='store_true', dest='nograph',
-                    help='Runs the agent without the graph display.')
+                    help='Runs without the graph display.')
     (options, args) = opts.parse_args()
 
     # Instantiate the agent (Note: agent shape is derived from input data)
     agent = Agent(AGENT_NAME, [DataFrom(f) for f in AGENT_INPUTFILES])
     
-    # Set up the output graph
-    g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata,
-                                    3, agent.l3.stats_graphtxt,
-                                    interval=1000,
-                                    legend=GRAPH_LEGEND_AGENT,
-                                    title_txt=AGENT_NAME)
-    # Run either...
-    # The benchmark tool
-    if options.bmark:
-        runthread = Thread(target=agent.l3._run_benchmark)
-
-    # The Layer one training/validation routine
-    elif options.l1_train:
+    # Depending on cmd line args...
+    # Run the Layer one training/validation routine
+    if options.l1_train:
         runthread = Thread(target=agent.l1.train,
                            args=([DataFrom(f) for f in L1_TRAINFILES],
                                  [DataFrom(f) for f in L1_VALIDFILES]))
-        # TODO: g_graph_out = MultiPlotAnimated(2, agent.l1.stats_graphdata,
-        #                                 interval=100,
-        #                                 legend=GRAPH_LEGEND_L1TRAIN,
-        #                                 title_txt=AGENT_NAME + 'L1 Training')
-    # Or the agent itself
+        g_graph_out = MultiPlotAnimated(1, agent.l1.stats_graphdata,
+                                        1, agent.l1.stats_graphtxt,
+                                        interval=100, lim_y=0.25,
+                                        legend=GRAPH_LEGEND_L1TRAIN,
+                                        title_txt=AGENT_NAME + 'L1 Training')
+    # Or...
     else:
-        runthread = agent
+        # Run the benchmark tool
+        if options.bmark:
+            runthread = Thread(target=agent.l3._run_benchmark)
+
+        # Run the agent itself
+        else:
+            runthread = agent
+
+        # Main graph display
+        g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata,
+                                        3, agent.l3.stats_graphtxt,
+                                        interval=1000,
+                                        legend=GRAPH_LEGEND_AGENT,
+                                        title_txt=AGENT_NAME)
 
     # Start the selected thread and graph
     print('Starting %s...' % AGENT_NAME)

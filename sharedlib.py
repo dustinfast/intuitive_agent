@@ -459,10 +459,10 @@ class MultiPlotAnimated():
         self._lines_txt = []        # Holds refs to "current value" txtboxes
         self._fields_txt = []       # Holds refs to Figure descriotion
         self._lines = []            # Holds refs to each line on the figure
-        self._axes = ()             # Holds refs to each axes on the figure
+        self._axes = []             # Holds refs to each axes on the figure
         
         # Set up the plot figure, dictating windows size (figsize)
-        self.figure, self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
+        self.figure, *self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
         
         # Adjust the l/r boundries of each plot
         plt.subplots_adjust(left=0.04, right=.95)
@@ -570,9 +570,14 @@ class MultiPlotAnimated():
         # Ensure populated
         if x_data:
             x = x_data[len(x_data) - 1]
-            for ax in self._axes:
-                ax.text(x, 0.01, s)
-                # TODO: Verticle line in each graph
+        else:
+            x = 1
+
+        # Annotate every axis at (x, 0.01)
+        for ax in self._axes:
+            ax.text(x, 0.01, s)
+
+        # TODO: Verticle line in each graph
 
     def play(self):
         """ Plays/Resumes graph animation, starting the animation if needed.

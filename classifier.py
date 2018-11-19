@@ -53,6 +53,12 @@ class Classifier(nn.Module):
         self.outputs = torch.randn(dims[2])
         self.class_labels = None
 
+        # Statistics containers
+        self.train_epoch = 0
+        self.train_loss = 0
+        self.train_acc = 0
+        self.train_acc_v = ''
+
         # Define loss function 
         self.loss_func = nn.MSELoss()
 
@@ -89,7 +95,7 @@ class Classifier(nn.Module):
         self.outputs = self.seq_layers(t)
         return self.outputs
 
-    def train(self, data, epochs=100, lr=.1, alpha=.9, stats_at=10, noise=None):
+    def train(self, data, epochs=100, lr=.1, alpha=.9, stats_at=10):
         """ Trains the ANN according to the given parameters.
             data (iterable):    Training dataset
             epochs (int):       Learning iterations
@@ -110,22 +116,24 @@ class Classifier(nn.Module):
 
         # Do training
         optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=alpha)        
-        for epoch in range(epochs):
+        for self.train_epoch in range(epochs):
             for row in data:
                 inputs, target = iter(row)
                 optimizer.zero_grad()
                 outputs = self(inputs)
-                curr_loss = self.loss_func(outputs, target)
-                curr_loss.backward()
+                self.train_loss = self.loss_func(outputs, target)
+                self.train_loss.backward()
                 optimizer.step()
-            if curr_loss == 0.0: break
+            if self.train_loss == 0.0: break
 
             # Output status as specified by stats_at
-            if stats_at and epoch % stats_at == 0:
-                self.model.log('Epoch {} - loss: {}'.format(epoch, curr_loss))
+            if stats_at and self.train_epoch % stats_at == 0:
+                self.model.log(
+                    'Epoch {} - loss: {}'.format(
+                        self.train_epoch, self.train_loss))
 
         self.model.log('Training Completed: ' + info_str + '\n')
-        self.model.log('Last epcoh loss: {}'.format(curr_loss))
+        self.model.log('Last epcoh loss: {}'.format(self.train_loss))
 
         # If persisting, save the updated model
         if self.persist:
@@ -143,6 +151,7 @@ class Classifier(nn.Module):
 
         total = 0
         corr = 0
+        self.train_acc = 0
         class_total = {c: 0 for c in self.class_labels}
         class_corr = {c: 0 for c in self.class_labels}
 
@@ -159,6 +168,8 @@ class Classifier(nn.Module):
                     corr += 1
                     class_corr[pred_class] += 1
 
+                self.train_acc = corr / total
+
         log_str = 'Validation Completed: Accuracy=%d%%\n' % (100 * corr / total)
 
         # If verbose, output detailed accuracy info
@@ -173,6 +184,7 @@ class Classifier(nn.Module):
                     log_str += '(0%)'
                 log_str += '\n'
         
+        self.train_acc_v = log_str
         self.model.log(log_str)
 
     def max_index(self, t):
