@@ -14,9 +14,6 @@
         If CONSOLE_OUT = True:
             Agent (and its sub-modules) output log statements to stdout.
 
-        If STATS_OUT = True:
-            Statistics info output to console
-
     Usage: 
         Run from the terminal with './agent.py'.
         To pre-train layer 1, run with './agent.py -l1_train'.
@@ -59,35 +56,35 @@ from datetime import datetime
 from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom, TimePlotAnimated
+from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
 
 # Output toggles
-PERSIST = True          # File persistence
-CONSOLE_OUT = False     # Log statement output to console
-STATS_OUT = True        # Statistics output to console
-GRAPH_OUT = True        # Statistics display in graph form
+PERSIST = True                  # File persistence
+CONSOLE_OUT = False             # Log statement output to console
+STATS_OUT = True                # Statistics output to console
+GRAPH_OUT = True                # Statistics display in graph form
 
 # Top-level user configurables
-AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
-AGENT_FILE_EXT = '.agnt'         # Log file extension
-AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES
+AGENT_NAME = 'agent1_memdepth1' # Log file prefix
+AGENT_FILE_EXT = '.agent'       # Log file extension
+AGENT_ITERS = 1                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 1000            # Num L1 training epochs (per node)
-L1_LR = .001                # Classifier learning rate (all nodes)
-L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
+L1_EPOCHS = 1000                # Num L1 training epochs (per node)
+L1_LR = .001                    # Classifier learning rate (all nodes)
+L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
 # Layer 2 user configurables
 L2_EXT = '.lyr2'
-L2_KERNEL_MODE = 1      # 1 = no case flip, 2 = w/case flip
-L2_MUT_REPRO = 0.10     # Genetic mutation ration: Reproduction
-L2_MUT_POINT = 0.40     # Genetic mutation ration: Point
-L2_MUT_BRANCH = 0.10    # Genetic mutation ration: Branch
-L2_MUT_CROSS = 0.40     # Genetic mutation ration: Crossover
-L2_MAX_DEPTH = 5        # Max is 10, per KarooGP (has perf affect)
-L2_GAIN = .75           # Fit/random ratio of the genetic pool
-L2_MEMDEPTH = 1         # Working mem depth, an iplier of L1's input sz
-L2_MAX_POP = 50         # Genetic population size (has perf affect)
+L2_KERNEL_MODE = 1              # 1 = no case flip, 2 = w/case flip
+L2_MUT_REPRO = 0.10             # Genetic mutation ration: Reproduction
+L2_MUT_POINT = 0.40             # Genetic mutation ration: Point
+L2_MUT_BRANCH = 0.10            # Genetic mutation ration: Branch
+L2_MUT_CROSS = 0.40             # Genetic mutation ration: Crossover
+L2_MAX_DEPTH = 5                # Max is 10, per KarooGP (has perf affect)
+L2_GAIN = .75                   # Fit/random ratio of the genetic pool
+L2_MEMDEPTH = 1                 # Working mem depth, an iplier of L1's input sz
+L2_MAX_POP = 50                 # Genetic population size (has perf affect)
 L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 # Layer 3 user configurables
@@ -125,7 +122,7 @@ L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 # Globals
-g_start_time = datetime.now()   # Application start time
+g_start_time = datetime.now()    # Application start time
 g_graph_out = None               # Graph output handler
 
 class ClassifierLayer(object):
@@ -518,6 +515,7 @@ class LogicalLayer(object):
         self.stats_clear()  # Ensure fresh stats containers
 
         # Query every combination of lcase strings against agent's context
+        print('Running benchmark queries...')
         t_start = datetime.now()
         for _ in range(epochs):
             for _ in range(epochs):
@@ -700,9 +698,13 @@ class Agent(threading.Thread):
 
             # End of iteration...
             self.l2._node.clear_mem()  # Keep data consistent across iterations
-
+            
+            # Stat keeping
+            stats = self.l3. stats_str(g_start_time, clear=True)
+            self.model.log(stats)
+            
             if STATS_OUT:
-                print(self.l3. stats_str(g_start_time, clear=True))
+                print(stats)
 
             if PERSIST:
                 self.model.save()  # Save the model to file
@@ -727,25 +729,24 @@ if __name__ == '__main__':
 
     # Set up the graphical output
     legend = ('T', 'L', 'E', 'R', 'V')
-    g_graph_out = TimePlotAnimated(5, agent.l3.stats_graphdata, 
-                                   3, agent.l3.stats_graphtxt,
-                                   interval=10, legend=legend,
-                                   title_txt=AGENT_NAME)
+    g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
+                                    3, agent.l3.stats_graphtxt,
+                                    interval=10, legend=legend,
+                                    title_txt=AGENT_NAME)
     if GRAPH_OUT:
         g_graph_out.play()
+
+    if len(sys.argv) > 1 and sys.argv[1] == '-bench':
+        threading.Thread(target=agent.l3.run_benchmark).start()
+        if GRAPH_OUT:
+            g_graph_out.show()  # Blocks
+        exit()
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
             print('Training layer 1...', sep=' ')
             agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
             # TODO: Graph output
-
-    if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        print('Running benchmark queries...', sep=' ')
-        threading.Thread(target=agent.l3.run_benchmark).start()
-        if GRAPH_OUT:
-            g_graph_out.show()  # Blocks
-        exit()
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)

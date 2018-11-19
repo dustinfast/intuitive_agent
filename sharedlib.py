@@ -424,15 +424,24 @@ class Queue:
         """
         return [item for item in self.items]
 
-class TimePlotAnimated(object):
-    """ A multi-plot matplotlib graph - displayings one or more line graphs
-        with each graph using the same x axis data
+class MultiPlotAnimated(object):
+    """ A multi-axes matplotlib graph - displays one or more line graphs
+        whith each graph using the same x axis data. 
     """
     _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Matplotlib colors
 
     def __init__(self, line_count, lines_func, field_count=0, field_func=None,
                  interval=60, legend=(), lim_x=100, lim_y=50, title_txt=''):
         """ Accepts:
+                line_count (int)        : Num seperate graphs figure will house
+                lines_func (func)       : Func returning line_count variables
+                field_count (int)       : Num dynamic txt boxes figure contains
+                field_func (func)       : Func returning field_count strings
+                interval (int)          : Graph refresh interval (ms)
+                legend (tuple)          : String labels for each line
+                lim_x (int)             : Initial x axis limit (grows as needed)
+                lim_y (int)             : Initial y axis limit (grows as needed)
+                title_txt (str)         : Figure title text
         """
         self.figure = None              # The matplot lib figure
         self._lines_num = line_count    # Count of lines contained in figure
@@ -452,6 +461,7 @@ class TimePlotAnimated(object):
         
         # Set up the plot figure
         self.figure, self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
+        plt.subplots_adjust(left=0.03, right=.95)
         self.figure.text(0.5, 0.91, title_txt, fontsize=18, fontweight='bold',
                          horizontalalignment='center')
         
@@ -574,6 +584,11 @@ class TimePlotAnimated(object):
         """
         plt.show()
 
+    def close(self):
+        """ Closes the graph windows.
+        """
+        plt.close()
+
 
 ################
 # Function Lib #
@@ -592,9 +607,9 @@ def negate(x):
     return (x * -1)
 
 
-###################
-# Graph Debug ... #
-###################
+###############
+# Graph Debug #
+###############
 # t = 1
 # dt = 2
 # a = 10
@@ -614,9 +629,9 @@ def negate(x):
 
 
 # legend = ('x', 'y', 'z')
-# # plot = TimePlotAnimated(3, simline, interval=10,
+# # plot = MultiPlotAnimated(3, simline, interval=10,
 # #                         legend=legend, title_txt='testg')
-# plot = TimePlotAnimated(3, simline, 3, simtxt, interval=10,
+# plot = MultiPlotAnimated(3, simline, 3, simtxt, interval=10,
 #                         legend=legend, title_txt='testg')
 # plot.play()
 # print('Running... ', sep=' ')
