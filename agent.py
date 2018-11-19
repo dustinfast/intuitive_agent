@@ -484,12 +484,13 @@ class LogicalLayer(object):
         ret = '\n-- Epoch %s Statistics --\n' % stats['epoch']
         ret += 'Input count: %d\n' % self.input_count
         ret += 'Avg input length: %d\n' % stats['avg_len']
-        ret += 'Total learns: %d\n' % stats['learns']
+
+        ret += '\nTotal learns: %d\n' % stats['learns']
         ret += 'Total encounters: %d\n' % stats['encounters']
         ret += 'Total re-encounters: %d\n' % stats['re_encounters']
         ret += 'Re-encounter variance: %d\n' % stats['re_variance']
 
-        ret += 'Learned (lifetime):\n%s\n' % str(self.kb_lifetime)
+        ret += '\nLearned (lifetime):\n%s\n' % str(self.kb_lifetime)
         ret += 'Learned (this epoch):\n%s\n' % str(self.learned)
         ret += '\nRe-encounters (keys):\n%s\n' % str(keys)  # debug
         ret += '\nRe-encounters (dist):\n%s\n' % str(dist)  # debug
@@ -725,7 +726,7 @@ if __name__ == '__main__':
     # Instantiate the agent (Note: agent shape derived from input data)
     agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
     plot = MultiLinePlot(agent.l3.stats_graphable)
-    animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
+    animation = FuncAnimation(plot.figure, plot.update_graph, interval=1000)
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':

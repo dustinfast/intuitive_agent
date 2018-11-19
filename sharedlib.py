@@ -20,9 +20,8 @@ import logging.handlers
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
-import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
+import pandas as pd
 
 # User configurable
 OUT_PATH = 'var'                # Log and Model file output directories
@@ -427,17 +426,21 @@ class Queue:
 class MultiLinePlot(object):
     """ A multi-plot matplotlib figure, for displaying multiple line graphs.
     """
+    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+
     def __init__(self, metrics_func):
         # Figure w/5 subplots
         self.get_metrics = metrics_func
-        self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
+        self.figure, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
         self.axes = (ax1, ax2, ax3, ax4, ax5)
+        # TODO: self.paused = False
         self.time = []
         self.learns = []
         self.encs = []
         self.rencs = []
         self.rencs_var = []
         self.lens = []
+        self.lines = []
 
         ln1, = ax1.plot([], [], lw=2, color='b')
         ln2, = ax2.plot([], [], lw=2, color='r')
@@ -468,7 +471,9 @@ class MultiLinePlot(object):
                 ax.set_xlim(xmin, 2 * xmax)
                 ax.figure.canvas.draw()
 
-        # update the data of both ln objects
+        # TODO: Expand y axes as needed
+
+        # update the data of for all lines
         self.lines[0].set_data(self.time, self.learns)
         self.lines[1].set_data(self.time, self.encs)
         self.lines[2].set_data(self.time, self.rencs)
