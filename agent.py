@@ -63,18 +63,17 @@ from connector import Connector
 from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
 
 # Output toggles
-PERSIST = False                  # File persistence
-CONSOLE_OUT = True             # Log statement output to console
+PERSIST = True                  # File persistence
+CONSOLE_OUT = False             # Log statement output to console
 STATS_OUT = True                # Statistics output to console
 
 # Top-level user configurables
-AGENT_NAME = 'test_agent'       # Log file prefix
+AGENT_NAME = 'Test-Agent'       # Log file prefix
 AGENT_FILE_EXT = '.agent'       # Log file extension
-AGENT_ITERS = 2                 # Num times to iterate AGENT_INPUTFILES
+AGENT_ITERS = 5                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 100                # Num L1 training epochs (per node)
-# L1_EPOCHS = 1000                # Num L1 training epochs (per node)
+L1_EPOCHS = 800                 # Num L1 training epochs (per node)
 L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
@@ -97,33 +96,33 @@ L3_CONTEXTMODE = Connector.is_python_func
 
 # Agent input data set. Length denotes the agent's L1 and L2 depth.
 AGENT_INPUTFILES = ['static/datasets/small/letters0.csv',
-                    # 'static/datasets/small/letters1.csv',
-                    # 'static/datasets/small/letters2.csv',
-                    # 'static/datasets/small/letters3.csv',
-                    # 'static/datasets/small/letters4.csv',
-                    # 'static/datasets/small/letters5.csv',
-                    # 'static/datasets/small/letters6.csv',
+                    'static/datasets/small/letters1.csv',
+                    'static/datasets/small/letters2.csv',
+                    'static/datasets/small/letters3.csv',
+                    'static/datasets/small/letters4.csv',
+                    'static/datasets/small/letters5.csv',
+                    'static/datasets/small/letters6.csv',
                     'static/datasets/small/letters7.csv']
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
-L1_TRAINFILES = ['static/datasets/letters.csv',
-                #  'static/datasets/letter_train.csv',
-                #  'static/datasets/letter_train.csv',
-                #  'static/datasets/letter_train.csv',
-                #  'static/datasets/letter_train.csv',
-                #  'static/datasets/letter_train.csv',
-                #  'static/datasets/letter_train.csv',
-                 'static/datasets/letters.csv']
+L1_TRAINFILES = ['static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv']
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
-L1_VALIDFILES = ['static/datasets/letters.csv',
-                #  'static/datasets/letter_val.csv',
-                #  'static/datasets/letter_val.csv',
-                #  'static/datasets/letter_val.csv',
-                #  'static/datasets/letter_val.csv',
-                #  'static/datasets/letter_val.csv',
-                #  'static/datasets/letter_val.csv',
-                 'static/datasets/letters.csv']
+L1_VALIDFILES = ['static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv']
 
 # Non-user configurable
 GRAPH_LEGEND_AGENT = (['Avg Try Len'], 
@@ -135,7 +134,7 @@ GRAPH_LEGEND_L1TRAIN = (['Training Loss'], ['Validation Acc'])
 
 # Globals
 g_start_time = datetime.now()    # Application start time
-g_graph_out = None               # Graph output handler
+g_graph_out = None               # Output graph handler
 
 class ClassifierLayer(object):
     """ An abstraction of the agent's classifier layer (i.e. layer one), 
@@ -813,11 +812,15 @@ if __name__ == '__main__':
                                         legend=GRAPH_LEGEND_AGENT,
                                         title_txt=AGENT_NAME)
 
-    # Start the selected thread and graph
+    # Start the selected thread
     print('Starting %s...' % AGENT_NAME)
     runthread.start()
+    
+    # Display staistics graphs
     if not options.nograph:
         g_graph_out.play()
-        g_graph_out.show()  # Blocks
+        g_graph_out.show()  # Blocks until window closed
+
     runthread.join()
+
     print('Quitting... Goodbye.')
