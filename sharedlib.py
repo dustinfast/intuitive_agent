@@ -20,8 +20,10 @@ import logging.handlers
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable as V
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
 
 # User configurable
 OUT_PATH = 'var'                # Log and Model file output directories
@@ -422,70 +424,88 @@ class Queue:
         """
         return [item for item in self.items]
 
-
-class MultiPlotAnimated(object):
-    """ A multi-plot matplotlib figure, for displaying multiple line graphs
-        where each line uses the same x axis value.
+class TimePlotAnimated(object):
+    """ A multi-plot matplotlib graph - displayings one or more line graphs
+        with each graph using the same x axis data
     """
-    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']  # Matplotlib color codes
+    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']  # Matplotlib colors
 
-    def __init__(self, num_lines, metrics_func, legend=(), x_lim=100, y_lim=50):
+    def __init__(self, line_count, lines_func, field_count=0, field_func=None,
+                 interval=10, labels=(), legend=(), lim_x=100, lim_y=50):
         """ Accepts:
         """
-        self._num_lines = num_lines
-        self._metrics_func = metrics_func
-        self._datasets = []
-        self._paused = False
-        self.figure = None
-        self._axes = ()
-        self._lines = []
+        self.figure = None              # The matplot lib figure
+        self._lines_num = line_count    # Count of lines contained in figure
+        self._lines_func = lines_func   # Func for getting updated line data
+        self._fields_num = field_count  # Count of dynamic txt fields in fig
+        self._fields_func = field_func  # Func for getting updated field data
+        self._animation_sp = interval   # Graph refresh speed (ms)
+        self._animation = None          # Ref to animation instance
+        self._paused = False            # Denotes graph update is paused
+
+        # Containers
+        self._datasets = []         # Axis data containers
+        self._lines_txt = []        # Holds refs to "current value" txtboxes
+        self._fields_txt = []       # Holds refs to Figure descriotion
+        self._lines = []            # Holds refs to each line on the figure
+        self._axes = ()             # Holds refs to each axes on the figure
         
         # Set up the figure
-        # TODO: plt.legend(['y = x', 'y = 2x', 'y = 3x', 'y = 4x'], loc='upper left')
-        self.figure, self._axes = plt.subplots(num_lines, 1)
+        self.figure, self._axes = plt.subplots(line_count, 1)
+        # TODO: Windows dimens
         
-        # Init each lines data list, plus one more (the last) for shared x data
-        self._datasets = [[] for i in range(num_lines + 1)]
+        # Init sets for each line plus 1 more (the last) for time data
+        self._datasets = [[] for i in range(line_count + 1)]
 
-        # Set up lines/axes
-        color = self._next_color()  # Generator
-        for i in range(num_lines):
-            ln, = self._axes[i].plot([], [], lw=2, color=next(color))
+        # Set up the figure's lines, axes, etc
+        color = self._next_color_gen()
+        for i in range(line_count):
+            # Lines...
+            axes = self._axes[i]
+            ln, = axes.plot([], [], lw=2, color=next(color))
             self._lines.append(ln)
+
+            # Curr value placeholders...
+            txt = axes.text(1.01, 0, 'A', transform=axes.transAxes)
+            self._lines_txt.append(txt)
+            
+            # Legend...
+            try:
+                axes.legend(list(legend[i]))
+            except IndexError:
+                pass
+
+        # Set up main figure txt boxes
+        # TODO: Title
+        # TODO: learned, etc
         
         # Set initial axes bounds
         for ax in self._axes:
-            ax.set_xlim(0, x_lim)
-            ax.set_ylim(0, y_lim)
+            ax.set_xlim(0, lim_x)
+            ax.set_ylim(0, lim_y)
             ax.grid()
-    
-    def _next_color(self):
-        """ A generator returning the next matplotlib color code (ex: 'b').
-        """
-        idx = -1
-        ubound = len(self._colors)
-
-        while True:
-            idx += 1
-            if idx >= ubound:
-                idx = -1
-            yield self._colors[idx]
-
+        
     def _update_graph(self, frame):
-        # Update data display if animation is not paused.
+        """ Function used by FuncAnimate to update graph data. 
+        """
+        test = [1,2,3]
+        # Refresh data if not paused, else return currentlines
         if not self._paused:
-            data = self._metrics_func()  # Get data set
+                        # Refresh lines data...
+            line_data = self._lines_func()
 
-            # Get the last data element (it's our shared x value)
-            self._datasets[self._num_lines].append(data[self._num_lines])
-            x = self._datasets[self._num_lines]
-            new_xval = data[len(data) - 1]
+            # Get the last data element (it is the shared x axis data)
+            self._datasets[self._lines_num].append(line_data[self._lines_num])
+            x = self._datasets[self._lines_num]
+            new_xval = line_data[len(line_data) - 1]
 
-            # Iterate over all but last element to update each line's data set
-            for i in range(self._num_lines):
-                d = data[i]
+            # Iterate all but last data set to update line properties
+            for i in range(self._lines_num):
+                d = line_data[i]
                 self._datasets[i].append(d)
                 self._lines[i].set_data(x, self._datasets[i])
+
+                self._lines_txt[i].set_text(str(d))
 
                 # Grow this y axis as needed
                 ymin, ymax = self._axes[i].get_ylim()
@@ -500,22 +520,45 @@ class MultiPlotAnimated(object):
                     ax.set_xlim(xmin, 2 * xmax)
                     ax.figure.canvas.draw()
 
+            # Refresh fields data...
+            if self._fields_func:
+                field_data = self._fields_func()
+
+                for i in range(self._fields_num):
+                    self._field_txt[i] = field_data[i]
+
         return self._lines
 
-    def animate(self, ms):
-        """ Sets up animation for the graph and returns the animation obj.
-            Accepts: 
-                ms (float)  : Milliseconds between redraws
+    def _next_color_gen(self):
+        """ A generator returning the next matplotlib color code (ex: 'b').
         """
-        return FuncAnimation(self.figure, self._update_graph, interval=ms)
+        idx = -1
+        ubound = len(self._colors)
 
-    def toggle_animation(self):
-        """ Stops/starts the graph animation, assuming it has been set up.
+        while True:
+            idx += 1
+            if idx >= ubound:
+                idx = -1
+            yield self._colors[idx]
+
+    def play(self):
+        """ Plays/Resumes graph animation, starting the animation if needed.
         """
-        self._paused ^= True
+        self._paused = False
+
+        if not self._animation:  # Init animation if needed
+            self._animation = FuncAnimation(self.figure,
+                                            self._update_graph,
+                                            interval=self._animation_sp)
+
+    def pause(self):
+        """ Pauses the graph animation if it is running.
+        """
+        if self._animation:
+            self._paused = True
 
     def show(self):
-        """ Shows the animated graph.
+        """ Shows the animated graph window.
         """
         plt.show()
 
