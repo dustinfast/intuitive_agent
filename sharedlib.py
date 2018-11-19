@@ -424,6 +424,60 @@ class Queue:
         return [item for item in self.items]
 
 
+class MultiLinePlot(object):
+    """ A multi-plot matplotlib figure, for displaying multiple line graphs.
+    """
+    def __init__(self, metrics_func):
+        # Figure w/5 subplots
+        self.get_metrics = metrics_func
+        self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
+        self.axes = (ax1, ax2, ax3, ax4, ax5)
+        self.time = []
+        self.learns = []
+        self.encs = []
+        self.rencs = []
+        self.rencs_var = []
+        self.lens = []
+
+        ln1, = ax1.plot([], [], lw=2, color='b')
+        ln2, = ax2.plot([], [], lw=2, color='r')
+        ln3, = ax3.plot([], [], lw=2, color='g')
+        ln4, = ax4.plot([], [], lw=2, color='y')
+        ln5, = ax5.plot([], [], lw=2, color='b')
+        self.lines = [ln1, ln2, ln3, ln4, ln5]
+
+        # Set axes bounds
+        for ax in self.axes:
+            ax.set_ylim(0, 40)
+            ax.set_xlim(0, 100)
+            ax.grid()
+
+    def update_graph(self, frame):
+        t, y1, y2, y3, y4, y5 = self.get_metrics()
+        self.time.append(t)
+        self.learns.append(y1)
+        self.encs.append(y2)
+        self.rencs.append(y3)
+        self.rencs_var.append(y4)
+        self.lens.append(y5)
+
+        # Expand x axes as needed
+        for ax in self.axes:
+            xmin, xmax = ax.get_xlim()
+            if t >= xmax:
+                ax.set_xlim(xmin, 2 * xmax)
+                ax.figure.canvas.draw()
+
+        # update the data of both ln objects
+        self.lines[0].set_data(self.time, self.learns)
+        self.lines[1].set_data(self.time, self.encs)
+        self.lines[2].set_data(self.time, self.rencs)
+        self.lines[3].set_data(self.time, self.rencs_var)
+        self.lines[4].set_data(self.time, self.lens)
+
+        return self.lines
+
+
 ################
 # Function Lib #
 ################

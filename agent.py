@@ -63,23 +63,22 @@ from matplotlib.animation import FuncAnimation
 from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom
+from sharedlib import ModelHandler, DataFrom, MultiLinePlot
 
-PERSIST = True
-CONSOLE_OUT = False
-STATS_OUT = True
+# Output toggles
+PERSIST = True          # File persistence
+CONSOLE_OUT = False     # Log statement output to console
+STATS_OUT = True        # Statistics output to console
 
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agnt'         # Log file extension
 AGENT_ITERS = 1                  # Num times to iterate AGENT_INPUTFILES
 
-
 # Layer 1 user configurables
 L1_EPOCHS = 1000            # Num L1 training epochs (per node)
 L1_LR = .001                # Classifier learning rate (all nodes)
 L1_ALPHA = .9               # Classifier learning rate momentum (all nodes)
-
 
 # Layer 2 user configurables
 L2_EXT = '.lyr2'
@@ -98,35 +97,34 @@ L2_TOURNYSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_kwd
 
-# Data sets...
-# Agent input data. Length denotes the agent's L1 and L2 depth.
-AGENT_INPUTFILES = [DataFrom('static/datasets/letters0.csv'),
-                    DataFrom('static/datasets/letters1.csv'),
-                    # DataFrom('static/datasets/letters2.csv'),
-                    # DataFrom('static/datasets/letters3.csv'),
-                    # DataFrom('static/datasets/letters4.csv'),
-                    # DataFrom('static/datasets/letters5.csv'),
-                    # DataFrom('static/datasets/letters6.csv'),
-                    DataFrom('static/datasets/letters7.csv')]
+# Agent input data set. Length denotes the agent's L1 and L2 depth.
+AGENT_INPUTFILES = [DataFrom('static/datasets/small/letters0.csv'),
+                    DataFrom('static/datasets/small/letters1.csv'),
+                    DataFrom('static/datasets/small/letters2.csv'),
+                    # DataFrom('static/datasets/small/letters3.csv'),
+                    # DataFrom('static/datasets/small/letters4.csv'),
+                    # DataFrom('static/datasets/small/letters5.csv'),
+                    # DataFrom('static/datasets/small/letters6.csv'),
+                    DataFrom('static/datasets/small/letters7.csv')]
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv'),
-                 #  DataFrom('static/datasets/letter_train.csv'),
-                 #  DataFrom('static/datasets/letter_train.csv'),
-                 #  DataFrom('static/datasets/letter_train.csv'),
-                 #  DataFrom('static/datasets/letter_train.csv'),
-                 #  DataFrom('static/datasets/letter_train.csv'),
+                 DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
                  DataFrom('static/datasets/letter_train.csv')]
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv'),
-                 #  DataFrom('static/datasets/letter_val.csv'),
-                 #  DataFrom('static/datasets/letter_val.csv'),
-                 #  DataFrom('static/datasets/letter_val.csv'),
-                 #  DataFrom('static/datasets/letter_val.csv'),
-                 #  DataFrom('static/datasets/letter_val.csv'),
+                 DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
                  DataFrom('static/datasets/letter_val.csv')]
 
 # Globals
@@ -723,64 +721,11 @@ class Agent(threading.Thread):
         self.model.log(output_str)
 
 
-class AgentPlot(object):
-    """ A multi-plot matplotlib figure, for displaying graphs.
-    """
-    def __init__(self, metrics_func):
-        # Figure w/5 subplots
-        self.get_metrics = metrics_func
-        self.fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
-        self.axes = (ax1, ax2, ax3, ax4, ax5)
-        self.time = []
-        self.learns = []
-        self.encs = []
-        self.rencs = []
-        self.rencs_var = []
-        self.lens = []
-
-        ln1, = ax1.plot([], [], lw=2, color='b')
-        ln2, = ax2.plot([], [], lw=2, color='r')
-        ln3, = ax3.plot([], [], lw=2, color='g')
-        ln4, = ax4.plot([], [], lw=2, color='y')
-        ln5, = ax5.plot([], [], lw=2, color='b')
-        self.lines = [ln1, ln2, ln3, ln4, ln5]
-
-        # Set axes bounds
-        for ax in self.axes:
-            ax.set_ylim(0, 40)
-            ax.set_xlim(0, 100)
-            ax.grid()
-
-    def update_graph(self, frame):
-        t, y1, y2, y3, y4, y5 = self.get_metrics()
-        self.time.append(t)
-        self.learns.append(y1)
-        self.encs.append(y2)
-        self.rencs.append(y3)
-        self.rencs_var.append(y4)
-        self.lens.append(y5)
-
-        # Expand x axes as needed
-        for ax in self.axes:
-            xmin, xmax = ax.get_xlim()
-            if t >= xmax:
-                ax.set_xlim(xmin, 2 * xmax)
-                ax.figure.canvas.draw()
-
-        # update the data of both ln objects
-        self.lines[0].set_data(self.time, self.learns)
-        self.lines[1].set_data(self.time, self.encs)
-        self.lines[2].set_data(self.time, self.rencs)
-        self.lines[3].set_data(self.time, self.rencs_var)
-        self.lines[4].set_data(self.time, self.lens)
-
-        return self.lines
-
-
 if __name__ == '__main__':
     # Instantiate the agent (Note: agent shape derived from input data)
     agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
-    plot = AgentPlot(agent.l3.stats_graphable)
+    plot = MultiLinePlot(agent.l3.stats_graphable)
+    animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
@@ -789,14 +734,14 @@ if __name__ == '__main__':
             print('Done.')
 
     if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
+        print('Running benchmark queries...', sep=' ')
         threading.Thread(target=agent.l3.run_benchmark).start()
         plt.show()
+        print('Done.')
         exit()
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)
-    animation = FuncAnimation(plot.fig, plot.update_graph, interval=1000)
     agent.start(AGENT_ITERS)
     plt.show()
     agent.join()
