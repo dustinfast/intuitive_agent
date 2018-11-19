@@ -431,7 +431,7 @@ class MultiPlotAnimated(object):
     _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Matplotlib colors
 
     def __init__(self, line_count, lines_func, field_count=0, field_func=None,
-                 interval=60, legend=(), lim_x=100, lim_y=50, title_txt=''):
+                 interval=60, legend=(), lim_x=50, lim_y=50, title_txt=''):
         """ Accepts:
                 line_count (int)        : Num seperate graphs figure will house
                 lines_func (func)       : Func returning line_count variables
@@ -459,9 +459,13 @@ class MultiPlotAnimated(object):
         self._lines = []            # Holds refs to each line on the figure
         self._axes = ()             # Holds refs to each axes on the figure
         
-        # Set up the plot figure
+        # Set up the plot figure, dictating windows size (figsize)
         self.figure, self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
+        
+        # Adjust the l/r boundries of each plot
         plt.subplots_adjust(left=0.03, right=.95)
+
+        # Add plot header
         self.figure.text(0.5, 0.91, title_txt, fontsize=18, fontweight='bold',
                          horizontalalignment='center')
         
@@ -557,18 +561,23 @@ class MultiPlotAnimated(object):
             yield self._colors[idx]
 
     def annotate(self, s):
-        """ Adds an annotation across all plots at the current location.
+        """ Adds an annotation across all plots at the current x location.
         """
-        x = self._datasets[:-1][:-1]
-        for ax in self._axes:
-            ax.text(x, 0, s)
+        x_data = self._datasets[self._lines_num]
+
+        # Ensure populated
+        if x_data:
+            x = x_data[len(x_data) - 1]
+            for ax in self._axes:
+                ax.text(x, 0.01, s)
 
     def play(self):
         """ Plays/Resumes graph animation, starting the animation if needed.
         """
         self._paused = False
 
-        if not self._animation:  # Init animation if needed
+        # Init animation if needed
+        if not self._animation:
             self._animation = FuncAnimation(self.figure,
                                             self._update_graph,
                                             interval=self._animation_sp)
@@ -577,7 +586,7 @@ class MultiPlotAnimated(object):
         """ Pauses the graph animation if it is running.
         """
         if self._animation:
-            self._paused = True
+            self._paused = True  # Avoid sticky confusion
 
     def show(self):
         """ Shows the animated graph window.
@@ -632,8 +641,9 @@ def negate(x):
 # # plot = MultiPlotAnimated(3, simline, interval=10,
 # #                         legend=legend, title_txt='testg')
 # plot = MultiPlotAnimated(3, simline, 3, simtxt, interval=10,
-#                         legend=legend, title_txt='testg')
+#                          legend=legend, title_txt='testg')
 # plot.play()
 # print('Running... ', sep=' ')
+# plot.annotate('t')
 # plot.show()
 # print('Done.')

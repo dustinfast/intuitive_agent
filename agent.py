@@ -89,12 +89,12 @@ L2_POOLSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 # Layer 3 user configurables
 L3_EXT = '.lyr3'
-L3_CONTEXTMODE = Connector.is_python_kwd
+L3_CONTEXTMODE = Connector.is_python_func
 
 # Agent input data set. Length denotes the agent's L1 and L2 depth.
 AGENT_INPUTFILES = [DataFrom('static/datasets/small/letters0.csv'),
-                    DataFrom('static/datasets/small/letters1.csv'),
-                    DataFrom('static/datasets/small/letters2.csv'),
+                    # DataFrom('static/datasets/small/letters1.csv'),
+                    # DataFrom('static/datasets/small/letters2.csv'),
                     # DataFrom('static/datasets/small/letters3.csv'),
                     # DataFrom('static/datasets/small/letters4.csv'),
                     # DataFrom('static/datasets/small/letters5.csv'),
@@ -103,8 +103,8 @@ AGENT_INPUTFILES = [DataFrom('static/datasets/small/letters0.csv'),
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
+                #  DataFrom('static/datasets/letter_train.csv'),
                 #  DataFrom('static/datasets/letter_train.csv'),
                 #  DataFrom('static/datasets/letter_train.csv'),
                 #  DataFrom('static/datasets/letter_train.csv'),
@@ -113,8 +113,8 @@ L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
+                #  DataFrom('static/datasets/letter_val.csv'),
                 #  DataFrom('static/datasets/letter_val.csv'),
                 #  DataFrom('static/datasets/letter_val.csv'),
                 #  DataFrom('static/datasets/letter_val.csv'),
@@ -499,10 +499,11 @@ class LogicalLayer(object):
 
         return ret
 
-    def run_benchmark(self, width=4, epochs=3):
-        """ A function for establishing baseline performance metrics by brute
-            forcing strings against the current context mode. Benchmark 
-            statistics are output to the console.
+    def _run_benchmark(self, width=5, epochs=3):
+        """ A debug function for testing satistics functionality and getting
+            baseline performance metrics by brute forcing strings generated
+            combinatorily against the current context mode. Benchmark 
+            statistics are output via console and graph, depending on consts.
             Accepts:
                 width (int)     : Max string width to generate
                 epochs (int)    : Benchmark revolutions
@@ -551,6 +552,7 @@ class LogicalLayer(object):
                                 self.re_encounters_t.append(sec_in)
                                 print('L3 Re-encountered: ' + item)
                 
+                g_graph_out.annotate('<-epoch')
                 print(self. stats_str(t_start))
 
         g_graph_out.pause()
@@ -731,13 +733,13 @@ if __name__ == '__main__':
     legend = ('T', 'L', 'E', 'R', 'V')
     g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
                                     3, agent.l3.stats_graphtxt,
-                                    interval=250, legend=legend,
+                                    interval=1000, legend=legend,
                                     title_txt=AGENT_NAME)
     if GRAPH_OUT:
         g_graph_out.play()
 
     if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        threading.Thread(target=agent.l3.run_benchmark).start()
+        threading.Thread(target=agent.l3._run_benchmark).start()
         if GRAPH_OUT:
             g_graph_out.show()  # Blocks
         exit()
