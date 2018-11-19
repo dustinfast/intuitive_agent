@@ -48,9 +48,12 @@ __license__ = "GPLv3"
 # Std lib
 import sys
 import logging
-import threading
-from itertools import groupby
+from math import sqrt
 from datetime import datetime
+from itertools import groupby
+from threading import Thread
+from optparse import OptionParser as opt
+
 
 # Custom
 from classifier import Classifier
@@ -59,18 +62,19 @@ from connector import Connector
 from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
 
 # Output toggles
-PERSIST = True                  # File persistence
-CONSOLE_OUT = False             # Log statement output to console
+PERSIST = False                  # File persistence
+CONSOLE_OUT = True             # Log statement output to console
 STATS_OUT = True                # Statistics output to console
 GRAPH_OUT = True                # Statistics display in graph form
 
 # Top-level user configurables
-AGENT_NAME = 'agent1_memdepth1' # Log file prefix
+AGENT_NAME = 'test_agent'       # Log file prefix
 AGENT_FILE_EXT = '.agent'       # Log file extension
 AGENT_ITERS = 2                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 1000                # Num L1 training epochs (per node)
+L1_EPOCHS = 10                # Num L1 training epochs (per node)
+# L1_EPOCHS = 1000                # Num L1 training epochs (per node)
 L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
@@ -92,34 +96,37 @@ L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_func
 
 # Agent input data set. Length denotes the agent's L1 and L2 depth.
-AGENT_INPUTFILES = [DataFrom('static/datasets/small/letters0.csv'),
-                    # DataFrom('static/datasets/small/letters1.csv'),
-                    # DataFrom('static/datasets/small/letters2.csv'),
-                    # DataFrom('static/datasets/small/letters3.csv'),
-                    # DataFrom('static/datasets/small/letters4.csv'),
-                    # DataFrom('static/datasets/small/letters5.csv'),
-                    # DataFrom('static/datasets/small/letters6.csv'),
-                    DataFrom('static/datasets/small/letters7.csv')]
+AGENT_INPUTFILES = ['static/datasets/small/letters0.csv',
+                    # 'static/datasets/small/letters1.csv',
+                    # 'static/datasets/small/letters2.csv',
+                    # 'static/datasets/small/letters3.csv',
+                    # 'static/datasets/small/letters4.csv',
+                    # 'static/datasets/small/letters5.csv',
+                    # 'static/datasets/small/letters6.csv',
+                    'static/datasets/small/letters7.csv']
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
-L1_TRAINFILES = [DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                #  DataFrom('static/datasets/letter_train.csv'),
-                 DataFrom('static/datasets/letter_train.csv')]
+L1_TRAINFILES = ['static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                #  'static/datasets/letter_train.csv',
+                 'static/datasets/letter_train.csv']
 
 # Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
-L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                #  DataFrom('static/datasets/letter_val.csv'),
-                 DataFrom('static/datasets/letter_val.csv')]
+L1_VALIDFILES = ['static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                #  'static/datasets/letter_val.csv',
+                 'static/datasets/letter_val.csv']
+
+# Non-user configurable
+GRAPH_LEGEND = ('T', 'L', 'E', 'R', 'S')
 
 # Globals
 g_start_time = datetime.now()    # Application start time
@@ -164,10 +171,12 @@ class ClassifierLayer(object):
                 lr (float)              : Learning rate
                 alpha (float)           : Learning gain/momentum
         """
+        print('Training layer 1 nodes...')
         for i in range(self._depth):
             self._nodes[i].train(
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self._nodes[i].validate(val_data[i], verbose=True)
+        print('Done training layer 1 nodes.')
 
     def forward(self, inputs):
         """ Moves the given inputs through the layer, setting self.outputs
@@ -389,8 +398,8 @@ class LogicalLayer(object):
                             self.encounters.append(item)
                             self.encounters_t.append(sec_in)
 
-                            self.model.log('L3 Encountered: ' + item + in_ep)
-                            print('L3 Encountered: ' + item + in_ep)
+                            self.model.log('L3 Encountered: ' + item)
+                            # print('L3 Encountered: ' + item + in_ep)
 
                     # Else we've seen this item this epoch
                     else:
@@ -428,7 +437,7 @@ class LogicalLayer(object):
                  'learns'       : len(self.learned),
                  'encounters'   : len(self.encounters),
                  're_encounters': len(self.re_encounters),
-                 're_variance'  : -1,
+                 're_std_dev'  : -1,
                  'avg_len'      : -1}
 
         avg_len = 0     # Average length of all inputs this epoch
@@ -443,7 +452,8 @@ class LogicalLayer(object):
             re_len = len(self.learned)
             avg = sum(dist) / re_len
             re_var = sum((x - avg) ** 2 for x in dist) / re_len
-        stats['re_variance'] = re_var
+            re_std = sqrt(re_var)
+        stats['re_std_dev'] = re_std
 
         return stats
 
@@ -455,7 +465,7 @@ class LogicalLayer(object):
                 stats['learns'],
                 stats['encounters'],
                 stats['re_encounters'],
-                stats['re_variance'],
+                stats['re_std_dev'],
                 stats['run_time'])
     
     def stats_graphtxt(self):
@@ -486,7 +496,7 @@ class LogicalLayer(object):
         ret += '\nTotal learns: %d\n' % stats['learns']
         ret += 'Total encounters: %d\n' % stats['encounters']
         ret += 'Total re-encounters: %d\n' % stats['re_encounters']
-        ret += 'Re-encounter variance: %d\n' % stats['re_variance']
+        ret += 'Re-encounter variance: %d\n' % stats['re_std_dev']
 
         ret += '\nLearned (lifetime):\n%s\n' % str(self.kb_lifetime)
         ret += 'Learned (this epoch):\n%s\n' % str(self.learned)
@@ -499,7 +509,7 @@ class LogicalLayer(object):
 
         return ret
 
-    def _run_benchmark(self, width=5, epochs=3):
+    def _run_benchmark(self, width=4, epochs=3):
         """ A debug function for testing satistics functionality and getting
             baseline performance metrics by brute forcing strings generated
             combinatorily against the current context mode. Benchmark 
@@ -538,19 +548,19 @@ class LogicalLayer(object):
                                 # If seeing item for the very first time ever
                                 if item not in test_kb:
                                     test_kb.append(item)
-                                    print('L3 LEARNED: ' + item)
+                                    # print('L3 LEARNED: ' + item)
 
                                 # Else, seeing it for the first time this epoch
                                 else:
                                     self.encounters.append(item)
                                     self.encounters_t.append(sec_in)
-                                    print('L3 Encountered: ' + item)
+                                    # print('L3 Encountered: ' + item)
 
                             # Else we've seen this item this epoch
                             else:
                                 self.re_encounters.append(item)
                                 self.re_encounters_t.append(sec_in)
-                                print('L3 Re-encountered: ' + item)
+                                # print('L3 Re-encountered: ' + item)
                 
                 g_graph_out.annotate('<-epoch')
                 print(self. stats_str(t_start))
@@ -558,7 +568,7 @@ class LogicalLayer(object):
         g_graph_out.pause()
 
 
-class Agent(threading.Thread):
+class Agent(Thread):
     """ The intutive agent.
         The constructor accepts the agent's "sensory input" data, from which
         the layer dimensions are derived. After init, start the agent from 
@@ -573,7 +583,7 @@ class Agent(threading.Thread):
             ID (str)            : The agent's unique ID
             inputs (list)       : Agent input data, one for each L1 node
         """
-        threading.Thread.__init__(self)
+        Thread.__init__(self)
         self.ID = ID
         self.depth = None           # Layer 1 depth/node count
         self.model = None           # The model handler
@@ -671,13 +681,13 @@ class Agent(threading.Thread):
         self.model.log('-- L2 Backprop:\n%s' % str(l3_outputs))
         self.l2.update(l3_outputs)
 
-    def start(self, max_iters=10):
+    def start(self, max_iters=AGENT_ITERS):
         """ Starts the agent thread.
             Accepts:
                 max_iters (int)     : Max times to iterate data set (0=inf)
         """
         self.max_iters = max_iters
-        threading.Thread.start(self)
+        Thread.start(self)
 
     def run(self):
         """ Starts the agent thread, stepping the agent forward until stopped 
@@ -708,6 +718,9 @@ class Agent(threading.Thread):
             if STATS_OUT:
                 print(stats)
 
+            if GRAPH_OUT:
+                g_graph_out.annotate('<-epoch')
+
             if PERSIST:
                 self.model.save()  # Save the model to file
 
@@ -726,35 +739,60 @@ class Agent(threading.Thread):
 
 
 if __name__ == '__main__':
-    # Instantiate the agent (Note: agent shape is derived from input data)
-    agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
+    """ This is the main drive for the intutive agent application. 
+        The agent (or others, depending on cmd line args) runs as a thread 
+        to run concurrently with the window (graph) interface.
+    """
+    # Parse cmd line options
+    opts = opt()
+    opts.add_option('--bmark', action='store_true', dest='bmark',
+                    help='Run a benchmark session in the current context.')
+    opts.add_option('--l1_train', action='store_true', dest='l1_train',
+                    help='Train layer one classifiers from current data sets.')
+    (options, args) = opts.parse_args()
 
-    # Set up the graphical output
-    legend = ('T', 'L', 'E', 'R', 'V')
+    # Instantiate the agent (Note: agent shape is derived from input data)
+    agent = Agent(AGENT_NAME, [DataFrom(f) for f in AGENT_INPUTFILES])
+    
+    # Run either...
+    # The benchmark tool
+    if options.bmark:
+        runthread = Thread(target=agent.l3._run_benchmark)
+
+    # The Layer one training/validation routine
+    elif options.l1_train:
+        # Avoid sticky confusion
+        runthread = Thread(target=agent.l1.train,
+                           args=([DataFrom(f) for f in L1_TRAINFILES],
+                                 [DataFrom(f) for f in L1_VALIDFILES]))
+    # Or the agent itself
+    else:
+        runthread = agent
+
+    # if GRAPH_OUT:
     g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
                                     3, agent.l3.stats_graphtxt,
-                                    interval=1000, legend=legend,
+                                    interval=750, legend=GRAPH_LEGEND,
                                     title_txt=AGENT_NAME)
-    if GRAPH_OUT:
-        g_graph_out.play()
+    
+    # Set up the graphical output
+    # g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
+    #                                 3, agent.l3.stats_graphtxt,
+    #                                 interval=750, legend=GRAPH_LEGEND,
+    #                                 title_txt=AGENT_NAME)
+    # if GRAPH_OUT:
+    #     g_graph_out.play()
+    #     g_graph_out.show()  # Blocks
 
-    if len(sys.argv) > 1 and sys.argv[1] == '-bench':
-        threading.Thread(target=agent.l3._run_benchmark).start()
-        if GRAPH_OUT:
-            g_graph_out.show()  # Blocks
-        exit()
-
-    # Train and validate each layer 1 node, if specified by cmd line arg
-    if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
-            print('Training layer 1...', sep=' ')
-            agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
-            # TODO: Graph output
+    # TODO: Graph output for l1 train
 
     # Start the agent thread
-    print('Running ' + AGENT_NAME)
-    agent.start(AGENT_ITERS)
-
-    if GRAPH_OUT:
-        g_graph_out.show()  # Blocks
-
-    agent.join()
+    print('Starting %s...' % AGENT_NAME)
+    runthread.start()
+    print('Started main thread')
+    # g_graph_out.start()
+    print('Started graph thread')
+    # g_graph_out.p.show(block=False)
+    print('Did show')
+    runthread.join()
+    print('Quitting... Goodbye.')
