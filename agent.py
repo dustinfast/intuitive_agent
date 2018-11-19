@@ -55,20 +55,17 @@ import threading
 from itertools import groupby
 from datetime import datetime
 
-# Third-party
-from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
-
 # Custom
 from classifier import Classifier
 from genetic import Genetic
 from connector import Connector
-from sharedlib import ModelHandler, DataFrom, MultiLinePlot
+from sharedlib import ModelHandler, DataFrom, TimePlotAnimated
 
 # Output toggles
 PERSIST = True          # File persistence
 CONSOLE_OUT = False     # Log statement output to console
 STATS_OUT = True        # Statistics output to console
+GRAPH_OUT = True        # Statistics display in graph form
 
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
@@ -129,7 +126,7 @@ L1_VALIDFILES = [DataFrom('static/datasets/letter_val.csv'),
 
 # Globals
 g_start_time = datetime.now()   # Application start time
-g_animation = None              # Graph animation
+g_graph_out = None               # Graph output handler
 
 class ClassifierLayer(object):
     """ An abstraction of the agent's classifier layer (i.e. layer one), 
@@ -453,21 +450,29 @@ class LogicalLayer(object):
 
         return stats
 
-    def stats_graphable(self):
-        """ Returns graphable performance metrics as a tuple.
-            Accepts:
-                stime (datetime)    : A datetime representing run start time
-                clear (bool)        : Also reset stats / start new stats epoch
-            Returns:
-                stats (tuple)       : See immediately below for structure
+    def stats_graphdata(self):
+        """ Returns plottable performance metrics as a tuple.
         """
         stats = self._stats_dict()
-        return (stats['run_time'],
+        return (stats['avg_len'], 
                 stats['learns'],
                 stats['encounters'],
                 stats['re_encounters'],
                 stats['re_variance'],
-                stats['avg_len'])
+                stats['run_time'])
+    
+    def stats_graphtxt(self):
+        """ Returns plottable text field values as a tuple
+        """
+        res_sorted = sorted(self.re_encounters)
+        keys = [key for key, _ in groupby(res_sorted)]
+        dist = [len(list(group)) for _, group in groupby(res_sorted)]
+        
+        s1 = 'KB          : %s' % str(self.kb_lifetime)
+        s2 = 'Encounters  : %s' % str(self.learned)
+        s3 = 'ReEncounters: %s' % str(list(zip(keys, dist)))
+
+        return s3, s2, s1
         
     def stats_str(self, stime=g_start_time, clear=False):
         """ Returns the formatted statistics output string.
@@ -477,10 +482,6 @@ class LogicalLayer(object):
         """
         stats = self._stats_dict()
 
-        res_sorted = sorted(self.re_encounters)  # debug
-        keys = [key for key, _ in groupby(res_sorted)]  # debug
-        dist = [len(list(group)) for _, group in groupby(res_sorted)]  # debug
-        
         ret = '\n-- Epoch %s Statistics --\n' % stats['epoch']
         ret += 'Input count: %d\n' % self.input_count
         ret += 'Avg input length: %d\n' % stats['avg_len']
@@ -492,8 +493,6 @@ class LogicalLayer(object):
 
         ret += '\nLearned (lifetime):\n%s\n' % str(self.kb_lifetime)
         ret += 'Learned (this epoch):\n%s\n' % str(self.learned)
-        ret += '\nRe-encounters (keys):\n%s\n' % str(keys)  # debug
-        ret += '\nRe-encounters (dist):\n%s\n' % str(dist)  # debug
 
         ret += '\nEpoch run time: %ds\n' % stats['epoch_time']
         ret += 'Total run time: %ds\n' % stats['run_time']
@@ -556,7 +555,7 @@ class LogicalLayer(object):
                 
                 print(self. stats_str(t_start))
 
-            self. stats_str(t_start, clear=True)
+        g_graph_out.pause()
 
 
 class Agent(threading.Thread):
@@ -723,26 +722,36 @@ class Agent(threading.Thread):
 
 
 if __name__ == '__main__':
-    # Instantiate the agent (Note: agent shape derived from input data)
+    # Instantiate the agent (Note: agent shape is derived from input data)
     agent = Agent(AGENT_NAME, AGENT_INPUTFILES)
-    plot = MultiLinePlot(agent.l3.stats_graphable)
-    animation = FuncAnimation(plot.figure, plot.update_graph, interval=1000)
+
+    # Set up the graphical output
+    legend = ('T', 'L', 'E', 'R', 'V')
+    g_graph_out = TimePlotAnimated(5, agent.l3.stats_graphdata, 
+                                   3, agent.l3.stats_graphtxt,
+                                   interval=10, legend=legend,
+                                   title_txt=AGENT_NAME)
+    if GRAPH_OUT:
+        g_graph_out.play()
 
     # Train and validate each layer 1 node, if specified by cmd line arg
     if len(sys.argv) > 1 and sys.argv[1] == '-l1_train':
             print('Training layer 1...', sep=' ')
             agent.l1.train(L1_TRAINFILES, L1_VALIDFILES)
-            print('Done.')
+            # TODO: Graph output
 
     if len(sys.argv) > 1 and sys.argv[1] == '-bench':
         print('Running benchmark queries...', sep=' ')
         threading.Thread(target=agent.l3.run_benchmark).start()
-        plt.show()
-        print('Done.')
+        if GRAPH_OUT:
+            g_graph_out.show()  # Blocks
         exit()
 
     # Start the agent thread
     print('Running ' + AGENT_NAME)
     agent.start(AGENT_ITERS)
-    plt.show()
+
+    if GRAPH_OUT:
+        g_graph_out.show()  # Blocks
+
     agent.join()

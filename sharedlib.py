@@ -428,10 +428,10 @@ class TimePlotAnimated(object):
     """ A multi-plot matplotlib graph - displayings one or more line graphs
         with each graph using the same x axis data
     """
-    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']  # Matplotlib colors
+    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Matplotlib colors
 
     def __init__(self, line_count, lines_func, field_count=0, field_func=None,
-                 interval=10, labels=(), legend=(), lim_x=100, lim_y=50):
+                 interval=60, legend=(), lim_x=100, lim_y=50, title_txt=''):
         """ Accepts:
         """
         self.figure = None              # The matplot lib figure
@@ -450,9 +450,10 @@ class TimePlotAnimated(object):
         self._lines = []            # Holds refs to each line on the figure
         self._axes = ()             # Holds refs to each axes on the figure
         
-        # Set up the figure
-        self.figure, self._axes = plt.subplots(line_count, 1)
-        # TODO: Windows dimens
+        # Set up the plot figure
+        self.figure, self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
+        self.figure.text(0.5, 0.91, title_txt, fontsize=18, fontweight='bold',
+                         horizontalalignment='center')
         
         # Init sets for each line plus 1 more (the last) for time data
         self._datasets = [[] for i in range(line_count + 1)]
@@ -465,8 +466,8 @@ class TimePlotAnimated(object):
             ln, = axes.plot([], [], lw=2, color=next(color))
             self._lines.append(ln)
 
-            # Curr value placeholders...
-            txt = axes.text(1.01, 0, 'A', transform=axes.transAxes)
+            # Text value placeholders...
+            txt = axes.text(1.01, 0, '', transform=axes.transAxes)
             self._lines_txt.append(txt)
             
             # Legend...
@@ -475,9 +476,13 @@ class TimePlotAnimated(object):
             except IndexError:
                 pass
 
-        # Set up main figure txt boxes
-        # TODO: Title
-        # TODO: learned, etc
+        # Set up dynamic text field placeholders
+        y = .01
+        for i in range(field_count):
+            txt = self.figure.text(0.01, y, '', 
+                                   fontsize=15, fontname='monospace')
+            self._fields_txt.append(txt)
+            y += .025
         
         # Set initial axes bounds
         for ax in self._axes:
@@ -486,13 +491,12 @@ class TimePlotAnimated(object):
             ax.grid()
         
     def _update_graph(self, frame):
-        """ Function used by FuncAnimate to update graph data. 
+        """ Function to refresh graph data.
         """
-        test = [1,2,3]
-        # Refresh data if not paused, else return currentlines
+        # Refresh data if not paused, else just return the current lines
         if not self._paused:
-                        # Refresh lines data...
-            line_data = self._lines_func()
+            # Refresh line data...
+            line_data = self._lines_func()  # User specified function
 
             # Get the last data element (it is the shared x axis data)
             self._datasets[self._lines_num].append(line_data[self._lines_num])
@@ -502,30 +506,31 @@ class TimePlotAnimated(object):
             # Iterate all but last data set to update line properties
             for i in range(self._lines_num):
                 d = line_data[i]
+                axes = self._axes[i]
                 self._datasets[i].append(d)
                 self._lines[i].set_data(x, self._datasets[i])
 
-                self._lines_txt[i].set_text(str(d))
+                self._lines_txt[i].set_text('%.2f' % d)
 
-                # Grow this y axis as needed
-                ymin, ymax = self._axes[i].get_ylim()
+                # Grow this y axis if needed
+                ymin, ymax = axes.get_ylim()
                 if d >= ymax:
-                    self._axes[i].set_ylim(ymin, 1.5 * ymax)
-                    self._axes[i].figure.canvas.draw()
+                    axes.set_ylim(ymin, 1.5 * ymax)
+                    axes.figure.canvas.draw()
 
-            # Grow all x axis, as needed
+            # Grow all x axis if needed (if needed by one, needed by all)
             xmin, xmax = self._axes[0].get_xlim()
             if new_xval >= xmax:
                 for ax in self._axes:
                     ax.set_xlim(xmin, 2 * xmax)
                     ax.figure.canvas.draw()
 
-            # Refresh fields data...
+            # Refresh field data...
             if self._fields_func:
-                field_data = self._fields_func()
+                field_data = self._fields_func()  # User specified function
 
                 for i in range(self._fields_num):
-                    self._field_txt[i] = field_data[i]
+                    self._fields_txt[i].set_text(str(field_data[i]))
 
         return self._lines
 
@@ -540,6 +545,13 @@ class TimePlotAnimated(object):
             if idx >= ubound:
                 idx = -1
             yield self._colors[idx]
+
+    def annotate(self, s):
+        """ Adds an annotation across all plots at the current location.
+        """
+        x = self._datasets[:-1][:-1]
+        for ax in self._axes:
+            ax.text(x, 0, s)
 
     def play(self):
         """ Plays/Resumes graph animation, starting the animation if needed.
@@ -578,4 +590,35 @@ def negate(x):
 
     # Numerical negate
     return (x * -1)
-    
+
+
+###################
+# Graph Debug ... #
+###################
+# t = 1
+# dt = 2
+# a = 10
+# b = 20
+# c = 30
+
+# def simline():
+#     global t, a, b, c
+#     t += dt
+#     c += 1
+#     return a, b, c, t
+
+
+# def simtxt():
+#     global t
+#     return 'a' + str(t), 'b', 'c'
+
+
+# legend = ('x', 'y', 'z')
+# # plot = TimePlotAnimated(3, simline, interval=10,
+# #                         legend=legend, title_txt='testg')
+# plot = TimePlotAnimated(3, simline, 3, simtxt, interval=10,
+#                         legend=legend, title_txt='testg')
+# plot.play()
+# print('Running... ', sep=' ')
+# plot.show()
+# print('Done.')
