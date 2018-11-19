@@ -423,64 +423,101 @@ class Queue:
         return [item for item in self.items]
 
 
-class MultiLinePlot(object):
-    """ A multi-plot matplotlib figure, for displaying multiple line graphs.
+class MultiPlotAnimated(object):
+    """ A multi-plot matplotlib figure, for displaying multiple line graphs
+        where each line uses the same x axis value.
     """
-    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']  # Matplotlib color codes
 
-    def __init__(self, metrics_func):
-        # Figure w/5 subplots
-        self.get_metrics = metrics_func
-        self.figure, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1)
-        self.axes = (ax1, ax2, ax3, ax4, ax5)
-        # TODO: self.paused = False
-        self.time = []
-        self.learns = []
-        self.encs = []
-        self.rencs = []
-        self.rencs_var = []
-        self.lens = []
-        self.lines = []
+    def __init__(self, num_lines, metrics_func, legend=(), x_lim=100, y_lim=50):
+        """ Accepts:
+        """
+        self._num_lines = num_lines
+        self._metrics_func = metrics_func
+        self._datasets = []
+        self._paused = False
+        self.figure = None
+        self._axes = ()
+        self._lines = []
+        
+        # Set up the figure
+        # TODO: plt.legend(['y = x', 'y = 2x', 'y = 3x', 'y = 4x'], loc='upper left')
+        self.figure, self._axes = plt.subplots(num_lines, 1)
+        
+        # Init each lines data list, plus one more (the last) for shared x data
+        self._datasets = [[] for i in range(num_lines + 1)]
 
-        ln1, = ax1.plot([], [], lw=2, color='b')
-        ln2, = ax2.plot([], [], lw=2, color='r')
-        ln3, = ax3.plot([], [], lw=2, color='g')
-        ln4, = ax4.plot([], [], lw=2, color='y')
-        ln5, = ax5.plot([], [], lw=2, color='b')
-        self.lines = [ln1, ln2, ln3, ln4, ln5]
-
-        # Set axes bounds
-        for ax in self.axes:
-            ax.set_ylim(0, 40)
-            ax.set_xlim(0, 100)
+        # Set up lines/axes
+        color = self._next_color()  # Generator
+        for i in range(num_lines):
+            ln, = self._axes[i].plot([], [], lw=2, color=next(color))
+            self._lines.append(ln)
+        
+        # Set initial axes bounds
+        for ax in self._axes:
+            ax.set_xlim(0, x_lim)
+            ax.set_ylim(0, y_lim)
             ax.grid()
+    
+    def _next_color(self):
+        """ A generator returning the next matplotlib color code (ex: 'b').
+        """
+        idx = -1
+        ubound = len(self._colors)
 
-    def update_graph(self, frame):
-        t, y1, y2, y3, y4, y5 = self.get_metrics()
-        self.time.append(t)
-        self.learns.append(y1)
-        self.encs.append(y2)
-        self.rencs.append(y3)
-        self.rencs_var.append(y4)
-        self.lens.append(y5)
+        while True:
+            idx += 1
+            if idx >= ubound:
+                idx = -1
+            yield self._colors[idx]
 
-        # Expand x axes as needed
-        for ax in self.axes:
-            xmin, xmax = ax.get_xlim()
-            if t >= xmax:
-                ax.set_xlim(xmin, 2 * xmax)
-                ax.figure.canvas.draw()
+    def _update_graph(self, frame):
+        # Update data display if animation is not paused.
+        if not self._paused:
+            data = self._metrics_func()  # Get data set
 
-        # TODO: Expand y axes as needed
+            # Get the last data element (it's our shared x value)
+            self._datasets[self._num_lines].append(data[self._num_lines])
+            x = self._datasets[self._num_lines]
+            new_xval = data[len(data) - 1]
 
-        # update the data of for all lines
-        self.lines[0].set_data(self.time, self.learns)
-        self.lines[1].set_data(self.time, self.encs)
-        self.lines[2].set_data(self.time, self.rencs)
-        self.lines[3].set_data(self.time, self.rencs_var)
-        self.lines[4].set_data(self.time, self.lens)
+            # Iterate over all but last element to update each line's data set
+            for i in range(self._num_lines):
+                d = data[i]
+                self._datasets[i].append(d)
+                self._lines[i].set_data(x, self._datasets[i])
 
-        return self.lines
+                # Grow this y axis as needed
+                ymin, ymax = self._axes[i].get_ylim()
+                if d >= ymax:
+                    self._axes[i].set_ylim(ymin, 1.5 * ymax)
+                    self._axes[i].figure.canvas.draw()
+
+            # Grow all x axis, as needed
+            xmin, xmax = self._axes[0].get_xlim()
+            if new_xval >= xmax:
+                for ax in self._axes:
+                    ax.set_xlim(xmin, 2 * xmax)
+                    ax.figure.canvas.draw()
+
+        return self._lines
+
+    def animate(self, ms):
+        """ Sets up animation for the graph and returns the animation obj.
+            Accepts: 
+                ms (float)  : Milliseconds between redraws
+        """
+        return FuncAnimation(self.figure, self._update_graph, interval=ms)
+
+    def toggle_animation(self):
+        """ Stops/starts the graph animation, assuming it has been set up.
+        """
+        self._paused ^= True
+
+    def show(self):
+        """ Shows the animated graph.
+        """
+        plt.show()
 
 
 ################
