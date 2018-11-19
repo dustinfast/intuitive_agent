@@ -424,9 +424,11 @@ class Queue:
         """
         return [item for item in self.items]
 
-class MultiPlotAnimated(object):
+
+class MultiPlotAnimated():
     """ A multi-axes matplotlib graph - displays one or more line graphs
-        whith each graph using the same x axis data. 
+        whith each graph using the same x axis data. The graph auto-draws at
+        at the given interval viaFuncAnimation w/data from user-defined func.
     """
     _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Matplotlib colors
 
@@ -463,7 +465,7 @@ class MultiPlotAnimated(object):
         self.figure, self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
         
         # Adjust the l/r boundries of each plot
-        plt.subplots_adjust(left=0.03, right=.95)
+        plt.subplots_adjust(left=0.04, right=.95)
 
         # Add plot header
         self.figure.text(0.5, 0.91, title_txt, fontsize=18, fontweight='bold',
@@ -536,7 +538,7 @@ class MultiPlotAnimated(object):
             xmin, xmax = self._axes[0].get_xlim()
             if new_xval >= xmax:
                 for ax in self._axes:
-                    ax.set_xlim(xmin, 2 * xmax)
+                    ax.set_xlim(xmin, 1.25 * xmax)
                     ax.figure.canvas.draw()
 
             # Refresh field data...
@@ -570,6 +572,7 @@ class MultiPlotAnimated(object):
             x = x_data[len(x_data) - 1]
             for ax in self._axes:
                 ax.text(x, 0.01, s)
+                # TODO: Verticle line in each graph
 
     def play(self):
         """ Plays/Resumes graph animation, starting the animation if needed.
@@ -585,18 +588,21 @@ class MultiPlotAnimated(object):
     def pause(self):
         """ Pauses the graph animation if it is running.
         """
+        # Avoid sticky-pause confusion
         if self._animation:
-            self._paused = True  # Avoid sticky confusion
+            self._paused = True
+            self.annotate('<-paused')
 
-    def show(self):
-        """ Shows the animated graph window.
-        """
-        plt.show()
-
-    def close(self):
+    def stop(self):
         """ Closes the graph windows.
         """
         plt.close()
+
+    def show(self):
+        """ Shows the animated graph window. Should be called after a play().
+        """
+        plt.show()
+
 
 
 ################

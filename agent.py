@@ -5,7 +5,8 @@
     Interface:
         Agent() is the main interface. It expects training/validation data as
         an instance obj of type sharedlib.DataFrom(). 
-        Persistence and output is handled by sharedlib.ModelHandler().
+        Persistence and log/console output handled by sharedlib.ModelHandler().
+        Performance data is displayed graphically.
 
         If PERSIST = True:
             Agent saves to file PERSIST_PATH/ID.AGENT_FILE_EXT between runs.
@@ -32,10 +33,9 @@
 
     # TODO: 
         Log file does not auto-rotate
-        Brute force benchmark
         Add usage instr to readme, including dep installation
         Check private notation for all members
-        Statistic graph output through model obj
+        Refactor stats out
         L2 does not output node count in multimode
         in_data must contain all labels, otherwise L1 inits break 
 
@@ -63,9 +63,8 @@ from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
 
 # Output toggles
 PERSIST = False                  # File persistence
-CONSOLE_OUT = True             # Log statement output to console
+CONSOLE_OUT = False             # Log statement output to console
 STATS_OUT = True                # Statistics output to console
-GRAPH_OUT = True                # Statistics display in graph form
 
 # Top-level user configurables
 AGENT_NAME = 'test_agent'       # Log file prefix
@@ -126,7 +125,12 @@ L1_VALIDFILES = ['static/datasets/letter_val.csv',
                  'static/datasets/letter_val.csv']
 
 # Non-user configurable
-GRAPH_LEGEND = ('T', 'L', 'E', 'R', 'S')
+GRAPH_LEGEND_AGENT = (['Avg Try Len'], 
+                      ['Learns'],
+                      ['Encounters'],
+                      ['ReEncounters'],
+                      ['ReE Std Dev'])
+GRAPH_LEGEND_L1TRAIN = (['RMS Error'], ['Val Acc'])
 
 # Globals
 g_start_time = datetime.now()    # Application start time
@@ -173,6 +177,7 @@ class ClassifierLayer(object):
         """
         print('Training layer 1 nodes...')
         for i in range(self._depth):
+            g_graph_out.annotate('<-node %d' % i)
             self._nodes[i].train(
                 train_data[i], epochs=epochs, lr=lr, alpha=alpha, noise=None)
             self._nodes[i].validate(val_data[i], verbose=True)
@@ -445,7 +450,7 @@ class LogicalLayer(object):
             avg_len = self.input_lens / self.input_count
         stats['avg_len'] = avg_len
 
-        re_var = 0      # Variance among re-encounters this epoch
+        re_std = 0      # Variance among re-encounters this epoch
         if self.learned:
             res_sorted = sorted(self.re_encounters)
             dist = [len(list(group)) for _, group in groupby(res_sorted)]
@@ -714,15 +719,13 @@ class Agent(Thread):
             # Stat keeping
             stats = self.l3. stats_str(g_start_time, clear=True)
             self.model.log(stats)
+            g_graph_out.annotate('<-epoch')
             
             if STATS_OUT:
-                print(stats)
-
-            if GRAPH_OUT:
-                g_graph_out.annotate('<-epoch')
+                print(stats)        # Print statistics to console
 
             if PERSIST:
-                self.model.save()  # Save the model to file
+                self.model.save()   # Save the model to file
 
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
@@ -736,6 +739,7 @@ class Agent(Thread):
         """
         self.running = False
         self.model.log(output_str)
+        print(output_str)
 
 
 if __name__ == '__main__':
@@ -749,11 +753,19 @@ if __name__ == '__main__':
                     help='Run a benchmark session in the current context.')
     opts.add_option('--l1_train', action='store_true', dest='l1_train',
                     help='Train layer one classifiers from current data sets.')
+    opts.add_option('--nograph', action='store_true', dest='nograph',
+                    help='Runs the agent without the graph display.')
     (options, args) = opts.parse_args()
 
     # Instantiate the agent (Note: agent shape is derived from input data)
     agent = Agent(AGENT_NAME, [DataFrom(f) for f in AGENT_INPUTFILES])
     
+    # Set up the output graph
+    g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata,
+                                    3, agent.l3.stats_graphtxt,
+                                    interval=1000,
+                                    legend=GRAPH_LEGEND_AGENT,
+                                    title_txt=AGENT_NAME)
     # Run either...
     # The benchmark tool
     if options.bmark:
@@ -761,38 +773,22 @@ if __name__ == '__main__':
 
     # The Layer one training/validation routine
     elif options.l1_train:
-        # Avoid sticky confusion
         runthread = Thread(target=agent.l1.train,
                            args=([DataFrom(f) for f in L1_TRAINFILES],
                                  [DataFrom(f) for f in L1_VALIDFILES]))
+        # TODO: g_graph_out = MultiPlotAnimated(2, agent.l1.stats_graphdata,
+        #                                 interval=100,
+        #                                 legend=GRAPH_LEGEND_L1TRAIN,
+        #                                 title_txt=AGENT_NAME + 'L1 Training')
     # Or the agent itself
     else:
         runthread = agent
 
-    # if GRAPH_OUT:
-    g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
-                                    3, agent.l3.stats_graphtxt,
-                                    interval=750, legend=GRAPH_LEGEND,
-                                    title_txt=AGENT_NAME)
-    
-    # Set up the graphical output
-    # g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata, 
-    #                                 3, agent.l3.stats_graphtxt,
-    #                                 interval=750, legend=GRAPH_LEGEND,
-    #                                 title_txt=AGENT_NAME)
-    # if GRAPH_OUT:
-    #     g_graph_out.play()
-    #     g_graph_out.show()  # Blocks
-
-    # TODO: Graph output for l1 train
-
-    # Start the agent thread
+    # Start the selected thread and graph
     print('Starting %s...' % AGENT_NAME)
     runthread.start()
-    print('Started main thread')
-    # g_graph_out.start()
-    print('Started graph thread')
-    # g_graph_out.p.show(block=False)
-    print('Did show')
+    if not options.nograph:
+        g_graph_out.play()
+        g_graph_out.show()  # Blocks
     runthread.join()
     print('Quitting... Goodbye.')
