@@ -68,12 +68,12 @@ CONSOLE_OUT = False             # Log statement output to console
 STATS_OUT = True                # Statistics output to console
 
 # Top-level user configurables
-AGENT_NAME = 'Test-Agent'       # Log file prefix
+AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
 AGENT_FILE_EXT = '.agent'       # Log file extension
-AGENT_ITERS = 5                 # Num times to iterate AGENT_INPUTFILES
+AGENT_ITERS = 10                # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 800                 # Num L1 training epochs (per node)
+L1_EPOCHS = 1000                 # Num L1 training epochs (per node)
 L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
@@ -176,19 +176,25 @@ class ClassifierLayer(object):
                 alpha (float)           : Learning gain/momentum
         """
         print('Training layer 1 nodes...')
-        self._cumulative_epoch = 0
+        self._t_stats = datetime.now()
+        self._base_epoch = 0
+        self._t_i = 0
         self._val_stats = []
 
         for i in range(self._depth):
             node_str = 'Node %d' % (i + 1)
             g_graph_out.annotate('<-%s' % node_str)
             self._t_node = self._nodes[i]
-            self._t_node.train(
-                train_data[i], epochs=epochs, lr=lr, alpha=alpha)
+            self._t_i = i + i
+            self._t_node.train(train_data[i], epochs=epochs, lr=lr, alpha=alpha)
+            if self._t_i != self._depth:
+                self._base_epoch += self._t_node.train_epoch + 1
             self._t_node.validate(val_data[i], verbose=True)
             self._val_stats.append(
                 '%s: %d%%' % (node_str, self._t_node.train_acc))
         print('Done training layer 1 nodes.')
+        self._val_stats.append(
+            ' Done. %ds' % (datetime.now() - g_start_time).seconds)
         time.sleep(.5)       # Ensure no pause before val stats get refreshed
         g_graph_out.pause()  # Pause stats graph
 
@@ -208,18 +214,25 @@ class ClassifierLayer(object):
         """ Returns training statistics as a tuple for graph display.
         """
         try:
-            self._cumulative_epoch += self._t_node.train_epoch
-            return self._t_node.train_loss, self._cumulative_epoch
+            return self._t_node.train_loss, self._t_node.train_epoch + self._base_epoch
         except AttributeError:
             return 0, 0  # No training data yet
 
     def stats_graphtxt(self):
         """ Returns training text field data for graph display.
         """
+        epoch = 0
+        results = ''
         try:
-            return ['Training/Validating... %s' % ', '.join(self._val_stats)]
+            epoch = self._t_node.train_epoch
+            results = ', '.join(self._val_stats)
         except AttributeError:
-            return ['']  # No training data yet
+            pass  # No training data yet
+
+        s = 'Training/Validating node %d: %d/%d epochs' 
+        s1 = (s % (self._t_i, epoch, L1_EPOCHS))
+        s2 = 'Results: %s' % results 
+        return s2, s1
 
     
 class EvolutionaryLayer(object):
@@ -753,6 +766,7 @@ class Agent(Thread):
 
             if self.max_iters and iters >= self.max_iters - 1:
                 self.stop('Agent stopped: max_iters reached.')
+                g_graph_out.pause()
             
             iters += 1
 
@@ -785,30 +799,31 @@ if __name__ == '__main__':
     agent = Agent(AGENT_NAME, [DataFrom(f) for f in AGENT_INPUTFILES])
     
     # Depending on cmd line args...
-    # Run the Layer one training/validation routine
+    # Run the layer-one training/validation routine, with its graph
     if options.l1_train:
         runthread = Thread(target=agent.l1.train,
                            args=([DataFrom(f) for f in L1_TRAINFILES],
                                  [DataFrom(f) for f in L1_VALIDFILES]))
         g_graph_out = MultiPlotAnimated(1, agent.l1.stats_graphdata,
-                                        1, agent.l1.stats_graphtxt,
-                                        interval=100, lim_y=0.25,
+                                        2, agent.l1.stats_graphtxt,
+                                        interval=300, lim_y=0.03,
+                                        lock_y_lim=True,
                                         legend=GRAPH_LEGEND_L1TRAIN,
-                                        title_txt=AGENT_NAME + 'L1 Training')
+                                        title_txt=AGENT_NAME + ' L1 Training')
     # Or...
     else:
         # Run the benchmark tool
         if options.bmark:
             runthread = Thread(target=agent.l3._run_benchmark)
 
-        # Run the agent itself
+        # Or run the agent itself
         else:
             runthread = agent
 
-        # Main graph display
+        # With the main graph
         g_graph_out = MultiPlotAnimated(5, agent.l3.stats_graphdata,
                                         3, agent.l3.stats_graphtxt,
-                                        interval=1000,
+                                        interval=1000, lim_y=10,
                                         legend=GRAPH_LEGEND_AGENT,
                                         title_txt=AGENT_NAME)
 

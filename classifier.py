@@ -53,7 +53,7 @@ class Classifier(nn.Module):
         self.outputs = torch.randn(dims[2])
         self.class_labels = None
 
-        # Statistics containers
+        # External statistics signals
         self.train_epoch = 0
         self.train_loss = 0
         self.train_acc = 0
@@ -116,24 +116,30 @@ class Classifier(nn.Module):
 
         # Do training
         optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=alpha)        
-        for self.train_epoch in range(epochs):
+        for epoch in range(epochs):
             for row in data:
                 inputs, target = iter(row)
                 optimizer.zero_grad()
                 outputs = self(inputs)
-                self.train_loss = self.loss_func(outputs, target)
-                self.train_loss.backward()
+                curr_loss = self.loss_func(outputs, target)
+                curr_loss.backward()
                 optimizer.step()
-            if self.train_loss == 0.0: break
+            
+            # Update statistic signals
+            self.train_epoch = epoch
+            self.train_loss = curr_loss
+            
+            # Break if no point in further training
+            if curr_loss == 0.0: break
 
             # Output status as specified by stats_at
-            if stats_at and self.train_epoch % stats_at == 0:
+            if stats_at and epoch % stats_at == 0:
                 self.model.log(
-                    'Epoch {} - loss: {}'.format(
-                        self.train_epoch, self.train_loss))
+                    'Epoch {} - loss: {}'.format(epoch, curr_loss))
 
+        self.train_loss = 0  # Reset
         self.model.log('Training Completed: ' + info_str + '\n')
-        self.model.log('Last epcoh loss: {}'.format(self.train_loss))
+        self.model.log('Last epcoh loss: {}'.format(curr_loss))
 
         # If persisting, save the updated model
         if self.persist:

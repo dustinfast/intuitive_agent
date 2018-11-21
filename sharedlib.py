@@ -430,10 +430,11 @@ class MultiPlotAnimated():
         whith each graph using the same x axis data. The graph auto-draws at
         at the given interval viaFuncAnimation w/data from user-defined func.
     """
-    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Matplotlib colors
+    _colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']  # Line color codes
 
     def __init__(self, line_count, lines_func, field_count=0, field_func=None,
-                 interval=60, legend=(), lim_x=50, lim_y=50, title_txt=''):
+                 interval=60, lim_x=50, lim_y=50, lock_y_lim=False,
+                 title_txt='', legend=()):
         """ Accepts:
                 line_count (int)        : Num seperate graphs figure will house
                 lines_func (func)       : Func returning line_count variables
@@ -443,6 +444,7 @@ class MultiPlotAnimated():
                 legend (tuple)          : String labels for each line
                 lim_x (int)             : Initial x axis limit (grows as needed)
                 lim_y (int)             : Initial y axis limit (grows as needed)
+                lock_y_lim (bool)       : Denotes y axis does not grow as needed
                 title_txt (str)         : Figure title text
         """
         self.figure = None              # The matplot lib figure
@@ -451,20 +453,26 @@ class MultiPlotAnimated():
         self._fields_num = field_count  # Count of dynamic txt fields in fig
         self._fields_func = field_func  # Func for getting updated field data
         self._animation_sp = interval   # Graph refresh speed (ms)
+        self._locked_y = lock_y_lim     # Denotes fixed y axis boundry
         self._animation = None          # Ref to animation instance
         self._paused = False            # Denotes graph update is paused
 
         # Containers
-        self._datasets = []         # Axis data containers
+        self._datasets = []         # Axis data sets
         self._lines_txt = []        # Holds refs to "current value" txtboxes
         self._fields_txt = []       # Holds refs to Figure descriotion
         self._lines = []            # Holds refs to each line on the figure
         self._axes = []             # Holds refs to each axes on the figure
         
         # Set up the plot figure, dictating windows size (figsize)
-        self.figure, *self._axes = plt.subplots(line_count, 1, figsize=(16, 10))
-        
-        # Adjust the l/r boundries of each plot
+        if line_count > 1:
+            self.figure, self._axes = plt.subplots(
+                line_count, 1, figsize=(16, 10))
+        else:
+            self.figure, *self._axes = plt.subplots(
+                line_count, 1, figsize=(16, 10))
+
+        # Adjust the subplot l/r margins
         plt.subplots_adjust(left=0.04, right=.95)
 
         # Add plot header
@@ -505,7 +513,12 @@ class MultiPlotAnimated():
             ax.set_xlim(0, lim_x)
             ax.set_ylim(0, lim_y)
             ax.grid()
-        
+
+    def _get_x_dataset(self):
+        """ An internal helper function for getting the shared/x axis dataset.
+        """
+        return self._datasets[self._lines_num]
+
     def _update_graph(self, frame):
         """ Function to refresh graph data.
         """
@@ -514,9 +527,9 @@ class MultiPlotAnimated():
             # Refresh line data...
             line_data = self._lines_func()  # User specified function
 
-            # Get the last data element (it is the shared x axis data)
-            self._datasets[self._lines_num].append(line_data[self._lines_num])
-            x = self._datasets[self._lines_num]
+            # Get the last line data element (it's the shared x axis data)
+            x_dataset = self._get_x_dataset()
+            x_dataset.append(line_data[self._lines_num])
             new_xval = line_data[len(line_data) - 1]
 
             # Iterate all but last data set to update line properties
@@ -524,17 +537,18 @@ class MultiPlotAnimated():
                 d = line_data[i]
                 axes = self._axes[i]
                 self._datasets[i].append(d)
-                self._lines[i].set_data(x, self._datasets[i])
+                self._lines[i].set_data(x_dataset, self._datasets[i])
 
                 self._lines_txt[i].set_text('%.2f' % d)
 
                 # Grow this y axis if needed
-                ymin, ymax = axes.get_ylim()
-                if d >= ymax:
-                    axes.set_ylim(ymin, 1.5 * ymax)
-                    axes.figure.canvas.draw()
+                if not self._locked_y:
+                    ymin, ymax = axes.get_ylim()
+                    if d >= ymax:
+                        axes.set_ylim(ymin, 1.5 * ymax)
+                        axes.figure.canvas.draw()
 
-            # Grow all x axis if needed (if needed by one, needed by all)
+            # Grow all x axis' if needed (if needed by one, needed by all)
             xmin, xmax = self._axes[0].get_xlim()
             if new_xval >= xmax:
                 for ax in self._axes:
@@ -544,7 +558,7 @@ class MultiPlotAnimated():
             # Refresh field data...
             if self._fields_func:
                 field_data = self._fields_func()  # User specified function
-
+                
                 for i in range(self._fields_num):
                     self._fields_txt[i].set_text(str(field_data[i]))
 
@@ -565,19 +579,18 @@ class MultiPlotAnimated():
     def annotate(self, s):
         """ Adds an annotation across all plots at the current x location.
         """
-        x_data = self._datasets[self._lines_num]
+        x_data = self._get_x_dataset()
 
         # Ensure populated
+        x = 0
         if x_data:
             x = x_data[len(x_data) - 1]
-        else:
-            x = 1
 
         # Annotate every axis at (x, 0.01)
         for ax in self._axes:
-            ax.text(x, 0.01, s)
+            ax.text(x, 0, s)
 
-        # TODO: Verticle line in each graph
+        # TODO: Verticle line on each graph
 
     def play(self):
         """ Plays/Resumes graph animation, starting the animation if needed.
@@ -607,7 +620,6 @@ class MultiPlotAnimated():
         """ Shows the animated graph window. Should be called after a play().
         """
         plt.show()
-
 
 
 ################
