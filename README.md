@@ -14,14 +14,13 @@ One defining aspect of human intelligence is our ability to subconsciously form 
 
 That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to their underlying mechanisms. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" is directed according to some optimization function (an intuition) that seeks to recognize the symbols in its seach-space. If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
 
-
 ## Problem Domain
 
 Currently the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Pytyhon's ability for reflection.
 
 ## The Agent
 
-The agent is developed in Python using the PyTorch and KarooGP machine learning and genetic programming libraries, respectively.
+The Agent was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch  were used for their genetic programming and machine learning capabilities, respectively.
 
 ### Usage
 
@@ -55,9 +54,9 @@ For more information on the agent, its layers, example usage, problem domain, an
 |
 +---lib - 3rd party libraries
 |
-+---static - Static files (Ex: Datasets)
++---static - Static files (e.g. datasets)
 |
-+---var - Log and model files
++---var - Output files (logs, models, etc.)
 ```
 
 ## Design Philosophy
