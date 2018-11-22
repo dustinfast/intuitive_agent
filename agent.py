@@ -3,7 +3,7 @@
     See README.md for a description of the agent/application as a whole.
 
     Interface:
-        Agent() is the main interface. It expects training/validation data as
+        Agent() is the main interface and expects training/validation/input data as
         an instance obj of type sharedlib.DataFrom(). 
         Persistence and log/console output handled by sharedlib.ModelHandler().
         Performance data is displayed graphically.
@@ -139,14 +139,14 @@ g_start_time = datetime.now()    # Application start time
 g_graph_out = None               # Output graph handler
 
 
-class ClassifierLayer(object):
-    """ An abstraction of the agent's classifier layer (i.e. layer one), 
-        representing our ability to ...
-        Contains layer 1 nodes and exposes their outputs.
-        Nodes at this level are classifiers, each representing a single sensory 
+class ClassificationLayer(object):
+    """ An abstraction of the agent's classification layer (i.e. layer one), 
+        representing our ability to recognize pre-learned symbols in our
+        environement. Contains layer 1 nodes and exposes their outputs.
+        Nodes at this level are classifiers, each representing a single
         input processing channel - the input to each channel is a feature
-        vector of data representing some subset of the agent's environment. Its
-        output, then, is its classification of that input.
+        vector of data representing some subset of the agent's environment. 
+        Its output, then, is its classification of that input.
         Persistence:
             On init, each node loads from file via class Classifer iff PERSIST.
         Training:
@@ -663,7 +663,7 @@ class Agent(Thread):
         # Init layers
         id_prefix = self.ID + '_'
         ID = id_prefix + 'L1'
-        self.l1 = ClassifierLayer(ID, self.depth, l1_dims, inputs)
+        self.l1 = ClassificationLayer(ID, self.depth, l1_dims, inputs)
         ID = id_prefix + 'L2'
         self.l2 = EvolutionaryLayer(ID, self.depth, L2_MEMDEPTH)
         ID = id_prefix + 'L3'
