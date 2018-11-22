@@ -14,7 +14,7 @@ That we experience these shifts of attention unwillingly and "out of the blue" p
 
 ## Problem Domain
 
-Currently the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Pytyhon's ability for reflection.
+Currently the agent is attempting to learn the Python program language, with the eventual goal of dynamically modifying itself via Python's ability for reflection.
 
 ## The Agent
 
@@ -23,6 +23,22 @@ The Agent was developed in Python (3.6). The 3rd party libraries KarooGP and PyT
 ### Usage
 
 From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
+
+The following dependencies must also be loaded -
+
+| Dependency    | Installation                              |
+|---------------|-------------------------------------------|
+|KarooGP        | N/A (see lib/karoo_gp)                    |
+|Matplotlib     | pip install matplotlib                    |
+|Numpy          | pip install numpy                         |
+|Pandas         | pip install pandas                        |
+|PyTorch        | see https://pytorch.org                   |
+|Requests       | pip install requests                      |
+|Scikit-learn   | pip install scikit-learn                  |
+|Sympy          | pip install sympy                         |
+|TensorFlow     | see https://www.tensorflow.org/install    |
+|Scipy          | pip install scipy                         |
+
 
 ### Description
 
@@ -97,7 +113,7 @@ Awareness and intuition exist as a feedback loop, each guiding each other in loc
 * __CONCLUSION__ 4  
 Humans possess a short-term “working memory” of symbols.
 
-### Observation 5
+#### Observation 5
 
 * It is human nature to meticulously explore our environment for personal gain. As evidence of this, I offer humankind’s domination of its natural habitat through technological innovation.
 
