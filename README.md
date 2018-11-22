@@ -28,10 +28,10 @@ From the command line, run the agent with `./agent.py`. Performance metrics are 
 
 ### Description
 
-The agent operates from an "intuitive model" (shown below) composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+The agent operates from an "intuitive model" (image below) composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
 Each layer may persist to file and handle its own logging, depending on configurable options.
 
-![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/intutitive_model.PNG "The Intuitive Model")
+![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/intutitive_model.png "The Intuitive Model")
 
 ### Documentation
 
@@ -67,7 +67,7 @@ The intuitive model was conceived to represent a "sixth sense" interpretation of
 
 Along with this sixth-sense interpretation, the agent was also designed with the following observations of human behavior in mind -
 
-### Observation 1
+#### Observation 1
 
 * We can react to events faster than we have time to logically determine a rational course of action (Klapproth, 2008). Regardless, we may still make very good “in-the-moment” approximations that seem to involve no conscious thought.
 
@@ -78,21 +78,21 @@ Along with this sixth-sense interpretation, the agent was also designed with the
 * __CONCLUSION 1__  
 Some system operating below our level of consciousness exists for selectively serving information into our awareness.
 
-### Observation 2
+#### Observation 2
 
 * Seemingly trivial and/or unproductive “mistakes” often come into our awareness. For example, songs DO get stuck in our head and we DO become suddenly aware of a ticking clock for no apparent reason. Contrapositively, we’re often oblivious to important environmental queues, especially when sufficiently distracted (a trait exploited by magicians and pick pockets alike).
 
 * __CONCLUSION 2__  
 Intuition is not perfect. However, "mistakes” have evolutionary value (e.g. genetic mutation compels biological adaptation). Therefore, as a biological system itself, it is reasonable to assume that the mechanism by which the subconscious learns to optimally processes and serve information is Darwinian in nature.
 
-### Observation 3
+#### Observation 3
 
 * The state of our awareness affects our intuition. Contrarywise, the state of our intuition affects our awareness. To demonstrate this, consider what occurs when focusing one’s awareness on a particular topic; we become acutely aware of it and much less aware of everything else.
 
 * __CONCLUSION 3__  
 Awareness and intuition exist as a feedback loop, each guiding each other in lockstep.
 
-### Observation 4
+#### Observation 4
 
 * We possess the ability hold, and operate on, a limited set of symbols in our head at one time. Summing three numbers in one’s head, for example.
 
@@ -105,5 +105,11 @@ Humans possess a short-term “working memory” of symbols.
 
 * __CONCLUSION 5__  
 An environmentally-aware agent motivated by evolutionary forces and possessing an intuition may naturally act to explore its environment and actively develop structure from it.
+
+### Scalability 
+
+Noting the hierarchal nature of information (including that of our problem domain) the model was designed to scale from a single agent to a collectoin of nodes in a network of such agents, thereby bootstrapping an increasingly advanced intuition. It is in this way that the intutive agent might eventually come to learn to write programs, including other versions and extensions of iteslf, in Python (image below).
+
+![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/sclasing.png "The Intuitive Model")
 
 #### Author: Dustin Fast, 2018
