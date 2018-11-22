@@ -62,11 +62,11 @@ For more information on the agent, its layers, example usage, problem domain, an
 
 ## Design Philosophy
 
-(from `docs/documentation.docx`)
+(Excerpt from `docs/documentation.docx`)
 
-The intuitive model was concieved to represent a "sixth sense" (no supernatural isomorphic associations intended), because (at least subjectively, from the perspective of our awareness) experiencing intuition “feels” no different than experiencing input from any of our other garden-variety five senses, except for (at least) one notable difference: intuitive input carries with it contextual meaning and symbolic comprehension about our environment - ideas composed by filtering sensory input through the sieve of one’s accumulated life experience. In this way it can be thought of as a sixth sensory organ, different from the first five in that it serves information that has been processed by our sub-conscience.
+The intuitive model was conceived to represent a "sixth sense" interpretation of our intuition (no supernatural connotation intended), because (at least subjectively, from the perspective of our awareness) experiencing intuition “feels” no different than experiencing input from any of our other garden-variety five senses, except for at least one notable difference: intuitive input carries with it contextual meaning and symbolic comprehension about our environment - ideas composed by filtering sensory input through the sieve of one’s accumulated life experience. In this way it can be thought of as a sixth sensory organ, different from the first five in that it serves information that has been pre-processed by our sub-conscience.
 
-Along with this sixth-sense interpretation, the agent was designed according to the following observations of behavior in humans -
+Along with this sixth-sense interpretation, the agent was also designed with the following observations of human behavior in mind -
 
 ### Observation 1
 
