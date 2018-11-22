@@ -110,6 +110,6 @@ An environmentally-aware agent motivated by evolutionary forces and possessing a
 
 Noting the hierarchal nature of information (including that of our problem domain) the model was designed to scale from a single agent to a collectoin of nodes in a network of such agents, thereby bootstrapping an increasingly advanced intuition. It is in this way that the intutive agent might eventually come to learn to write programs, including other versions and extensions of iteslf, in Python (image below).
 
-![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/sclasing.png "The Intuitive Model")
+![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/scaling.png "The Intuitive Model")
 
 #### Author: Dustin Fast, 2018
