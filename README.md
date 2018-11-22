@@ -12,45 +12,19 @@ General intelligence of the type we possess exists exclusively, for now, in the 
 
 One defining aspect of human intelligence is our ability to subconsciously form new connections between abstract concepts which then seem to "bubble up" to the forefront of our attention. This phenomenon, commonly called intuition, is responsible not only for our most startling and profound "Aha!" moments, but also for the seemingly arbitrary changes in our awareness of, say, the ticking of a clock on the wall.
 
-That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to their underlying mechanisms. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" switches contexts according to its "intuition". If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
+That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to their underlying mechanisms. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" is directed by its "intuition". If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
 
 The agent is developed in Python using the PyTorch and KarooGP machine learning and genetic programming libraries, respectively.
 
+## Problem Domain
+
+Currently, the agent is attempting to learn the Python program language, with the eventual goal of dynamically modifying itself via Pytyhon's ability for reflection.
+
 ## The Agent
 
-The agent is composed of three layers, labeled *Conceptual*, *Intuitive*, and *Attentive*. They are described below and given by `Diagram 1` (see docs/diagram1.png). Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+The agent is composed of three layers, labeled *Classifier*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+Each layer may persist to file and handle its own logging, depending on configurable options.
 
-## The Conceptual, Intuitive, and Attentive Layers
-
-### Conceptual Layer
-
-The conceptual layer represents one's existing knowledge base (KB) of abstract concepts. It consists of a set `A` of artificial neural networks (ANNs) with the following properties -
-
-Each ANN at this level has a set `X` of input nodes consisting of `k` feed-forward sensory input nodes and `m` feedback input nodes, defined as:
-
-| X         | Channel        |  Description |
-|-------------|-------------| -------------|
-| `x_0` to `x_k-1` | Feed-forward | Environmental sensory input, identical for every `a` in `A` |
-| `x_k` to `x_k+m-1`   | Feedback    | Each `x_k` to `x_n` is mapped from a corresponding attentive-layer input node. This represents feedback of the agent's current context. |
-
-Each ANN is pre-trained (offline), possibly each for a different class of objects (ex: `a_0` classifies digits, `a_1` classifies letters, etc). During this pre-training, each `x_k` to `x_m-1` input-value should be randomized to simulate environmental noise.
-
-Each ANN's output nodes are provided to the intuitive layer as input.
-
-### Intuitive Layer
-
-The intuitive layer is a set of data pipes, one for each conceptual-layer ANN, connecting the conceptual layer to the attentive layer. On each state change, each pipe is weighted according to some fitness function that evolves in an online manner according to some genetic algorithm, who's fitness is received as feedback from the attentive layer.
-
-These weights are subsequently used as a bias (possibly binary, logarithmic, etc) by the attentive layer. In this way, the agent's "intuition" learns how to best allocate the agent's "attention" while allowing "mistakes" to enter its awareness. These mistakes represent possible new connections between the conceptual layer's existing abstract concepts.
-
-### Attentive Layer
-
-The attentive layer represents the context of our attention at any given moment. Context may be defined artificially as the agent's level of awareness of the symbolic concepts present in its current environment. It is at this level where fitness of the current context is determined, and that determination is then signaled back to the intuitive-layer's genetic algorithm.
-
-This layer will be implemented as a singular ANN having a set `M` of input nodes, where `size(M) = size(A) * size(X)`. Each input node `m_x` is biased according to the current state's corresponding pipe weights as given by the intuitive layer. Training and validation of this ANN is described immediately below.
-
-## Proof of Concept
-
-Upon completion of development, proof of concept will be attempted in the following way: The attentive-layer ANN will be trained on a set of known conceptual links between some set of concepts known by the conceptual-layer. The entire agent will then be subjected to the validation set. In this way, a successful intuitive agent will be demonstrated by the attentive layer's discovery of previously unlearned connections in the validation set.
+For more infomration on the agent, its layers, examle usage, and the problem domain, see the documentation at docs/documentation.docs.
 
 __Author__: Dustin Fast, 2018
