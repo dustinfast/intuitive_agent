@@ -29,7 +29,7 @@ From the command line, run the agent with `./agent.py`. Performance metrics are 
 
 ### Description
 
-The agent operates from an "intuitive model" composed of three layers, labeled *Classifier*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
+The agent operates from an "intuitive model" (shown below) composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
 Each layer may persist to file and handle its own logging, depending on configurable options.
 
 ![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/intutitive_model.PNG "The Intuitive Model")
