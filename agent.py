@@ -57,10 +57,12 @@ from optparse import OptionParser as opt
 
 
 # Custom
-from classifier import Classifier
-from genetic import Genetic
-from connector import Connector
-from sharedlib import ModelHandler, DataFrom, MultiPlotAnimated
+from classifier import Classifier   # Used by Layer one (one instance/node)
+from genetic import Genetic         # Used by layer two (one instance/agent)
+from connector import Connector     # Used by layer three (one instance/agent)
+from sharedlib import ModelHandler  # Handles file persistence/logging/output
+from sharedlib import DataFrom      # Loads datasets from file into memory
+from sharedlib import MultiPlotAnimated  # Handles the agent's output graphs
 
 # Output toggles
 PERSIST = True                  # File persistence
