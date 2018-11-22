@@ -73,7 +73,7 @@ AGENT_FILE_EXT = '.agent'       # Log file extension
 AGENT_ITERS = 10                # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
-L1_EPOCHS = 1000                 # Num L1 training epochs (per node)
+L1_EPOCHS = 1000                # Num L1 training epochs (per node)
 L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
@@ -95,14 +95,14 @@ L3_EXT = '.lyr3'
 L3_CONTEXTMODE = Connector.is_python_func
 
 # Agent input data set. Length denotes the agent's L1 and L2 depth.
-AGENT_INPUTFILES = ['static/datasets/small/letters0.csv',
-                    'static/datasets/small/letters1.csv',
-                    'static/datasets/small/letters2.csv',
-                    'static/datasets/small/letters3.csv',
-                    'static/datasets/small/letters4.csv',
-                    'static/datasets/small/letters5.csv',
-                    'static/datasets/small/letters6.csv',
-                    'static/datasets/small/letters7.csv']
+AGENT_INPUTFILES = ['static/datasets/letters0.csv',
+                    'static/datasets/letters1.csv',
+                    'static/datasets/letters2.csv',
+                    'static/datasets/letters3.csv',
+                    'static/datasets/letters4.csv',
+                    'static/datasets/letters5.csv',
+                    'static/datasets/letters6.csv',
+                    'static/datasets/letters7.csv']
 
 # Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = ['static/datasets/letter_train.csv',
@@ -214,9 +214,12 @@ class ClassifierLayer(object):
         """ Returns training statistics as a tuple for graph display.
         """
         try:
-            return self._t_node.train_loss, self._t_node.train_epoch + self._base_epoch
+            ret = (self._t_node.train_loss,
+                   self._t_node.train_epoch + self._base_epoch)
         except AttributeError:
-            return 0, 0  # No training data yet
+            ret = (0, 0)  # No training data yet
+
+        return ret
 
     def stats_graphtxt(self):
         """ Returns training text field data for graph display.
@@ -574,6 +577,7 @@ class LogicalLayer(object):
             for _ in range(epochs):
                 for i in range(1, width + 1):
                     for item in (''.join(s) for s in product(ascii_lowercase, repeat=i)):
+                        # TODO: Refactor the below w/self.forward()
                         # Update stats
                         self.input_count += 1
                         self.input_lens += len(item)
