@@ -10,7 +10,7 @@ General intelligence of the type we possess exists exclusively, for now, in the 
 
 One defining aspect of human intelligence is our ability to subconsciously form new connections between abstract concepts which then seem to "bubble up" to the forefront of our attention. This phenomenon, commonly called intuition, is responsible not only for our most startling and profound "Aha!" moments, but also for the seemingly arbitrary changes in our awareness of, say, the ticking of a clock on the wall.
 
-That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to their underlying mechanisms. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" is directed according to some optimization function (an intuition) that seeks to recognize the symbols in its seach-space. If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
+That we experience these shifts of attention unwillingly and "out of the blue" provides powerful clues to the underlying mechanisms responsible for them. With that in mind, this project aims to develop an ensemble learning system capable of rudimentary intuition by modeling an agent who's "attention" is directed according to some evolving optimization function (an intuition) that seeks to recognize the symbols in its seach-space. If successful, the agent may then be used in a larger network of such agents, thus bootstrapping an increasingly advanced intuition.
 
 ## Problem Domain
 
@@ -18,7 +18,7 @@ Currently the agent is attempting to learn the Python program language with the 
 
 ## The Agent
 
-The Agent was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch  were used for their genetic programming and machine learning capabilities, respectively.
+The Agent was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch  were used for their genetic programming and machine learning functionalities, respectively.
 
 ### Usage
 
