@@ -47,7 +47,7 @@ Each layer may persist to file and handle its own logging, depending on configur
 
 ![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/docs/intutitive_model.png "The Intuitive Model")
 
-### Documentation
+### More Info
 
 For more information on the agent, its layers, example usage, problem domain, and current results, see the extensive inline code-level documentation and/or the primary documentation at `docs/documentation.docx`.
 
