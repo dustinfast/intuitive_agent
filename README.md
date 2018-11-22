@@ -25,6 +25,6 @@ Currently, the agent is attempting to learn the Python program language, with th
 The agent is composed of three layers, labeled *Classifier*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
 Each layer may persist to file and handle its own logging, depending on configurable options.
 
-For more infomration on the agent, its layers, example usage, and current problem domain results, see the documentation at docs/documentation.docs.
+For more infomration on the agent, its layers, example usage, problem domain , and current results, see the extensive inline code-level documentation, example module uses (found in each modules `if __main__`), and the main documentation file at `docs/documentation.docx`.
 
 __Author__: Dustin Fast, 2018
