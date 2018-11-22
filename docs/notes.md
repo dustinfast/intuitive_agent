@@ -1,5 +1,6 @@
+# Misc dev notes
 
-### Definitions
+## Definitions
 Context - 
 Focus - 
 Consciousness - 
@@ -56,9 +57,6 @@ o	What drives the shifts?
 o	The genetic alg decides attentive allocation between input data elements. Heuristics?
 
 •	In addition, noting the hierarchal nature of information, the agent was designed to scale from a single agent, to a node-agent in a network of such agents, thereby facilitating the bootstrapping of an increasingly advanced intuition.
-•	
-
-
 
  ## Prev model, w/ANN's at both ends
 * Each queue, q_i, receives input from ANN a_i. The queue implementation represents the limited working memory of a human as each element in the queue is used as input to each ANN. A set of n FIFO queues of depth d.
