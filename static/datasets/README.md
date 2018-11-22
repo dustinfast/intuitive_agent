@@ -1,18 +1,22 @@
 # Data Sets
 
-This folder contains the following data sets, used for training and validation purposes in the following format:
+## Letter Recognition
+Format:
 
 * No header
 * Label in leftmost column
-* Feature vector in rightmost colum
+* Feature vector in rightmost columns
 
-## Letter Recognition
+From, https://archive.ics.uci.edu/ml/datasets/Letter+Recognition.
 
-From, https://archive.ics.uci.edu/ml/datasets/Letter+Recognition, this set represents 20,000 handwritten digits (one per row) as a set features and labels. Each letter is represented by it's label in the leftmost column and feature vector in the remaining right-hand columns. It has been divided for this application as follows:
+This set represents 20,000 handwritten digits (one per row) as a set features and labels. Each letter is represented by it's label in the leftmost column and feature vector in the remaining right-hand columns. It has been divided for this application as follows:
+
 
 * **letter_train.csv**: 15,000 row training set
 * **letter_val.csv**: 5,000 row validation set
-* **letters.csv**: One row for each letter of the alphabet. Useful for testing.
+* **letters.csv**: One row for each letter of the alphabet. Useful for diagnostics.
+* **letters0 - letters7.csv**: Collections of 1,000 rows chosen randomly from the entire set.
+* **lg/letters0 - letters7.csv**: Collections of 5,000 rows chosen randomly from the entire set.
 
 Example:
 
@@ -24,6 +28,11 @@ D,4,11,6,8,6,10,6,2,6,10,3,7,3,7,3,9
 ...
 ```
 
-## Word Recognition
+## English sets
+These alternate sets are including for testing.
 
-TODO
+* **ang/nounds.dat**: 3,024 nouns from the english language.
+* **eng/words.dat**: 138,373 words from the english language, each between 2 and 9 characters long.
+
+## Tools
+Several tools were used to update form these datasets from their original corpuses, they are found in `tools/`.
