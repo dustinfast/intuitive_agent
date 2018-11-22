@@ -71,8 +71,8 @@ STATS_OUT = True                # Statistics output to console
 
 # Top-level user configurables
 AGENT_NAME = 'agent1_memdepth1'  # Log file prefix
-AGENT_FILE_EXT = '.agent'       # Log file extension
-AGENT_ITERS = 10                # Num times to iterate AGENT_INPUTFILES
+AGENT_FILE_EXT = '.agent'        # Log file extension
+AGENT_ITERS = 10                 # Num times to iterate AGENT_INPUTFILES
 
 # Layer 1 user configurables
 L1_EPOCHS = 1000                # Num L1 training epochs (per node)
@@ -80,7 +80,7 @@ L1_LR = .001                    # Classifier learning rate (all nodes)
 L1_ALPHA = .9                   # Classifier lr momentum (all nodes)
 
 # Layer 2 user configurables
-L2_EXT = '.lyr2'
+L2_EXT = '.lyr2'                # Layer two model-file extension
 L2_KERNEL_MODE = 1              # 1 = no case flip, 2 = w/case flip
 L2_MUT_REPRO = 0.10             # Genetic mutation ration: Reproduction
 L2_MUT_POINT = 0.40             # Genetic mutation ration: Point
@@ -93,10 +93,10 @@ L2_MAX_POP = 50                 # Genetic population size (has perf affect)
 L2_POOLSZ = int(L2_MAX_POP * .25)  # Genetic pool size
 
 # Layer 3 user configurables
-L3_EXT = '.lyr3'
-L3_CONTEXTMODE = Connector.is_python_func
+L3_EXT = '.lyr3'                # Layer three model-file extension
+L3_CONTEXTMODE = Connector.is_python_func  # Agent's context mode
 
-# Agent input data set. Length denotes the agent's L1 and L2 depth.
+# Agent input data set - length denotes the number of layer-one nodes
 AGENT_INPUTFILES = ['static/datasets/letters0.csv',
                     'static/datasets/letters1.csv',
                     'static/datasets/letters2.csv',
@@ -106,7 +106,7 @@ AGENT_INPUTFILES = ['static/datasets/letters0.csv',
                     'static/datasets/letters6.csv',
                     'static/datasets/letters7.csv']
 
-# Layer 1 training data (per node). Length must match len(AGENT_INPUTFILES)
+# Layer 1 training data (by node) - length must match len(AGENT_INPUTFILES)
 L1_TRAINFILES = ['static/datasets/letter_train.csv',
                  'static/datasets/letter_train.csv',
                  'static/datasets/letter_train.csv',
@@ -116,7 +116,7 @@ L1_TRAINFILES = ['static/datasets/letter_train.csv',
                  'static/datasets/letter_train.csv',
                  'static/datasets/letter_train.csv']
 
-# Layer 1 validation data (per node). Length must match len(AGENT_INPUTFILES)
+# Layer 1 validation data (by node) - length must match len(AGENT_INPUTFILES)
 L1_VALIDFILES = ['static/datasets/letter_val.csv',
                  'static/datasets/letter_val.csv',
                  'static/datasets/letter_val.csv',
@@ -126,7 +126,7 @@ L1_VALIDFILES = ['static/datasets/letter_val.csv',
                  'static/datasets/letter_val.csv',
                  'static/datasets/letter_val.csv']
 
-# Non-user configurable
+# Output graph labels
 GRAPH_LEGEND_AGENT = (['Avg Try Len'], 
                       ['Learns'],
                       ['Encounters'],
@@ -134,9 +134,10 @@ GRAPH_LEGEND_AGENT = (['Avg Try Len'],
                       ['ReE Std Dev'])
 GRAPH_LEGEND_L1TRAIN = (['Training Loss'], ['Validation Acc'])
 
-# Globals
+# Module-level globals
 g_start_time = datetime.now()    # Application start time
 g_graph_out = None               # Output graph handler
+
 
 class ClassifierLayer(object):
     """ An abstraction of the agent's classifier layer (i.e. layer one), 
