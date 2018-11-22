@@ -36,28 +36,28 @@ Each layer may persist to file and handle its own logging, depending on configur
 
 ### Documentation
 
-For more infomration on the agent, its layers, example usage, problem domain , and current results, see the extensive inline code-level documentation, example module uses (found in each modules `if __main__`), and the main documentation file at `docs/documentation.docx`.
+For more information on the agent, its layers, example usage, problem domain, and current results, see the extensive inline code-level documentation and/or the primary documentation at `docs/documentation.docx`.
 
 ## File Structure
 
 ```
 /
+|   agent.py            - The top-level agent module
+|   classifier.py       - An Aritificial Neural Net Classifier (e.g. level-one node)
+|   connector.py        - The agent's environmental feedback functions / context-modes
+|   genetic.py          - The genetic programming module
+|   LICENSE             - GPLv3License
+|   README.md           - This document
+|   sharedlib.py        - Shared application-level library
 |
-|   agent.py        - The top-level agent module
-|   classifier.py   - An Aritificial Neural Net Classifier (e.g. level-one node)
-|   connector.py    - The agent's environmental feedback functions / context-modes
-|   genetic.py      - The genetic programming module
-|   LICENSE - GPLv3License.
-|   README.md - This document.
-|   sharedlib.py - Shared application-level library.
++---docs - Application-level documentation
+|      documentation.docx   - Application documentation
 |
-+---docs - Application-level documentation.
++---lib - 3rd party libraries
 |
-+---lib - 3rd party libraries.
++---static - Static files (Ex: Datasets)
 |
-+---static - Static files (Ex: Datasets.)
-|
-+---var - Log and model files, by layer.
++---var - Log and model files
 ```
 
 ## Design Philosophy
