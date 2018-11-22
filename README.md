@@ -1,7 +1,5 @@
 # Intuitive Agency
 
-## Inspiration
-
 `"To explain the integration of information, we need only exhibit mechanisms by which information is brought together and exploited by later processes."`  
 
 -David Chalmers, *Facing Up to The Problem of Consciousness*
