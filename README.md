@@ -97,7 +97,7 @@ The application is developed in Python (3.6). Third party libraries KarooGP and 
 |
 +---lib - 3rd party libraries
 |
-+---static - Static files (e.g. datasets, images)
++---static - Static files (datasets, images, etc.)
 |
 +---var - Output files (logs, models, etc.)
 ```
