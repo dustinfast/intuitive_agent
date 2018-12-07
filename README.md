@@ -35,7 +35,7 @@ In its current form, the agent is attempting to learn the Python program languag
 
 From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
 
-For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary at ![Documentation](https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf "documentation").
+For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf.
 
 Additionally, the code-base contains extensive inline documentation.
 
