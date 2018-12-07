@@ -59,7 +59,6 @@ The agent was designed to scale from a single agent to a node in a hierarchy of 
 
 ![Agent Hierarchy](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/scalable.png "Agent Hierarchy")
 
-
 ## Application
 
 ### Technologies
