@@ -14,7 +14,7 @@ An ensemble learning system was developed to explore mechanisms through which th
 
 In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
 
-Note: the idea here is not to provide these connections as output for human analysis, rather to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
+Note: The idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
 
 ## Design Paradigm
 
