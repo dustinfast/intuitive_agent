@@ -106,7 +106,7 @@ The application is developed in Python (3.6). Third party libraries KarooGP and 
 
 From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
 
-For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at <https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf>.
+For more information on the agent, model, usage, problem domain, and data campaigns, see the documentation at <https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf>.
 
 Additionally, the code-base contains extensive inline documentation.
 
