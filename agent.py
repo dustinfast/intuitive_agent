@@ -46,7 +46,6 @@ __license__ = "GPLv3"
 
 
 # Std lib
-import sys
 import time
 import logging
 from math import sqrt
