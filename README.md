@@ -42,16 +42,16 @@ The  model is composed of three layers, labeled *Classification*, *Evolutionary*
   * Formatted as a row *S* of *n* feature-vectors.
 * Classification
   * Represents our ability to classify patterns based on prev. experience.
-  * Implemented as a set of n artificial neural network classifiers.
+  * Implemented as a set of *n* artificial neural network classifiers.
 * Optimization
   * Represents our ability to create new concepts from existing symbols.
-  * Implemented as a population of genetically evolving expressions.
+  * Implemented as a population of *k* genetically evolving expressions.
 * Evaluation
   * Represents our ability to query our environment for feedback.
-  * Back-propagates fitness according to the current context C.
+  * Back-propagates fitness according to the current context *C*.
 * Output
   * Represents information bound for conscious awareness.
-  * A collection of the k permutations showing logical connectedness.
+  * A collection of the *k* permutations showing logical connectedness.
 
 ### Scalability
 
