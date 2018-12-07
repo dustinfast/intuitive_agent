@@ -64,7 +64,7 @@ The agent was designed to scale from a single agent to a node in a hierarchy of 
 
 ### Technologies
 
-The application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
+The application is developed in Python (3.6). Third party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
 
 ### Dependencies
 
