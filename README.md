@@ -51,7 +51,7 @@ The  model is composed of three layers, labeled *Classification*, *Evolutionary*
   * Back-propagates fitness according to the current context *C*.
 * Output
   * Represents information bound for conscious awareness.
-  * A collection of the *k* permutations showing logical connectedness.
+  * A collection of the permutations showing logical connectedness.
 
 ### Scalability
 
