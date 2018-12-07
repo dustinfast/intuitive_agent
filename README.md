@@ -39,7 +39,7 @@ The  model is composed of three layers, labeled *Classification*, *Evolutionary*
 
 * Input
   * Represents environmental input/stimuli.
-  * Formatted as a row S of n feature-vectors.
+  * Formatted as a row *S* of *n* feature-vectors.
 * Classification
   * Represents our ability to classify patterns based on prev. experience.
   * Implemented as a set of n artificial neural network classifiers.
