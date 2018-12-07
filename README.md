@@ -31,11 +31,24 @@ In this context, intuition can be thought of as a sixth sensory organ (no supern
 
 In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
 
+## The Intuitive Model
+
+The agent operates from an intuitive model composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling contextual fitness.
+
+![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/model.png "The Intuitive Model")
+
+### Scalability
+
+The agent was designed to scale from a single agent to a node in a hierarchy of agents in order to bootstrap an increasingly advanced intuition. In this way, a sufficiently complex agent might come to write its own programs and/or re-write itself according to search-heuristics in real-time via Python’s capability for reflection.
+
+![Agent Hierarchy](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/scalable.png "Agent Hierarchy")
+
+
 ## Usage
 
 From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
 
-For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf.
+For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at <https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf>.
 
 Additionally, the code-base contains extensive inline documentation.
 
@@ -78,17 +91,5 @@ The application was developed in Python (3.6). The 3rd party libraries KarooGP a
 |
 +---var - Output files (logs, models, etc.)
 ```
-
-## The Intuitive Model
-
-The agent operates from an intuitive model composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling contextual fitness.
-
-![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/model.png "The Intuitive Model")
-
-### Scalability
-
-The agent was designed to scale from a single agent to a node in a hierarchy of agents in order to bootstrap an increasingly advanced intuition. In this way, a sufficiently complex agent might come to write its own programs and/or re-write itself according to search-heuristics in real-time via Python’s capability for reflection.
-
-![Agent Hierarchy](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/scalable.png "Agent Hierarchy")
 
 #### Author: Dustin Fast, 2018
