@@ -10,9 +10,11 @@ General intelligence of the type we possess exists exclusively, for now, in the 
 
 One defining aspect of our intelligence is the ability to subconsciously form new connections between abstract concepts which seem to “bubble up” into our awareness. This phenomenon, commonly called intuition, is responsible, not only for our most profound "Aha!" moments, but also for the sudden, seemingly-arbitrary changes in awareness we routinely experience of, say, the ticking of a clock on the wall.
 
-An ensemble learning system was developed to explore mechanisms through which this intuitive behavior might emerge. For validation purposes, the system agent was subsequently applied to the task of classifying known search-space symbols and stochastically optimizing a combinatorial generator in order to quickly find the logical connections among them according to a predefined context.
+An ensemble learning system was developed to explore mechanisms through which this intuitive behavior might emerge, with a system agent applied to the task of classifying known search-space symbols and stochastically optimizing a combinatorial generator in order to quickly find the logical connections among them according to its predefined context.
 
-Note that the idea here is not to provide these connections as output for human analysis, rather to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
+In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
+
+Note: the idea here is not to provide these connections as output for human analysis, rather to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
 
 ## Design Paradigm
 
@@ -26,10 +28,6 @@ Although intuition exists inside us as a “black box” (we cannot consciously 
 * An agent possessing an intuition may naturally act to explore, and seek to understand, its environment.
 
 In this context, intuition can be thought of as a sixth sensory organ (no supernatural connotations intended), different from the first five in that the information it serves is pre-processed by the sub-conscience and carries with it contextual meaning and symbolic comprehension; ideas composed by filtering sensory information through the sieve of one’s accumulated life experiences.
-
-## Problem Domain
-
-In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
 
 ## The Intuitive Model
 
