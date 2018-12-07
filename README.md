@@ -55,7 +55,7 @@ The  model is composed of three layers, labeled *Classification*, *Evolutionary*
 
 ### Scalability
 
-The agent was designed to scale from a single agent to a node in a hierarchy of agents in order to bootstrap an increasingly advanced intuition. In this way, a sufficiently complex agent might come to write its own programs and/or re-write itself according to search-heuristics in real-time via Python’s capability for reflection.
+The agent was designed to scale from a single agent to a node in a hierarchy of agents in order to bootstrap an increasingly advanced intuition. In this way, a sufficiently complex agent might come to write its own programs and/or re-write itself according to search-space heuristics in real-time via Python’s capability for reflection.
 
 ![Agent Hierarchy](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/scalable.png "Agent Hierarchy")
 
