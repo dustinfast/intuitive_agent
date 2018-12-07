@@ -54,7 +54,6 @@ from itertools import groupby
 from threading import Thread
 from optparse import OptionParser as opt
 
-
 # Custom
 from classifier import Classifier   # Used by Layer one (one instance/node)
 from genetic import Genetic         # Used by layer two (one instance/agent)
