@@ -12,9 +12,7 @@ One defining aspect of our intelligence is the ability to subconsciously form ne
 
 An ensemble learning system was developed to explore mechanisms through which this intuitive behavior might emerge. For validation purposes, the system agent was subsequently applied to the task of classifying known search-space symbols and stochastically optimizing a combinatorial generator in order to quickly find the logical connections among them according to a predefined context.
 
-Note that the idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent able to adapt to new environments in an intuitive way - a kind of generalized, competitive pattern recognizer.
-
-The application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
+Note that the idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent able to adapt to new environments in an intuitive way - a kind of generalized, competitive pattern recognizer. In other words, the actual conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
 
 ## Design Paradigm
 
@@ -41,6 +39,10 @@ For more information on the agent, its layers, usage, problem domain, and data c
 
 Additionally, the code-base contains extensive inline documentation.
 
+## Technologies
+
+The application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
+
 ### Dependencies
 
 | Dependency    | Installation                              |
@@ -61,12 +63,12 @@ Additionally, the code-base contains extensive inline documentation.
 ```
 /
 |   agent.py            - The top-level agent module
-|   classifier.py       - An Aritificial Neural Net Classifier (e.g. level-one node)
-|   connector.py        - The agent's environmental feedback functions / context-modes
-|   genetic.py          - The genetic programming module
+|   classifier.py       - Aritificial neural network module
+|   connector.py        - Context mode / environmental feedback functions
+|   genetic.py          - Genetic programming module
 |   LICENSE             - GPLv3License
 |   README.md           - This document
-|   sharedlib.py        - Shared application-level library
+|   sharedlib.py        - Shared classes and functions
 |
 +---docs - Application documentation
 |
@@ -79,8 +81,7 @@ Additionally, the code-base contains extensive inline documentation.
 
 ## The Intuitive Model
 
-The agent operates from an intuitive model composed of three layers, labeldd *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling the agent's current state and contextual fitness.
-Each layer may persist to file and handle its own logging, depending on configurable options.
+The agent operates from an intuitive model composed of three layers, labeled *Classification*, *Evolutionary*, and *Logical*. Data is mostly feed-forward, with recurrent feedback signaling contextual fitness.
 
 ![The Intuitive Model](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/model.png "The Intuitive Model")
 
