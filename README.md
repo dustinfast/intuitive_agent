@@ -27,7 +27,7 @@ Although intuition exists inside us as a “black box” (we cannot consciously 
 * The subconscious is likely optimized by processes that are Darwinian in nature.
 * An agent possessing an intuition may naturally act to explore, and seek to understand, its environment.
 
-In this context, intuition can be thought of as a sixth sensory organ (no supernatural connotations intended), different from the first five in that the information it serves is pre-processed by the sub-conscience and carries with it contextual meaning and symbolic comprehension; ideas composed by filtering sensory information through the sieve of one’s accumulated life experiences.
+In this context, intuition can be thought of as a sixth sensory organ (no supernatural connotations intended), different from the first five in that the information it serves is pre-processed by the sub-conscience and carries with it contextual meaning and symbolic comprehension: ideas composed by filtering sensory information through the sieve of one’s accumulated life experiences.
 
 ## The Intuitive Model
 
