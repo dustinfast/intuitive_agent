@@ -12,9 +12,9 @@ One defining aspect of our intelligence is the ability to subconsciously form ne
 
 An ensemble learning system was developed to explore mechanisms through which this intuitive behavior might emerge, with a system agent applied to the task of classifying known search-space symbols and stochastically optimizing a combinatorial generator in order to quickly find the logical connections among them according to its predefined context.
 
-In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
+The idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
 
-Note: The idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent with the ability to adapt to new environments in an intuitive way. I.e., the conclusions reached by the agent are irrelevant as long as they're conducive to its survival.
+In its current form, the agent is attempting to learn the Python program language with the eventual goal of dynamically modifying itself via Python's ability for reflection.
 
 ## Design Paradigm
 
