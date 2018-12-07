@@ -60,15 +60,9 @@ The agent was designed to scale from a single agent to a node in a hierarchy of 
 ![Agent Hierarchy](https://github.com/dustinfast/intuitive_agent/raw/master/static/img/scalable.png "Agent Hierarchy")
 
 
-## Usage
+## Application
 
-From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
-
-For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at <https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf>.
-
-Additionally, the code-base contains extensive inline documentation.
-
-## Technologies
+### Technologies
 
 The application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
 
@@ -87,7 +81,7 @@ The application was developed in Python (3.6). The 3rd party libraries KarooGP a
 |TensorFlow     | see https://www.tensorflow.org/install    |
 |Scipy          | pip install scipy                         |
 
-## File Hierarchy
+### File Hierarchy
 
 ```
 /
@@ -107,5 +101,13 @@ The application was developed in Python (3.6). The 3rd party libraries KarooGP a
 |
 +---var - Output files (logs, models, etc.)
 ```
+
+### Usage
+
+From the command line, run the agent with `./agent.py`. Performance metrics are displayed graphically as the agent runs. Try `./agent.py --help` for more options.
+
+For more information on the agent, its layers, usage, problem domain, and data campaigns, see the primary documentation at <https://github.com/dustinfast/intuitive_agent/raw/master/docs/pdf/documentation.pdf>.
+
+Additionally, the code-base contains extensive inline documentation.
 
 #### Author: Dustin Fast, 2018
