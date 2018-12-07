@@ -12,7 +12,9 @@ One defining aspect of our intelligence is the ability to subconsciously form ne
 
 An ensemble learning system was developed to explore mechanisms through which this intuitive behavior might emerge. For validation purposes, the system agent was subsequently applied to the task of classifying known search-space symbols and stochastically optimizing a combinatorial generator in order to quickly find the logical connections among them according to a predefined context.
 
-This application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
+Note that the idea here is not to provide these connections as output for human analysis, rather it is to demonstrate an agent able to adapt to new environments in an intuitive way - a kind of generalized, competitive pattern recognizer.
+
+The application was developed in Python (3.6). The 3rd party libraries KarooGP and PyTorch were used for their genetic programming and machine learning functionalities, respectively.
 
 ## Design Paradigm
 
