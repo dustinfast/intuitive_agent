@@ -1,5 +1,6 @@
 # Intuitive Agency
 
+## Inspiration
 `"To explain the integration of information, we need only exhibit mechanisms by which information is brought together and exploited by later processes."`  
 
 -David Chalmers, *Facing Up to The Problem of Consciousness*
@@ -18,7 +19,7 @@ In its current form, the agent is attempting to learn the Python program languag
 
 ## Design Paradigm
 
-Although intuition exists inside us as a “black box” (we cannot consciously observe its decision-making processes), evolutionary programming techniques implemented according to observations of our behavior and biology may allow us to converge on an approximate solution. Towards this end, a model of intuition was conceived, based on the following assumptions -
+Although intuition exists inside us as a “black box” (we cannot consciously observe its decision-making processes), evolutionary programming techniques implemented according to observations of our behavior and biology may allow us to converge on an approximate solution. In an effort to arrive at such a convergence, a model of intuition was conceived based on the following assumptions -
 
 * Some system, operating at the sub-conscious level, exists for selectively serving information into awareness.
 * Awareness and intuition exist in a feedback loop, each influencing the other.
